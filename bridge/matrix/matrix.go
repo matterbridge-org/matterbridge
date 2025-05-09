@@ -14,8 +14,13 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
-	// Custom fork of unmaintained library, needs replacement:
+	"image"
+	// Initialize specific format decoders,
+	// see https://pkg.go.dev/image
 	matrix "github.com/matterbridge/gomatrix"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 )
 
 var (
@@ -696,9 +701,29 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, channel string, fi *conf
 		}
 	case strings.Contains(mtype, "image"):
 		b.Log.Debugf("sendImage %s", res.ContentURI)
-		err = b.retry(func() error {
-			_, err = b.mc.SendImage(channel, fi.Name, res.ContentURI)
 
+		cfg, format, err2 := image.DecodeConfig(bytes.NewReader(*fi.Data))
+		if err2 != nil {
+			b.Log.WithError(err2).Errorf("Failed to decode image %s", fi.Name)
+			return
+		}
+
+		b.Log.Debugf("Image format detected: %s (%dx%d)", format, cfg.Width, cfg.Height)
+
+		img := matrix.ImageMessage{
+			MsgType: "m.image",
+			Body:    fi.Name,
+			URL:     res.ContentURI,
+			Info: matrix.ImageInfo{
+				Mimetype: mtype,
+				Size:     uint(len(*fi.Data)),
+				Width:    uint(cfg.Width),  // #nosec G115 -- go std will not returned negative size
+				Height:   uint(cfg.Height), // #nosec G115 -- go std will not returned negative size
+			},
+		}
+
+		err = b.retry(func() error {
+			_, err = b.mc.SendMessageEvent(channel, "m.room.message", img)
 			return err
 		})
 		if err != nil {
