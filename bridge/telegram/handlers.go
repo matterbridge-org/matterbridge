@@ -512,6 +512,41 @@ func (b *Btelegram) handleEdit(msg *config.Message, chatid int64) (string, error
 // handleUploadFile handles native upload of files
 func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid int, parentID int) (string, error) {
 	var media []interface{}
+	equal := true
+	first := true
+	var prev string
+
+	for _, f := range msg.Extra["file"] {
+		fi := f.(config.FileInfo)
+		var ftype string
+
+		switch filepath.Ext(fi.Name) {
+		case ".jpg", ".jpe", ".png":
+			ftype = "image"
+		case ".mp4", ".m4v":
+			ftype = "video"
+		case ".mp3", ".oga", ".ogg", ".opus", ".flac":
+			ftype = "audio"
+		default:
+			ftype = "document"
+		}
+
+		if ftype == "document" {
+			equal = false
+			break
+		}
+
+		if first {
+			prev = ftype
+			equal = true
+		} else {
+			if prev != ftype {
+				equal = false
+			}
+			prev = ftype
+		}
+	}
+
 	for _, f := range msg.Extra["file"] {
 		fi := f.(config.FileInfo)
 		file := tgbotapi.FileBytes{
@@ -521,6 +556,15 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 
 		if b.GetString("MessageFormat") == HTMLFormat {
 			fi.Comment = makeHTML(html.EscapeString(fi.Comment))
+		}
+
+		if !equal {
+			dc := tgbotapi.NewInputMediaDocument(file)
+			if fi.Comment != "" {
+				dc.Caption, dc.ParseMode = TGGetParseMode(b, msg.Username, fi.Comment)
+			}
+			media = append(media, dc)
+			continue
 		}
 
 		switch filepath.Ext(fi.Name) {
@@ -536,21 +580,22 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 				vc.Caption, vc.ParseMode = TGGetParseMode(b, msg.Username, fi.Comment)
 			}
 			media = append(media, vc)
-		case ".mp3", ".oga":
+		case ".mp3", ".oga", ".ogg", ".opus", ".flac":
 			ac := tgbotapi.NewInputMediaAudio(file)
 			if fi.Comment != "" {
 				ac.Caption, ac.ParseMode = TGGetParseMode(b, msg.Username, fi.Comment)
 			}
+			ac.Caption = fi.Name
 			media = append(media, ac)
-		case ".ogg":
-			voc := tgbotapi.NewVoice(chatid, file)
-			voc.Caption, voc.ParseMode = TGGetParseMode(b, msg.Username, fi.Comment)
-			voc.ReplyToMessageID = parentID
-			res, err := b.c.Send(voc)
-			if err != nil {
-				return "", err
-			}
-			return strconv.Itoa(res.MessageID), nil
+//		case ".ogg":
+//			voc := tgbotapi.NewVoice(chatid, file)
+//			voc.Caption, voc.ParseMode = TGGetParseMode(b, msg.Username, fi.Comment)
+//			voc.ReplyToMessageID = parentID
+//			res, err := b.c.Send(voc)
+//			if err != nil {
+//				return "", err
+//			}
+//			return strconv.Itoa(res.MessageID), nil
 		default:
 			dc := tgbotapi.NewInputMediaDocument(file)
 			if fi.Comment != "" {
