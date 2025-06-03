@@ -545,6 +545,8 @@ func (b *Bmatrix) handleEvent(ev *matrix.Event) {
 			if err != nil {
 				b.Log.Errorf("download failed: %#v", err)
 			}
+		} else {
+			b.Log.Debugf("-- NO, we do NOT have any attachments!")
 		}
 
 		b.Log.Debugf("<= Sending message from %s on %s to gateway", ev.Sender, b.Account)
@@ -678,24 +680,24 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, channel string, fi *conf
 		if err != nil {
 			b.Log.Errorf("sendImage failed: %#v", err)
 		}
-	case strings.Contains(mtype, "audio"):
-		b.Log.Debugf("sendAudio %s", res.ContentURI)
-		err = b.retry(func() error {
-			_, err = b.mc.SendMessageEvent(channel, "m.room.message", matrix.AudioMessage{
-				MsgType: "m.audio",
-				Body:    fi.Name,
-				URL:     res.ContentURI,
-				Info: matrix.AudioInfo{
-					Mimetype: mtype,
-					Size:     uint(len(*fi.Data)),
-				},
-			})
-
-			return err
-		})
-		if err != nil {
-			b.Log.Errorf("sendAudio failed: %#v", err)
-		}
+//	case strings.Contains(mtype, "audio"):
+//		b.Log.Debugf("sendAudio %s", res.ContentURI)
+//		err = b.retry(func() error {
+//			_, err = b.mc.SendMessageEvent(channel, "m.room.message", matrix.AudioMessage{
+//				MsgType: "m.audio",
+//				Body:    fi.Name,
+//				URL:     res.ContentURI,
+//				Info: matrix.AudioInfo{
+//					Mimetype: mtype,
+//					Size:     uint(len(*fi.Data)),
+//				},
+//			})
+//
+//			return err
+//		})
+//		if err != nil {
+//			b.Log.Errorf("sendAudio failed: %#v", err)
+//		}
 	default:
 		b.Log.Debugf("sendFile %s", res.ContentURI)
 		err = b.retry(func() error {
