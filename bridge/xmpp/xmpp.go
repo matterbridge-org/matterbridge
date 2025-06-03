@@ -27,6 +27,8 @@ type Bxmpp struct {
 	xmppMap   map[string]string
 	connected bool
 	sync.RWMutex
+	// If not empty, files that has matching URL will be dowloaded and re-uploaded to destination as regular files
+	BOSHUrl   string
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
@@ -200,6 +202,8 @@ func (b *Bxmpp) createXMPP() error {
 	}
 	var err error
 	b.xc, err = options.NewClient()
+	b.BOSHUrl = b.GetString("BOSHUrl")
+
 	return err
 }
 
@@ -324,6 +328,28 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+				}
+
+				// Text is URL of BOSH server
+				if b.isUrl(v.Text, b.BOSHUrl) {
+					parsedUrl, err := url.Parse(v.Text)
+					if err == nil && parsedUrl.Scheme != "" && parsedUrl.Host != "" {
+						size := int64(0)
+						url := v.Text
+						fileName := parsedUrl.Path[strings.LastIndex(parsedUrl.Path, "/") + 1:]
+
+						data, err2 := helper.DownloadFile(url)
+						if err2 == nil {
+							size = int64(len(*data))
+
+							err = helper.HandleDownloadSize(b.Log, &rmsg, fileName, size, b.General)
+							if err == nil {
+								rmsg.Extra = make(map[string][]interface{})
+								helper.HandleDownloadData(b.Log, &rmsg, fileName, fileName, "", data, b.General)
+								rmsg.Text = ""
+							}
+						}
+					}
 				}
 
 				// Check if we have an action event.

@@ -2,6 +2,8 @@ package bxmpp
 
 import (
 	"regexp"
+	"strings"
+	"net/url"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 )
@@ -27,4 +29,17 @@ func (b *Bxmpp) cacheAvatar(msg *config.Message) string {
 		b.avatarMap[msg.UserID] = fi.SHA
 	}
 	return ""
+}
+
+func (b *Bxmpp) isUrl(str string, boshUrl string) bool {
+	if boshUrl == "" {
+		return false
+	}
+
+	if !strings.HasPrefix(str, boshUrl) {
+		return false
+	}
+
+	parsedUrl, err := url.Parse(str)
+	return err == nil && parsedUrl.Scheme != "" && parsedUrl.Host != ""
 }
