@@ -4,6 +4,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
 )
 
 func (b *Bdiscord) messageDelete(s *discordgo.Session, m *discordgo.MessageDelete) { //nolint:unparam
@@ -98,14 +99,43 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		return
 	}
 
+	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: m.Author.ID, ID: m.ID, Extra: make(map[string][]interface{})}
+
 	// add the url of the attachments to content
 	if len(m.Attachments) > 0 {
+		first := true
 		for _, attach := range m.Attachments {
-			m.Content = m.Content + "\n" + attach.URL
+			if b.alwaysDownloadFiles {
+				var url, name, caption string
+
+				url = attach.URL
+				name = attach.Filename
+
+				err = helper.HandleDownloadSize(b.Log, &rmsg, name, int64(attach.Size), b.General)
+				if err != nil {
+					return
+				}
+				data, err := helper.DownloadFile(url)
+				if err != nil {
+					return
+				}
+
+				if first {
+					caption = m.Content
+					if caption == "" {
+						caption = name
+					}
+					first = false
+				} else {
+					caption = ""
+				}
+
+				helper.HandleDownloadData(b.Log, &rmsg, name, caption, "", data, b.General)
+			} else {
+				m.Content = m.Content + "\n" + attach.URL
+			}
 		}
 	}
-
-	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: m.Author.ID, ID: m.ID}
 
 	b.Log.Debugf("== Receiving event %#v", m.Message)
 
@@ -139,7 +169,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	}
 
 	// no empty messages
-	if rmsg.Text == "" {
+	if rmsg.Text == "" && len(m.Attachments) == 0 {
 		return
 	}
 
