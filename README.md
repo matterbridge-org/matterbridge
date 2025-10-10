@@ -22,6 +22,11 @@ Letting people be where they want to be with the magic of [interoperability](htt
 
 matterbridge is a solution to connect users on different platforms/protocols, allowing them to chat in the best conditions possible. Despite the name, Matter<em>most</em> isn't required to run matter<em>bridge</em>.
 
+> [!WARNING]
+> This fork has edited the history of the project to remove ~100MB of vendoring.
+> This will faciliate review of new PRs, see [community/#5](https://github.com/matterbridge-org/community/issues/5)
+> for the reasons why we did this and how to make sure we didn't introduce backdoors in this process.
+
 ## Features
 
 Many features are available, but not all of them are supported on all protocols:
