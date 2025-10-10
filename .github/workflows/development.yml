@@ -42,8 +42,8 @@ jobs:
         uses: actions/checkout@v5
       - name: go fmt ./... (go version ${{ matrix.go-version }})
         run: test -z "$(go fmt ./...)"
-      - name: go test ./... -mod=vendor (go version ${{ matrix.go-version }})
-        run: go test ./... -mod=vendor
+      - name: go test ./... (go version ${{ matrix.go-version }})
+        run: go test ./...
   build-upload:
     # Uploading artifacts only if lint/test succeeded
     needs: [ "lint", "test" ]

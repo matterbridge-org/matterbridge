@@ -1,3 +1,11 @@
+# unreleased
+
+## BREAKING
+
+- Main development repository is now https://github.com/matterbridge-org/matterbridge
+- History was rewritten to remove the vendor/ folder, easing PR reviews and making the
+  repository much lighter. [See issue #5](https://github.com/matterbridge-org/community/issues/5).
+
 # v1.26.0
 
 ## New features
