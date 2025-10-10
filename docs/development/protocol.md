@@ -18,7 +18,6 @@ This guide explains how to create a new protocol backend to support a new gatewa
   - [ ] Add your bridge to README
   - [ ] Document all exported functions
 - [ ] Run `golint` and `goimports` and clean the code
-- [ ] Run `go mod vendor` to pull in all the vendor code
 - [ ] Send a PR
 
 ## Features
