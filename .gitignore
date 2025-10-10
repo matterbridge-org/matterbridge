@@ -7,3 +7,6 @@ matterbridge.toml
 
 # Exclude IDE Files
 .vscode
+
+# Ignore vendoring in repository
+/vendor
