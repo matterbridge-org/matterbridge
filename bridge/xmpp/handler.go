@@ -3,7 +3,7 @@ package bxmpp
 import (
 	"github.com/42wim/matterbridge/bridge/config"
 	"github.com/42wim/matterbridge/bridge/helper"
-	"github.com/matterbridge/go-xmpp"
+	"github.com/xmppo/go-xmpp"
 )
 
 // handleDownloadAvatar downloads the avatar of userid from channel

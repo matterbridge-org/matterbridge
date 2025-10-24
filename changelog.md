@@ -11,6 +11,12 @@
   - steam protocol has changed profoundly
   - keybase has been removed because we don't have a maintainer for it. See
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
+- xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
+- Go required version is now v1.24
+
+## Upstream
+
+- xmpp: go-xmpp updated to xmppo/go-xmpp v0.2.18
 
 # v1.26.0
 

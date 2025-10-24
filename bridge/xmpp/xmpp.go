@@ -15,8 +15,8 @@ import (
 	"github.com/42wim/matterbridge/bridge/config"
 	"github.com/42wim/matterbridge/bridge/helper"
 	"github.com/jpillora/backoff"
-	"github.com/matterbridge/go-xmpp"
 	"github.com/rs/xid"
+	"github.com/xmppo/go-xmpp"
 )
 
 type Bxmpp struct {
@@ -125,21 +125,18 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	}
 
 	// Post normal message.
-	var msgReplaceID string
-	msgID := xid.New().String()
-	if msg.ID != "" {
-		msgReplaceID = msg.ID
-	}
 	b.Log.Debugf("=> Sending message %#v", msg)
 	if _, err := b.xc.Send(xmpp.Chat{
-		Type:      "groupchat",
-		Remote:    msg.Channel + "@" + b.GetString("Muc"),
-		Text:      msg.Username + msg.Text,
-		ID:        msgID,
-		ReplaceID: msgReplaceID,
+		Type:   "groupchat",
+		Remote: msg.Channel + "@" + b.GetString("Muc"),
+		Text:   msg.Username + msg.Text,
 	}); err != nil {
 		return "", err
 	}
+
+	// Generate a dummy ID because to avoid collision with other internal messages
+	// However this does not provide proper Edits/Replies integration on XMPP side.
+	msgID := xid.New().String()
 	return msgID, nil
 }
 
@@ -186,8 +183,6 @@ func (b *Bxmpp) createXMPP() error {
 		InsecureSkipVerify: b.GetBool("SkipTLSVerify"), // nolint: gosec
 	}
 
-	xmpp.DebugWriter = b.Log.Writer()
-
 	options := xmpp.Options{
 		Host:                         b.GetString("Server"),
 		User:                         b.GetString("Jid"),
@@ -201,6 +196,7 @@ func (b *Bxmpp) createXMPP() error {
 		StatusMessage:                "",
 		Resource:                     "",
 		InsecureAllowUnencryptedAuth: b.GetBool("NoTLS"),
+		DebugWriter:                  b.Log.Writer(),
 	}
 	var err error
 	b.xc, err = options.NewClient()
@@ -317,10 +313,6 @@ func (b *Bxmpp) handleXMPP() error {
 					avatar = getAvatar(b.avatarMap, v.Remote, b.General)
 				}
 
-				msgID := v.ID
-				if v.ReplaceID != "" {
-					msgID = v.ReplaceID
-				}
 				rmsg := config.Message{
 					Username: b.parseNick(v.Remote),
 					Text:     v.Text,
@@ -328,8 +320,10 @@ func (b *Bxmpp) handleXMPP() error {
 					Account:  b.Account,
 					Avatar:   avatar,
 					UserID:   v.Remote,
-					ID:       msgID,
-					Event:    event,
+					// Here the stanza-id has been set by the server and can be used to provide replies
+					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
+					ID:    v.StanzaID.ID,
+					Event: event,
 				}
 
 				// Check if we have an action event.
@@ -436,11 +430,6 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 
 	// do not show subjects on connect #732
 	if strings.Contains(message.Text, "has set the subject to:") && time.Since(b.startTime) < time.Second*5 {
-		return true
-	}
-
-	// Ignore messages posted by our webhook
-	if b.GetString("WebhookURL") != "" && strings.Contains(message.ID, "webhookbot") {
 		return true
 	}
 
