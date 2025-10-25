@@ -1,0 +1,31 @@
+[xmpp.test]
+Server="matterbridge-test.localhost:52222"
+Jid="matterbridge-xmpp@matterbridge-test.localhost"
+Password="AnythingGoesHere"
+Muc="muc.matterbridge-test.localhost"
+Nick="matterbridge-xmpp"
+Label=""
+RemoteNickFormat="<{NICK}> "
+ShowJoinPart=false
+StripNick=false
+ShowTopicChange=false
+NoTLS=true
+StartTLS=false
+InsecureAllowUnencryptedAuth = true
+SkipTLSVerify=true
+# Mechanism = "PLAIN"
+
+[api.test]
+BindAddress="127.0.0.1:4242"
+Buffer=1000
+RemoteNickFormat="<{NICK}>"
+
+[[gateway]]
+name="test"
+enable=true
+[[gateway.inout]]
+account="xmpp.test"
+channel="test"
+[[gateway.inout]]
+account = "api.test"
+channel = "api"

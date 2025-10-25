@@ -1,0 +1,32 @@
+name: Integration tests
+on: [push, pull_request]
+jobs:
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      # Install prosody's latest release from upstream
+      - run: sudo wget https://prosody.im/downloads/repos/$(lsb_release -sc)/prosody.sources -O/etc/apt/sources.list.d/prosody.sources
+      - run: sudo apt update
+      - run: sudo apt install -y mercurial lua5.4
+      - run: sudo update-alternatives --set lua-interpreter /usr/bin/lua5.4
+      - run: sudo apt install -y prosody
+      # Setup prosody community modules
+      - run: hg clone https://hg.prosody.im/prosody-modules/ prosody-modules
+      # Copy mod_auth_any to global prosody modules
+      - run: sudo cp -R prosody-modules/mod_auth_any /usr/lib/prosody/modules/
+      # Only one test is run for now
+      - run: ./tests/test.sh xmpp outgoing-message
+      # Upload logs when it failed
+      - run: cat tests/xmpp/setup.log
+        if: ${{ failure() }}
+      - run: cat tests/xmpp/matterbridge.log
+        if: ${{ failure() }}
+      - run: cat tests/xmpp/xmpp.log
+        if: ${{ failure() }}
+      - run: cat tests/xmpp/api.log
+        if: ${{ failure() }}

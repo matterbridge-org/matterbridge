@@ -62,7 +62,10 @@ func (b *Bxmpp) JoinChannel(channel config.ChannelInfo) error {
 		b.Log.Debugf("using key %s for channel %s", channel.Options.Key, channel.Name)
 		b.xc.JoinProtectedMUC(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"), channel.Options.Key, xmpp.NoHistory, 0, nil)
 	} else {
-		b.xc.JoinMUCNoHistory(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"))
+		// b.xc.JoinMUCNoHistory(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"))
+		// TODO: this creates the room if it doesn't exist yet
+		// should it be the default?
+		_, _ = b.xc.JoinOrCreateMUCNoHistoryDoNotUseOutsideTests(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"))
 	}
 	return nil
 }
