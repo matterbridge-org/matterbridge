@@ -4,6 +4,7 @@
 package bwhatsapp
 
 import (
+	"context"
 	"fmt"
 	"mime"
 	"strings"
@@ -242,7 +243,7 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 
 	b.Log.Debugf("Trying to download %s with type %s", filename, imsg.GetMimetype())
 
-	data, err := b.wc.Download(imsg)
+	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
 		b.Log.Errorf("Download image failed: %s", err)
 
@@ -309,7 +310,7 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 
 	b.Log.Debugf("Trying to download %s with size %#v and type %s", filename, imsg.GetFileLength(), imsg.GetMimetype())
 
-	data, err := b.wc.Download(imsg)
+	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
 		b.Log.Errorf("Download video failed: %s", err)
 
@@ -366,7 +367,7 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 
 	b.Log.Debugf("Trying to download %s with size %#v and type %s", filename, imsg.GetFileLength(), imsg.GetMimetype())
 
-	data, err := b.wc.Download(imsg)
+	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
 		b.Log.Errorf("Download video failed: %s", err)
 
@@ -420,7 +421,7 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 
 	b.Log.Debugf("Trying to download %s with extension %s and type %s", filename, fileExt, imsg.GetMimetype())
 
-	data, err := b.wc.Download(imsg)
+	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
 		b.Log.Errorf("Download document message failed: %s", err)
 
