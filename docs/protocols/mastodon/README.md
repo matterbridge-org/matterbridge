@@ -7,7 +7,7 @@
 ## Configuration
 
 > [!TIP]
-> For detailed information about mastodon settings, see [settings.md](settings.md)
+> For help getting a client id/secret/access token, see [application.md](application.md)
 
 **Basic configuration example:**
 
