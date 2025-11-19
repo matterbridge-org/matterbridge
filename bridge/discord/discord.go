@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/42wim/matterbridge/bridge"
-	"github.com/42wim/matterbridge/bridge/config"
-	"github.com/42wim/matterbridge/bridge/discord/transmitter"
-	"github.com/42wim/matterbridge/bridge/helper"
 	"github.com/bwmarrin/discordgo"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/matterbridge-org/matterbridge/bridge"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/discord/transmitter"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
 )
 
 const (

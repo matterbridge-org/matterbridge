@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/42wim/matterbridge/bridge"
-	"github.com/42wim/matterbridge/bridge/config"
 	"github.com/Rhymen/go-whatsapp"
+	"github.com/matterbridge-org/matterbridge/bridge"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
 )
 
 const (
@@ -42,7 +42,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 
 	cfg.Log.Warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	cfg.Log.Warn("This bridge is deprecated and not supported anymore. Use the new multidevice whatsapp bridge")
-	cfg.Log.Warn("See https://github.com/42wim/matterbridge#building-with-whatsapp-beta-multidevice-support for more info")
+	cfg.Log.Warn("See https://github.com/matterbridge-org/matterbridge#building-with-whatsapp-beta-multidevice-support for more info")
 	cfg.Log.Warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
 	if number == "" {
@@ -170,7 +170,7 @@ func (b *Bwhatsapp) Disconnect() error {
 
 // JoinChannel Join a WhatsApp group specified in gateway config as channel='number-id@g.us' or channel='Channel name'
 // Required implementation of the Bridger interface
-// https://github.com/42wim/matterbridge/blob/2cfd880cdb0df29771bf8f31df8d990ab897889d/bridge/bridge.go#L11-L16
+// https://github.com/matterbridge-org/matterbridge/blob/2cfd880cdb0df29771bf8f31df8d990ab897889d/bridge/bridge.go#L11-L16
 func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 	byJid := isGroupJid(channel.Name)
 
@@ -277,7 +277,7 @@ func (b *Bwhatsapp) PostImageMessage(msg config.Message, filetype string) (strin
 
 // Send a message from the bridge to WhatsApp
 // Required implementation of the Bridger interface
-// https://github.com/42wim/matterbridge/blob/2cfd880cdb0df29771bf8f31df8d990ab897889d/bridge/bridge.go#L11-L16
+// https://github.com/matterbridge-org/matterbridge/blob/2cfd880cdb0df29771bf8f31df8d990ab897889d/bridge/bridge.go#L11-L16
 func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
 	b.Log.Debugf("=> Receiving %#v", msg)
 

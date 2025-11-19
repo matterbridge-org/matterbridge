@@ -4,7 +4,7 @@ info:
   description: A read/write API for the Matterbridge chat bridge.
   license:
     name: Apache 2.0
-    url: 'https://github.com/42wim/matterbridge/blob/master/LICENSE'
+    url: 'https://github.com/matterbridge-org/matterbridge/blob/master/LICENSE'
   title: Matterbridge API
   version: "0.1.0-oas3"
 paths:
@@ -77,7 +77,7 @@ components:
         event:
           description: >-
             A specific matterbridge event. (see
-            https://github.com/42wim/matterbridge/blob/master/bridge/config/config.go#L16)
+            https://github.com/matterbridge-org/matterbridge/blob/master/bridge/config/config.go#L16)
           type: string
         gateway:
           description: Name of the gateway as configured in matterbridge.toml
@@ -132,7 +132,7 @@ components:
         event:
           description: >-
             A specific matterbridge event. (see
-            https://github.com/42wim/matterbridge/blob/master/bridge/config/config.go#L16)
+            https://github.com/matterbridge-org/matterbridge/blob/master/bridge/config/config.go#L16)
           example: ""
           type: string
         gateway:
@@ -162,7 +162,7 @@ components:
         event:
           description: >-
             A specific matterbridge event. (see
-            https://github.com/42wim/matterbridge/blob/master/bridge/config/config.go#L16)
+            https://github.com/matterbridge-org/matterbridge/blob/master/bridge/config/config.go#L16)
           example: ""
           type: string
         gateway:

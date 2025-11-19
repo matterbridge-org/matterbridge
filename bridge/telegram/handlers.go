@@ -8,9 +8,9 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/42wim/matterbridge/bridge/config"
-	"github.com/42wim/matterbridge/bridge/helper"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	tgbotapi "github.com/matterbridge/telegram-bot-api/v6"
 )
 
@@ -435,7 +435,7 @@ func (b *Btelegram) handleDownload(rmsg *config.Message, message *tgbotapi.Messa
 		b.maybeConvertWebp(&name, data)
 	}
 
-	// rename .oga to .ogg  https://github.com/42wim/matterbridge/issues/906#issuecomment-741793512
+	// rename .oga to .ogg  https://github.com/matterbridge-org/matterbridge/issues/906#issuecomment-741793512
 	if strings.HasSuffix(name, ".oga") && message.Audio != nil {
 		name = strings.Replace(name, ".oga", ".ogg", 1)
 	}

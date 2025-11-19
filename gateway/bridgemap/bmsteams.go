@@ -4,7 +4,7 @@
 package bridgemap
 
 import (
-	bmsteams "github.com/42wim/matterbridge/bridge/msteams"
+	bmsteams "github.com/matterbridge-org/matterbridge/bridge/msteams"
 )
 
 func init() {

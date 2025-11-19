@@ -4,7 +4,7 @@
 package bridgemap
 
 import (
-	brocketchat "github.com/42wim/matterbridge/bridge/rocketchat"
+	brocketchat "github.com/matterbridge-org/matterbridge/bridge/rocketchat"
 )
 
 func init() {

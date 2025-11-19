@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/image/webp"
 
-	"github.com/42wim/matterbridge/bridge/config"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
 )
 
