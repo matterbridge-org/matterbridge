@@ -21,6 +21,10 @@ Matterbridge supports many protocols, although not all of them support all featu
     - [xmpp docs](xmpp/)
     - [xmpp settings](xmpp/settings.md)
   - Channel format: `channel_name` (for `channel_name@muc.server.org` where `muc.server.org` has been configured as `Muc` for the corresponding xmpp account)
+- [Mastodon](https://joinmastodon.org/)
+  - Matterbridge docs:
+    - [mastodon docs](mastodon/)
+    - [mastodon application](mastodon/application.md)
 - [Matrix](https://matrix.org)
   - Matterbridge docs:
     - [matrix docs](matrix/)

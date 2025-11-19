@@ -536,6 +536,31 @@ Label=""
 Team="myteam"
 
 ###################################################################
+#
+# Mastodon
+#
+###################################################################
+
+[mastodon]
+[mastodon.myaccount]
+
+# Your mastodon instance url.
+# REQUIRED
+Server="https://mastodon.social"
+
+# Application client key
+# REQUIRED
+ClientID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Application client secret
+# REQUIRED
+ClientSecret="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Application access token
+# REQUIRED
+AccessToken="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+###################################################################
 # Microsoft teams section
 # See https://github.com/42wim/matterbridge/wiki/MS-Teams-setup
 ###################################################################
@@ -1756,6 +1781,8 @@ enable=true
     #   hipchat  |    id_channel      |         example needed        | See https://www.hipchat.com/account/xmpp for the correct channel
     # -------------------------------------------------------------------------------------------------------------------------------------
     #    irc     |      channel       |            #general           | The # symbol is required and should be lowercase!
+    # -------------------------------------------------------------------------------------------------------------------------------------
+    #  mastodon  |      channel       |              home             | The channel can be home or local or @name@mastodon.social
     # -------------------------------------------------------------------------------------------------------------------------------------
     #            |      channel       |            general            | This is the channel name as seen in the URL, not the display name
     # mattermost |    channel id      | ID:oc4wifyuojgw5f3nsuweesmz8w | This is the channel ID (only use if you know what you're doing)

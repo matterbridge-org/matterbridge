@@ -51,9 +51,11 @@ require (
 	google.golang.org/protobuf v1.34.2
 	layeh.com/gumble v0.0.0-20221205141517-d1df60a3cc14
 	modernc.org/sqlite v1.32.0
+	github.com/mattn/go-mastodon v0.0.10
 )
 
 require (
+	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Benau/go_rlottie v0.0.0-20210807002906-98c1b2421989 // indirect
 	github.com/Jeffail/gabs v1.4.0 // indirect
