@@ -77,28 +77,24 @@ func (b *Bmastodon) JoinChannel(channel config.ChannelInfo) error {
 	var err error
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	room := Broom{
-		channel:   "",
+		channel:   channel.Name,
 		ctx:       ctx,
 		ctxCancel: ctxCancel,
 	}
 	if channel.Name == "home" {
 		// You are talking to the home channel
-		room.channel = "home"
 		channelType = channelTypeHome
 		ch, err = b.c.StreamingUser(ctx)
 	} else if channel.Name == "local" {
 		// You are talking to the local channel
-		room.channel = "local"
 		channelType = channelTypeLocal
 		ch, err = b.c.StreamingPublic(ctx, true)
 	} else if channel.Name == "remote" {
 		// You are talking to the remote channel
-		room.channel = "remote"
 		channelType = channelTypeRemote
 		ch, err = b.c.StreamingPublic(ctx, false)
 	} else if strings.HasPrefix(channel.Name, "@") {
 		// You are talking to a private user
-		room.channel = channel.Name
 		channelType = channelTypeDirect
 		ch, err = b.c.StreamingDirect(ctx)
 	} else {
