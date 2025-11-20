@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -41,9 +40,9 @@ type IMessage struct {
 	Timestamp   string `schema:"timestamp"`
 	UserID      string `schema:"user_id"`
 	UserName    string `schema:"user_name"`
-	PostId      string `schema:"post_id"` //nolint:golint
+	PostID      string `schema:"post_id"` //nolint:golint
 	RawText     string `schema:"raw_text"`
-	ServiceId   string `schema:"service_id"` //nolint:golint
+	ServiceID   string `schema:"service_id"` //nolint:golint
 	Text        string `schema:"text"`
 	TriggerWord string `schema:"trigger_word"`
 	FileIDs     string `schema:"file_ids"`
@@ -52,7 +51,7 @@ type IMessage struct {
 // Client for Mattermost.
 type Client struct {
 	// URL for incoming webhooks on mattermost.
-	Url        string // nolint:golint
+	URL        string // nolint:golint
 	In         chan IMessage
 	Out        chan OMessage
 	httpclient *http.Client
@@ -69,7 +68,7 @@ type Config struct {
 
 // New Mattermost client.
 func New(url string, config Config) *Client {
-	c := &Client{Url: url, In: make(chan IMessage), Out: make(chan OMessage), Config: config}
+	c := &Client{URL: url, In: make(chan IMessage), Out: make(chan OMessage), Config: config}
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify}, //nolint:gosec
 	}
@@ -152,14 +151,14 @@ func (c *Client) Send(msg OMessage) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.httpclient.Post(c.Url, "application/json", bytes.NewReader(buf))
+	resp, err := c.httpclient.Post(c.URL, "application/json", bytes.NewReader(buf))
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	// Read entire body to completion to re-use keep-alive connections.
-	io.Copy(ioutil.Discard, resp.Body)
+	io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)

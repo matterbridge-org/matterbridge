@@ -157,10 +157,10 @@ func (b *Bmsteams) poll(channelName string) error {
 		for i := len(res) - 1; i >= 0; i-- {
 			msg := res[i]
 			if mtime, ok := msgmap[*msg.ID]; ok {
-				if mtime == *msg.CreatedDateTime && msg.LastModifiedDateTime == nil {
+				if mtime.Equal(*msg.CreatedDateTime) && msg.LastModifiedDateTime == nil {
 					continue
 				}
-				if msg.LastModifiedDateTime != nil && mtime == *msg.LastModifiedDateTime {
+				if msg.LastModifiedDateTime != nil && mtime.Equal(*msg.LastModifiedDateTime) {
 					continue
 				}
 			}

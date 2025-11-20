@@ -16,8 +16,8 @@ func (b *Bmumble) handleServerConfig(event *gumble.ServerConfigEvent) {
 
 func (b *Bmumble) handleTextMessage(event *gumble.TextMessageEvent) {
 	sender := "unknown"
-	if event.TextMessage.Sender != nil {
-		sender = event.TextMessage.Sender.Name
+	if event.Sender != nil {
+		sender = event.Sender.Name
 	}
 	// If the text message is received before receiving a ServerSync
 	// and UserState, Client.Self or Self.Channel are nil
@@ -26,7 +26,7 @@ func (b *Bmumble) handleTextMessage(event *gumble.TextMessageEvent) {
 		return
 	}
 	// Convert Mumble HTML messages to markdown
-	parts, err := b.convertHTMLtoMarkdown(event.TextMessage.Message)
+	parts, err := b.convertHTMLtoMarkdown(event.Message)
 	if err != nil {
 		b.Log.Error(err)
 	}

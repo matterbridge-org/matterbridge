@@ -1,5 +1,4 @@
 //go:build !nodiscord
-// +build !nodiscord
 
 package bridgemap
 

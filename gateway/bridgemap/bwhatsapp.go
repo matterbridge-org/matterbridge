@@ -1,5 +1,4 @@
 //go:build !nowhatsapp && !whatsappmulti
-// +build !nowhatsapp,!whatsappmulti
 
 package bridgemap
 

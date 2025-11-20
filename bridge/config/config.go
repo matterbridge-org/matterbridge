@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -260,7 +259,7 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 	logger := rootLogger.WithFields(logrus.Fields{"prefix": "config"})
 
 	viper.SetConfigFile(cfgfile)
-	input, err := ioutil.ReadFile(cfgfile)
+	input, err := os.ReadFile(cfgfile)
 	if err != nil {
 		logger.Fatalf("Failed to read configuration file: %#v", err)
 	}
@@ -386,9 +385,9 @@ func GetIconURL(msg *Message, iconURL string) string {
 	info := strings.Split(msg.Account, ".")
 	protocol := info[0]
 	name := info[1]
-	iconURL = strings.Replace(iconURL, "{NICK}", msg.Username, -1)
-	iconURL = strings.Replace(iconURL, "{BRIDGE}", name, -1)
-	iconURL = strings.Replace(iconURL, "{PROTOCOL}", protocol, -1)
+	iconURL = strings.ReplaceAll(iconURL, "{NICK}", msg.Username)
+	iconURL = strings.ReplaceAll(iconURL, "{BRIDGE}", name)
+	iconURL = strings.ReplaceAll(iconURL, "{PROTOCOL}", protocol)
 	return iconURL
 }
 

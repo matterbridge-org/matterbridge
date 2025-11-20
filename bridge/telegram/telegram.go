@@ -191,7 +191,7 @@ func (b *Btelegram) sendMessage(chatid int64, topicid int, username, text string
 	m := tgbotapi.NewMessage(chatid, "")
 	m.Text, m.ParseMode = TGGetParseMode(b, username, text)
 	if topicid != 0 {
-		m.BaseChat.MessageThreadID = topicid
+		m.MessageThreadID = topicid
 	}
 	m.ReplyToMessageID = parentID
 	m.DisableWebPagePreview = b.GetBool("DisableWebPagePreview")

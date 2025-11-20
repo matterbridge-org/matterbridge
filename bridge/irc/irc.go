@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"io/ioutil"
+	"io"
 	"net"
 	"sort"
 	"strconv"
@@ -122,10 +122,7 @@ func (b *Birc) Disconnect() error {
 func (b *Birc) JoinChannel(channel config.ChannelInfo) error {
 	b.channels[channel.Name] = true
 	// need to check if we have nickserv auth done before joining channels
-	for {
-		if b.authDone {
-			break
-		}
+	for !b.authDone {
 		time.Sleep(time.Second)
 	}
 	if channel.Options.Key != "" {
@@ -293,7 +290,7 @@ func (b *Birc) getClient() (*girc.Client, error) {
 		realName = b.GetString("Nick")
 	}
 
-	debug := ioutil.Discard
+	debug := io.Discard
 	if b.GetInt("DebugLevel") == 2 {
 		debug = b.Log.Writer()
 	}

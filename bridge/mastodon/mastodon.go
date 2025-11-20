@@ -17,6 +17,10 @@ import (
 
 var (
 	htmlReplacementTag = regexp.MustCompile("<[^>]*>")
+	channelTypeHome    = "home"
+	channelTypeLocal   = "local"
+	channelTypeRemote  = "remote"
+	channelTypeDirect  = "direct"
 )
 
 type Broom struct {
@@ -27,6 +31,7 @@ type Broom struct {
 
 type Bmastodon struct {
 	*bridge.Config
+
 	c       *mastodon.Client
 	account *mastodon.Account
 
@@ -41,18 +46,18 @@ func New(cfg *bridge.Config) bridge.Bridger {
 func (b *Bmastodon) Connect() error {
 	b.Log.Infof("Connecting %s", b.GetString("Server"))
 
-	config := mastodon.Config{
+	cfg := mastodon.Config{
 		Server:       b.GetString("Server"),
 		ClientID:     b.GetString("ClientID"),
 		ClientSecret: b.GetString("ClientSecret"),
 		AccessToken:  b.GetString("AccessToken"),
 	}
-	b.c = mastodon.NewClient(&config)
+	b.c = mastodon.NewClient(&cfg)
 	var err error
 	b.account, err =
 		b.c.GetAccountCurrentUser(context.Background())
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return nil
@@ -71,41 +76,30 @@ func (b *Bmastodon) JoinChannel(channel config.ChannelInfo) error {
 	var ch chan mastodon.Event
 	var err error
 	ctx, ctxCancel := context.WithCancel(context.Background())
+	room := Broom{
+		channel:   "",
+		ctx:       ctx,
+		ctxCancel: ctxCancel,
+	}
 	if channel.Name == "home" {
 		// You are talking to the home channel
-		b.rooms = append(b.rooms, Broom{
-			channel:   "home",
-			ctx:       ctx,
-			ctxCancel: ctxCancel,
-		})
-		channelType = "home"
+		room.channel = "home"
+		channelType = channelTypeHome
 		ch, err = b.c.StreamingUser(ctx)
 	} else if channel.Name == "local" {
 		// You are talking to the local channel
-		b.rooms = append(b.rooms, Broom{
-			channel:   "local",
-			ctx:       ctx,
-			ctxCancel: ctxCancel,
-		})
-		channelType = "local"
+		room.channel = "local"
+		channelType = channelTypeLocal
 		ch, err = b.c.StreamingPublic(ctx, true)
 	} else if channel.Name == "remote" {
 		// You are talking to the remote channel
-		b.rooms = append(b.rooms, Broom{
-			channel:   "remote",
-			ctx:       ctx,
-			ctxCancel: ctxCancel,
-		})
-		channelType = "remote"
+		room.channel = "remote"
+		channelType = channelTypeRemote
 		ch, err = b.c.StreamingPublic(ctx, false)
 	} else if strings.HasPrefix(channel.Name, "@") {
 		// You are talking to a private user
-		b.rooms = append(b.rooms, Broom{
-			channel:   channel.Name,
-			ctx:       ctx,
-			ctxCancel: ctxCancel,
-		})
-		channelType = "direct"
+		room.channel = channel.Name
+		channelType = channelTypeDirect
 		ch, err = b.c.StreamingDirect(ctx)
 	} else {
 		ctxCancel()
@@ -114,6 +108,7 @@ func (b *Bmastodon) JoinChannel(channel config.ChannelInfo) error {
 	if err != nil {
 		return err
 	}
+	b.rooms = append(b.rooms, room)
 
 	go func() {
 		b.Log.Debugf("run golang channel on streaming api call, channel name: %v", channel.Name)
@@ -121,24 +116,51 @@ func (b *Bmastodon) JoinChannel(channel config.ChannelInfo) error {
 			switch t := msg.(type) {
 			case *mastodon.UpdateEvent:
 				switch channelType {
-				case "local", "home", "remote":
+				case channelTypeHome, channelTypeLocal, channelTypeRemote:
 					b.handleSendRemoteStatus(t.Status, channel.Name)
 				default:
 					b.Log.Debugf("run UpdateEvent on unsupported channelType: %s", channelType)
 				}
 			case *mastodon.ConversationEvent:
 				switch channelType {
-				case "local", "home", "remote":
+				case channelTypeHome, channelTypeLocal, channelTypeRemote:
 					// Not a conversation
 					b.Log.Debugf("run ConversationEvent on unsupported channelType: %s", channelType)
 				default:
 					b.handleSendRemoteStatus(t.Conversation.LastStatus, channel.Name)
 				}
 			}
-
 		}
 	}()
 	return nil
+}
+
+func (b *Bmastodon) Send(msg config.Message) (string, error) {
+	ctx := context.Background()
+
+	// Standard Message Send
+	if msg.Event == "" {
+		sentMessage, err := b.handleSendingMessage(ctx, &msg)
+		if err != nil {
+			b.Log.Errorf("Could not send message to room %v from %v: %v", msg.Channel, msg.Username, err)
+
+			return "", nil
+		}
+		return string(sentMessage.ID), nil
+	}
+
+	// Message Deletion
+	if msg.Event == config.EventMsgDelete {
+		if msg.UserID != string(b.account.ID) {
+			b.Log.Errorf("Can not delete a status that is owned by a different account")
+			return "", nil
+		}
+		err := b.c.DeleteStatus(context.Background(), mastodon.ID(msg.ID))
+		return "", err
+	}
+
+	// Message is not a type that is currently supported
+	return "", nil
 }
 
 func (b *Bmastodon) handleSendRemoteStatus(msg *mastodon.Status, channel string) {
@@ -181,34 +203,6 @@ func (b *Bmastodon) handleSendRemoteStatus(msg *mastodon.Status, channel string)
 	}
 	b.Log.Debugf("<= Message is %#v", remoteMessage)
 	b.Remote <- remoteMessage
-}
-
-func (b *Bmastodon) Send(msg config.Message) (string, error) {
-	ctx := context.Background()
-
-	// Standard Message Send
-	if msg.Event == "" {
-		sentMessage, err := b.handleSendingMessage(ctx, &msg)
-		if err != nil {
-			b.Log.Errorf("Could not send message to room %v from %v: %v", msg.Channel, msg.Username, err)
-
-			return "", nil
-		}
-		return string(sentMessage.ID), nil
-	}
-
-	// Message Deletion
-	if msg.Event == config.EventMsgDelete {
-		if msg.UserID != string(b.account.ID) {
-			b.Log.Errorf("Can not delete a status that is owned by a different account")
-			return "", nil
-		}
-		err := b.c.DeleteStatus(context.Background(), mastodon.ID(msg.ID))
-		return "", err
-	}
-
-	// Message is not a type that is currently supported
-	return "", nil
 }
 
 func (b *Bmastodon) handleSendingMessage(ctx context.Context, msg *config.Message) (*mastodon.Status, error) {
