@@ -355,6 +355,15 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 }
 
 // handleUploadFile handles native upload of files
+// IMPORTANT NOTES:
+//
+// Some clients only display a preview when the body is exactly the URL, not only contains it.
+// https://docs.modernxmpp.org/client/protocol/#communicating-the-url
+//
+// This is the case with Gajim/Conversations for example.
+//
+// This means we cannot have an actual description of the uploaded file, nor can we add
+// information about who posted it... at least in the same message.
 func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 	var urlDesc string
 
@@ -384,8 +393,11 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				Remote:  msg.Channel + "@" + b.GetString("Muc"),
 				Ooburl:  fileInfo.URL,
 				Oobdesc: urlDesc,
+				// See NOTES above
+				Text: fileInfo.URL,
 			}); err != nil {
 				b.Log.WithError(err).Warn("Failed to send share URL.")
+				continue
 			}
 		}
 	}
