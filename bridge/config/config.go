@@ -2,6 +2,8 @@ package config
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -56,6 +58,38 @@ func (m Message) ParentValid() bool {
 	return m.ParentID != "" && !m.ParentNotFound()
 }
 
+// GetFileInfos extracts typed FileInfo list from the message.
+//
+// This method is guaranteed not to fail. The inner type casting should never
+// fail, but will simply produce a warning if that's the case.
+func (m Message) GetFileInfos(log *logrus.Entry) *[]*FileInfo {
+	var fileInfos []*FileInfo
+
+	for _, file := range m.Extra["file"] {
+		fileInfo, ok := file.(FileInfo)
+		if !ok {
+			// This should never happen, unless a bridge receiving an external message
+			// produces an invalid Extra field where the File is not valid FileInfo.
+			// TODO: log more information about the message for debugging.
+			log.Warn(FileCastError())
+			continue
+		}
+
+		fileInfos = append(fileInfos, &fileInfo)
+	}
+
+	return &fileInfos
+}
+
+// FileInfo is an attachment contained in a message.
+//
+// When receiving an attachment (eg. an image), a bridge should populate the
+// Data/Size fields.
+//
+// When the media server is enabled, for services that don't support file upload
+// (such as IRC), the gateway router will upload the file to the media server
+// and populate the URL/SHA fields. The Data/Size fields are not removed
+// in this process. See handleFiles in gateway/handlers.go
 type FileInfo struct {
 	Name     string
 	Data     *[]byte
@@ -65,6 +99,12 @@ type FileInfo struct {
 	Avatar   bool
 	SHA      string
 	NativeID string
+}
+
+var errFileCast = errors.New("failed to cast config.FileInfo")
+
+func FileCastError() error {
+	return fmt.Errorf("%w", errFileCast)
 }
 
 type ChannelInfo struct {
