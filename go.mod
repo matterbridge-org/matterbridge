@@ -41,7 +41,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vincent-petithory/dataurl v1.0.0
 	github.com/writeas/go-strip-markdown v2.0.1+incompatible
-	github.com/xmppo/go-xmpp v0.2.18
+	github.com/xmppo/go-xmpp v0.3.0
 	github.com/yaegashi/msgraph.go v0.1.4
 	github.com/zfjagann/golang-ring v0.0.0-20220330170733-19bcea1b6289
 	go.mau.fi/whatsmeow v0.0.0-20251116104239-3aca43070cd4
