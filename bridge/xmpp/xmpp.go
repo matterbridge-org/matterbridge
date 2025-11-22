@@ -388,6 +388,20 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 		}
 
 		if fileInfo.URL != "" {
+			// The file has a URL because it was uploaded to matterbridge's mediaserver
+
+			// Send separate message with the username and optional file comment
+			// because we can't have an attachment comment/description.
+			_, err := b.xc.Send(xmpp.Chat{
+				Type:   "groupchat",
+				Remote: msg.Channel + "@" + b.GetString("Muc"),
+				Text:   msg.Username + fileInfo.Comment,
+			})
+			if err != nil {
+				b.Log.WithError(err).Warn("Failed to announce file sharer, not sharing file.")
+				continue
+			}
+
 			if _, err := b.xc.SendOOB(xmpp.Chat{
 				Type:    "groupchat",
 				Remote:  msg.Channel + "@" + b.GetString("Muc"),
