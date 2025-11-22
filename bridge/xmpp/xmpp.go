@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -324,6 +325,7 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+					Extra: make(map[string][]any),
 				}
 
 				// Check if we have an action event.
@@ -331,6 +333,48 @@ func (b *Bxmpp) handleXMPP() error {
 				rmsg.Text, ok = b.replaceAction(rmsg.Text)
 				if ok {
 					rmsg.Event = config.EventUserAction
+				}
+
+				// Check if maybe we have an OOB file upload
+				// XEP-0066 https://xmpp.org/extensions/xep-0066.html
+				rmsg.Extra["file"] = make([]any, 0)
+
+				for _, elem := range v.OtherElem {
+					if elem.XMLName.Space == "jabber:x:oob" {
+						// Extract the plaintext URL
+						u := b.findOOBURL(elem.InnerXML)
+
+						if u != "" {
+							// We have a file to download
+							data, err := helper.DownloadFile(u)
+							if err != nil {
+								b.Log.WithError(err).Warn("Failed to download remote XMPP OOB attachment")
+							}
+
+							// Parse the URL to extract the filename from it.
+							// This cannot fail as it was previously parsed during download.
+							parsed_url, _ := url.Parse(u)
+
+							// We use the last part of the URL's path as filename. This prevents
+							// errors from extra slashes, but might not make sense if for example
+							// the URL is `/download?id=FOO`.
+							// TODO: investigate popular URL naming schemes in XMPP world, or
+							// consider naming the files after their own checksum.
+							fileName := path.Base(parsed_url.Path)
+
+							rmsg.Extra["file"] = append(rmsg.Extra["file"], config.FileInfo{
+								Name: fileName,
+								Data: data,
+								Size: int64(len(*data)),
+								URL:  "",
+								// We may want to support the `desc` field from XEP-0066 however
+								// i don't think any client supports this.
+								Comment:  "",
+								Avatar:   false,
+								NativeID: u,
+							})
+						}
+					}
 				}
 
 				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
