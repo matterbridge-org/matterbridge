@@ -5,13 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/42wim/matterbridge/bridge"
 	"github.com/42wim/matterbridge/bridge/config"
+	"github.com/42wim/matterbridge/bridge/helper"
 
 	mastodon "github.com/mattn/go-mastodon"
 )
@@ -28,24 +27,6 @@ var errInvalidChannel = errors.New("invalid channel name")
 
 func InvalidChannelError(name string) error {
 	return fmt.Errorf("%w: %s", errInvalidChannel, name)
-}
-
-var errHttpGet = errors.New("failed to get HTTP file")
-
-func HttpGetError(url string) error {
-	return fmt.Errorf("%w: %s", errHttpGet, url)
-}
-
-var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
-
-func HttpGetNotOkError(url string, code int) error {
-	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, url, code)
-}
-
-var errFileCast = errors.New("failed to cast config.FileInfo")
-
-func FileCastError() error {
-	return fmt.Errorf("%w", errFileCast)
 }
 
 type Bmastodon struct {
@@ -209,31 +190,16 @@ func (b *Bmastodon) handleSendRemoteStatus(msg *mastodon.Status, channel string)
 	}
 
 	for _, media := range msg.MediaAttachments {
-		resp, err2 := http.Get(media.RemoteURL)
+		b, err2 := helper.DownloadFile(media.RemoteURL)
 		if err2 != nil {
-			continue
-		}
-
-		defer func() {
-			err := resp.Body.Close()
-			if err != nil {
-				b.Log.Warn(err)
-			}
-		}()
-
-		if resp.StatusCode != http.StatusOK {
-			continue
-		}
-
-		b, err := io.ReadAll(resp.Body)
-		if err != nil {
+			// TODO: log
 			continue
 		}
 
 		remoteMessage.Extra["file"] = append(remoteMessage.Extra["file"], config.FileInfo{
 			Name:   media.Description,
-			Data:   &b,
-			Size:   int64(len(b)),
+			Data:   b,
+			Size:   int64(len(*b)),
 			Avatar: false,
 		})
 	}
@@ -268,8 +234,11 @@ func (b *Bmastodon) handleSendingMessage(ctx context.Context, msg *config.Messag
 		}
 	}
 
-	for _, file := range msg.Extra["file"] {
-		attachment, err := b.extractFile(ctx, file)
+	for _, file := range *msg.GetFileInfos(b.Log) {
+		attachment, err := b.c.UploadMediaFromMedia(ctx, &mastodon.Media{
+			File:        bytes.NewReader(*file.Data),
+			Description: file.Comment,
+		})
 		if err != nil {
 			b.Log.Error(err)
 			continue
@@ -279,51 +248,4 @@ func (b *Bmastodon) handleSendingMessage(ctx context.Context, msg *config.Messag
 	}
 
 	return b.c.PostStatus(ctx, &toot)
-}
-
-func (b *Bmastodon) extractFile(ctx context.Context, file interface{}) (*mastodon.Attachment, error) {
-	fileInfo, ok := file.(config.FileInfo)
-	if !ok {
-		return nil, FileCastError()
-	}
-
-	var (
-		r    io.Reader
-		err  error
-		resp *http.Response
-	)
-
-	defer func() {
-		if resp != nil {
-			err2 := resp.Body.Close()
-			if err2 != nil {
-				b.Log.Warn(err)
-			}
-		}
-	}()
-
-	if fileInfo.URL != "" {
-		resp, err = http.Get(fileInfo.URL)
-		if err != nil {
-			return nil, HttpGetError(fileInfo.URL)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, HttpGetNotOkError(fileInfo.URL, resp.StatusCode)
-		}
-
-		r = resp.Body
-	} else if fileInfo.Data != nil {
-		r = bytes.NewReader(*fileInfo.Data)
-	}
-
-	attachment, err := b.c.UploadMediaFromMedia(ctx, &mastodon.Media{
-		File:        r,
-		Description: fileInfo.Comment,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return attachment, nil
 }
