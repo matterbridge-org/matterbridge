@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -324,6 +325,7 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+					Extra: make(map[string][]any),
 				}
 
 				// Check if we have an action event.
@@ -333,6 +335,9 @@ func (b *Bxmpp) handleXMPP() error {
 					rmsg.Event = config.EventUserAction
 				}
 
+				if b.handleDownloadFile(&rmsg, &v) {
+					continue
+				}
 				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
 				b.Log.Debugf("<= Message is %#v", rmsg)
 				b.Remote <- rmsg
@@ -355,6 +360,15 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 }
 
 // handleUploadFile handles native upload of files
+// IMPORTANT NOTES:
+//
+// Some clients only display a preview when the body is exactly the URL, not only contains it.
+// https://docs.modernxmpp.org/client/protocol/#communicating-the-url
+//
+// This is the case with Gajim/Conversations for example.
+//
+// This means we cannot have an actual description of the uploaded file, nor can we add
+// information about who posted it... at least in the same message.
 func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 	var urlDesc string
 
@@ -379,6 +393,20 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 		}
 
 		if fileInfo.URL != "" {
+			// The file has a URL because it was uploaded to matterbridge's mediaserver
+
+			// Send separate message with the username and optional file comment
+			// because we can't have an attachment comment/description.
+			_, err := b.xc.Send(xmpp.Chat{
+				Type:   "groupchat",
+				Remote: msg.Channel + "@" + b.GetString("Muc"),
+				Text:   msg.Username + fileInfo.Comment,
+			})
+			if err != nil {
+				b.Log.WithError(err).Warn("Failed to announce file sharer, not sharing file.")
+				continue
+			}
+
 			if _, err := b.xc.SendOOB(xmpp.Chat{
 				Type:    "groupchat",
 				Remote:  msg.Channel + "@" + b.GetString("Muc"),
@@ -386,6 +414,7 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				Oobdesc: urlDesc,
 			}); err != nil {
 				b.Log.WithError(err).Warn("Failed to send share URL.")
+				continue
 			}
 		}
 	}
@@ -447,4 +476,54 @@ func (b *Bxmpp) Connected() bool {
 	b.RLock()
 	defer b.RUnlock()
 	return b.connected
+}
+
+// handleDownloadFile processes file downloads in the background.
+//
+// Returns true if the message was handled, false otherwise.
+//
+// This implements XEP-0066 https://xmpp.org/extensions/xep-0066.html
+func (b *Bxmpp) handleDownloadFile(rmsg *config.Message, v *xmpp.Chat) bool {
+	// Do we have an OOB attachment URL?
+	if v.Oob.Url != "" {
+		go func() {
+			b.handleDownloadFileInner(rmsg, v)
+		}()
+
+		return true
+	}
+
+	return false
+}
+
+// handleDownloadFileInner is a helper to actually download a remote attachment
+// and announce it to other bridges.
+//
+// It runs in the foreground, and should only be called in a background context
+// to avoid stalling in the main thread.
+//
+// If it encounters any error, it will log the error and skip the message.
+func (b *Bxmpp) handleDownloadFileInner(rmsg *config.Message, v *xmpp.Chat) {
+	parsed_url, err := url.Parse(v.Oob.Url)
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to parse OOB URL")
+		return
+	}
+	// We use the last part of the URL's path as filename. This prevents
+	// errors from extra slashes, but might not make sense if for example
+	// the URL is `/download?id=FOO`.
+	// TODO: investigate popular URL naming schemes in XMPP world, or
+	// consider naming the files after their own checksum.
+	fileName := path.Base(parsed_url.Path)
+
+	err = b.AddAttachmentFromURL(rmsg, fileName, "", "", v.Oob.Url)
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to download remote XMPP OOB attachment")
+		return
+	}
+
+	b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
+	b.Log.Debugf("<= Message is %#v", rmsg)
+
+	b.Remote <- *rmsg
 }
