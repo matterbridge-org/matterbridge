@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -563,7 +562,7 @@ func modifyInMessageTengo(filename string, msg *config.Message) error {
 	if filename == "" {
 		return nil
 	}
-	res, err := ioutil.ReadFile(filename)
+	res, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
@@ -591,7 +590,7 @@ func (gw *Gateway) modifyUsernameTengo(msg *config.Message, br *bridge.Bridge) (
 	if filename == "" {
 		return "", nil
 	}
-	res, err := ioutil.ReadFile(filename)
+	res, err := os.ReadFile(filename)
 	if err != nil {
 		return "", err
 	}
@@ -634,7 +633,7 @@ func (gw *Gateway) modifyOutMessageTengo(origmsg *config.Message, msg *config.Me
 			return drop, err
 		}
 	} else {
-		res, err = ioutil.ReadFile(filename)
+		res, err = os.ReadFile(filename)
 		if err != nil {
 			return drop, err
 		}

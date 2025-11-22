@@ -2,7 +2,7 @@ package gateway
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"testing"
 
@@ -159,7 +159,7 @@ const (
 
 func maketestRouter(input []byte) *Router {
 	logger := logrus.New()
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 	cfg := config.NewConfigFromString(logger, input)
 	r, err := NewRouter(logger, cfg, bridgemap.FullMap)
 	if err != nil {
@@ -385,7 +385,7 @@ func TestIgnoreSuite(t *testing.T) {
 
 func (s *ignoreTestSuite) SetupSuite() {
 	logger := logrus.New()
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 	s.gw = &Gateway{logger: logrus.NewEntry(logger)}
 }
 

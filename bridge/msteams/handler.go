@@ -3,7 +3,7 @@ package bmsteams
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	"github.com/42wim/matterbridge/bridge/config"
@@ -92,7 +92,7 @@ func (b *Bmsteams) handleCodeSnippet(rmsg *config.Message, attach msgraph.ChatMe
 		return
 	}
 	defer resp.Body.Close()
-	res, err := ioutil.ReadAll(resp.Body)
+	res, err := io.ReadAll(resp.Body)
 	if err != nil {
 		b.Log.Errorf("reading snippet data failed: %s", err)
 		return

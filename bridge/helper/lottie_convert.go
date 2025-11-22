@@ -3,7 +3,6 @@
 package helper
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 
@@ -23,7 +22,7 @@ func CanConvertTgsToX() error {
 // This relies on an external command, which is ugly, but works.
 func ConvertTgsToX(data *[]byte, outputFormat string, logger *logrus.Entry) error {
 	// lottie can't handle input from a pipe, so write to a temporary file:
-	tmpInFile, err := ioutil.TempFile(os.TempDir(), "matterbridge-lottie-input-*.tgs")
+	tmpInFile, err := os.CreateTemp("", "matterbridge-lottie-input-*.tgs")
 	if err != nil {
 		return err
 	}
@@ -35,7 +34,7 @@ func ConvertTgsToX(data *[]byte, outputFormat string, logger *logrus.Entry) erro
 	}()
 	// lottie can handle writing to a pipe, but there is no way to do that platform-independently.
 	// "/dev/stdout" won't work on Windows, and "-" upsets Cairo for some reason. So we need another file:
-	tmpOutFile, err := ioutil.TempFile(os.TempDir(), "matterbridge-lottie-output-*.data")
+	tmpOutFile, err := os.CreateTemp("", "matterbridge-lottie-output-*.data")
 	if err != nil {
 		return err
 	}
@@ -64,7 +63,7 @@ func ConvertTgsToX(data *[]byte, outputFormat string, logger *logrus.Entry) erro
 		// 'stderr' already contains some parts of Stderr, because it was set to 'nil'.
 		return stderr
 	}
-	dataContents, err := ioutil.ReadFile(tmpOutFileName)
+	dataContents, err := os.ReadFile(tmpOutFileName)
 	if err != nil {
 		return err
 	}

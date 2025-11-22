@@ -1,7 +1,7 @@
 package bslack
 
 import (
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/42wim/matterbridge/bridge"
@@ -24,7 +24,7 @@ func TestExtractTopicOrPurpose(t *testing.T) {
 	}
 
 	logger := logrus.New()
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 	cfg := &bridge.Config{Bridge: &bridge.Bridge{Log: logrus.NewEntry(logger)}}
 	b := newBridge(cfg)
 	for name, tc := range testcases {
