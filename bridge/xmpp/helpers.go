@@ -2,6 +2,7 @@ package bxmpp
 
 import (
 	"regexp"
+	"strconv"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/xmppo/go-xmpp"
@@ -66,4 +67,34 @@ func (b *Bxmpp) announceUploadedFile(to string, text string, urlDesc string, url
 		b.Log.WithError(err).Warnf("Skipping file announce due to failed OOB announce %s", urlStr)
 		return
 	}
+}
+
+func (b *Bxmpp) extractMaxSizeFromX(disco_x *[]xmpp.DiscoX) int64 {
+	for _, x := range *disco_x {
+		for i, field := range x.Field {
+			if field.Var == "max-file-size" {
+				if i > 0 {
+					if x.Field[i-1].Value[0] == "urn:xmpp:http:upload:0" {
+						return b.extractMaxSizeFromXFieldValue(field.Value[0])
+					}
+				}
+			}
+		}
+	}
+
+	b.Log.Debug("No HTTP max upload size found")
+
+	return 0
+}
+
+func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
+	maxFileSize, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		// If the max-file-size can't be parsed, assume it's 0
+		// and log the error.
+		b.Log.Warnf("Failed to parse HTTP max upload size: %s", value)
+		return 0
+	}
+
+	return maxFileSize
 }

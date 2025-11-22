@@ -30,6 +30,12 @@ type Bxmpp struct {
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
+
+	// The account's HTTP [upload component](https://xmpp.org/extensions/xep-0363.html#disco)
+	// is discovered in steps commented HTTP_UPLOAD_DISCO.
+	httpUploadComponent string
+	// The max attachment size is discovered in the last step of HTTP_UPLOAD_DISCO.
+	httpUploadMaxSize int64
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -357,6 +363,35 @@ func (b *Bxmpp) handleXMPP() error {
 			b.Log.Debugf("Avatar for %s is now available", v.From)
 		case xmpp.Presence:
 			// Do nothing.
+		case xmpp.DiscoItems:
+			// Received a list of items, most likely from trying to find the HTTP upload server
+			// Send a disco info query to all items to find out which is which
+			//
+			// HTTP_UPLOAD_DISCO step 2
+			for _, item := range v.Items {
+				_, err := b.xc.DiscoverInfo(item.Jid)
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to disco info from %s", item.Jid)
+				}
+			}
+		case xmpp.DiscoResult:
+			// Received disco info about a specific item, most likely from trying
+			// to find the HTTP upload server.
+			for _, identity := range v.Identities {
+				if identity.Type != "file" || identity.Category != "store" {
+					// Filter out disco info about everything else.
+					continue
+				}
+
+				// HTTP_UPLOAD_DISCO step 3
+				foundSize := b.extractMaxSizeFromX(&v.X)
+
+				b.Log.Debugf("Found HTTP file upload component %s (maximum size: %d)", v.From, foundSize)
+				b.Lock()
+				b.httpUploadComponent = v.From
+				b.httpUploadMaxSize = foundSize
+				b.Unlock()
+			}
 		}
 	}
 }
@@ -416,7 +451,16 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 func (b *Bxmpp) setConnected(state bool) {
 	b.Lock()
 	b.connected = state
-	defer b.Unlock()
+	b.Unlock()
+
+	// We are now (re)connected, send a disco query to find out HTTP upload server
+	// Ignore any errors encountered
+	//
+	// HTTP_UPLOAD_DISCO step 1
+	_, err := b.xc.DiscoverServerItems()
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to discover server items")
+	}
 }
 
 func (b *Bxmpp) Connected() bool {
