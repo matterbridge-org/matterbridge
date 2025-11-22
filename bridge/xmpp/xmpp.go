@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,9 @@ type Bxmpp struct {
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
+
+	httpUploadComponent string
+	httpUploadMaxSize   int64
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -348,6 +352,29 @@ func (b *Bxmpp) handleXMPP() error {
 			b.Log.Debugf("Avatar for %s is now available", v.From)
 		case xmpp.Presence:
 			// Do nothing.
+		case xmpp.DiscoItems:
+			// Received a list of items, most likely from trying to find the HTTP upload server
+			// Send a disco info query to all items to find out which is which
+			for _, item := range v.Items {
+				_, err := b.xc.DiscoverInfo(item.Jid)
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to disco info from %s", item.Jid)
+				}
+			}
+		case xmpp.DiscoResult:
+			for _, identity := range v.Identities {
+				if identity.Type != "file" || identity.Category != "store" {
+					continue
+				}
+
+				foundSize := b.extractMaxSizeFromX(&v.X)
+
+				b.Log.Debugf("Found HTTP file upload component %s (maximum size: %d)", v.From, foundSize)
+				b.Lock()
+				b.httpUploadComponent = v.From
+				b.httpUploadMaxSize = foundSize
+				b.Unlock()
+			}
 		}
 	}
 }
@@ -416,6 +443,9 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				b.Log.WithError(err).Warn("Failed to send share URL.")
 				continue
 			}
+		} else {
+			// TODO
+			b.Log.Warn("OOB file upload unimplemented yet")
 		}
 	}
 	return nil
@@ -469,7 +499,14 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 func (b *Bxmpp) setConnected(state bool) {
 	b.Lock()
 	b.connected = state
-	defer b.Unlock()
+	b.Unlock()
+
+	// We are now (re)connected, send a disco query to find out HTTP upload server
+	// Ignore any errors encountered
+	_, err := b.xc.DiscoverServerItems()
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to discover server items")
+	}
 }
 
 func (b *Bxmpp) Connected() bool {
@@ -526,4 +563,34 @@ func (b *Bxmpp) handleDownloadFileInner(rmsg *config.Message, v *xmpp.Chat) {
 	b.Log.Debugf("<= Message is %#v", rmsg)
 
 	b.Remote <- *rmsg
+}
+
+func (b *Bxmpp) extractMaxSizeFromX(disco_x *[]xmpp.DiscoX) int64 {
+	for _, x := range *disco_x {
+		for i, field := range x.Field {
+			if field.Var == "max-file-size" {
+				if i > 0 {
+					if x.Field[i-1].Value[0] == "urn:xmpp:http:upload:0" {
+						return b.extractMaxSizeFromXFieldValue(field.Value[0])
+					}
+				}
+			}
+		}
+	}
+
+	b.Log.Debug("No HTTP max upload size found")
+
+	return 0
+}
+
+func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
+	maxFileSize, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		// If the max-file-size can't be parsed, assume it's 0
+		// and log the error.
+		b.Log.Errorf("Failed to parse HTTP max upload size: %s", value)
+		return 0
+	}
+
+	return maxFileSize
 }
