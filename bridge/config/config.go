@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -300,7 +299,7 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 	logger := rootLogger.WithFields(logrus.Fields{"prefix": "config"})
 
 	viper.SetConfigFile(cfgfile)
-	input, err := ioutil.ReadFile(cfgfile)
+	input, err := os.ReadFile(cfgfile)
 	if err != nil {
 		logger.Fatalf("Failed to read configuration file: %#v", err)
 	}
