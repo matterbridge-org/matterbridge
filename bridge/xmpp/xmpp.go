@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,9 @@ type Bxmpp struct {
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
+
+	httpUploadComponent string
+	httpUploadMaxSize   int64
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -324,6 +329,7 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+					Extra: make(map[string][]any),
 				}
 
 				// Check if we have an action event.
@@ -331,6 +337,48 @@ func (b *Bxmpp) handleXMPP() error {
 				rmsg.Text, ok = b.replaceAction(rmsg.Text)
 				if ok {
 					rmsg.Event = config.EventUserAction
+				}
+
+				// Check if maybe we have an OOB file upload
+				// XEP-0066 https://xmpp.org/extensions/xep-0066.html
+				rmsg.Extra["file"] = make([]any, 0)
+
+				for _, elem := range v.OtherElem {
+					if elem.XMLName.Space == "jabber:x:oob" {
+						// Extract the plaintext URL
+						u := b.findOOBURL(elem.InnerXML)
+
+						if u != "" {
+							// We have a file to download
+							data, err := helper.DownloadFile(u)
+							if err != nil {
+								b.Log.WithError(err).Warn("Failed to download remote XMPP OOB attachment")
+							}
+
+							// Parse the URL to extract the filename from it.
+							// This cannot fail as it was previously parsed during download.
+							parsed_url, _ := url.Parse(u)
+
+							// We use the last part of the URL's path as filename. This prevents
+							// errors from extra slashes, but might not make sense if for example
+							// the URL is `/download?id=FOO`.
+							// TODO: investigate popular URL naming schemes in XMPP world, or
+							// consider naming the files after their own checksum.
+							fileName := path.Base(parsed_url.Path)
+
+							rmsg.Extra["file"] = append(rmsg.Extra["file"], config.FileInfo{
+								Name: fileName,
+								Data: data,
+								Size: int64(len(*data)),
+								URL:  "",
+								// We may want to support the `desc` field from XEP-0066 however
+								// i don't think any client supports this.
+								Comment:  "",
+								Avatar:   false,
+								NativeID: u,
+							})
+						}
+					}
 				}
 
 				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
@@ -343,6 +391,29 @@ func (b *Bxmpp) handleXMPP() error {
 			b.Log.Debugf("Avatar for %s is now available", v.From)
 		case xmpp.Presence:
 			// Do nothing.
+		case xmpp.DiscoItems:
+			// Received a list of items, most likely from trying to find the HTTP upload server
+			// Send a disco info query to all items to find out which is which
+			for _, item := range v.Items {
+				_, err := b.xc.DiscoverInfo(item.Jid)
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to disco info from %s", item.Jid)
+				}
+			}
+		case xmpp.DiscoResult:
+			for _, identity := range v.Identities {
+				if identity.Type != "file" || identity.Category != "store" {
+					continue
+				}
+
+				foundSize := b.extractMaxSizeFromX(&v.X)
+
+				b.Log.Debugf("Found HTTP file upload component %s (maximum size: %d)", v.From, foundSize)
+				b.Lock()
+				b.httpUploadComponent = v.From
+				b.httpUploadMaxSize = foundSize
+				b.Unlock()
+			}
 		}
 	}
 }
@@ -355,6 +426,15 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 }
 
 // handleUploadFile handles native upload of files
+// IMPORTANT NOTES:
+//
+// Some clients only display a preview when the body is exactly the URL, not only contains it.
+// https://docs.modernxmpp.org/client/protocol/#communicating-the-url
+//
+// This is the case with Gajim/Conversations for example.
+//
+// This means we cannot have an actual description of the uploaded file, nor can we add
+// information about who posted it... at least in the same message.
 func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 	var urlDesc string
 
@@ -379,14 +459,34 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 		}
 
 		if fileInfo.URL != "" {
+			// The file has a URL because it was uploaded to matterbridge's mediaserver
+
+			// Send separate message with the username and optional file comment
+			// because we can't have an attachment comment/description.
+			_, err := b.xc.Send(xmpp.Chat{
+				Type:   "groupchat",
+				Remote: msg.Channel + "@" + b.GetString("Muc"),
+				Text:   msg.Username + fileInfo.Comment,
+			})
+			if err != nil {
+				b.Log.WithError(err).Warn("Failed to announce file sharer, not sharing file.")
+				continue
+			}
+
 			if _, err := b.xc.SendOOB(xmpp.Chat{
 				Type:    "groupchat",
 				Remote:  msg.Channel + "@" + b.GetString("Muc"),
 				Ooburl:  fileInfo.URL,
 				Oobdesc: urlDesc,
+				// See NOTES above
+				Text: fileInfo.URL,
 			}); err != nil {
 				b.Log.WithError(err).Warn("Failed to send share URL.")
+				continue
 			}
+		} else {
+			// TODO
+			b.Log.Warn("OOB file upload unimplemented yet")
 		}
 	}
 	return nil
@@ -440,11 +540,48 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 func (b *Bxmpp) setConnected(state bool) {
 	b.Lock()
 	b.connected = state
-	defer b.Unlock()
+	b.Unlock()
+
+	// We are now (re)connected, send a disco query to find out HTTP upload server
+	// Ignore any errors encountered
+	_, err := b.xc.DiscoverServerItems()
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to discover server items")
+	}
 }
 
 func (b *Bxmpp) Connected() bool {
 	b.RLock()
 	defer b.RUnlock()
 	return b.connected
+}
+
+func (b *Bxmpp) extractMaxSizeFromX(disco_x *[]xmpp.DiscoX) int64 {
+	for _, x := range *disco_x {
+		for i, field := range x.Field {
+			if field.Var == "max-file-size" {
+				if i > 0 {
+					if x.Field[i-1].Value[0] == "urn:xmpp:http:upload:0" {
+						return b.extractMaxSizeFromXFieldValue(field.Value[0])
+					}
+				}
+			}
+		}
+	}
+
+	b.Log.Debug("No HTTP max upload size found")
+
+	return 0
+}
+
+func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
+	maxFileSize, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		// If the max-file-size can't be parsed, assume it's 0
+		// and log the error.
+		b.Log.Errorf("Failed to parse HTTP max upload size: %s", value)
+		return 0
+	}
+
+	return maxFileSize
 }
