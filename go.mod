@@ -152,6 +152,4 @@ require (
 	rsc.io/qr v0.2.0 // indirect
 )
 
-//replace github.com/matrix-org/gomatrix => github.com/matterbridge/gomatrix v0.0.0-20220205235239-607eb9ee6419
-
 go 1.24.0
