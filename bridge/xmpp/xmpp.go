@@ -5,9 +5,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,6 +37,7 @@ type Bxmpp struct {
 
 	httpUploadComponent string
 	httpUploadMaxSize   int64
+	httpUploadBuffer    map[string]*config.FileInfo
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -43,6 +46,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
+		httpUploadBuffer:   make(map[string]*config.FileInfo),
 	}
 }
 
@@ -375,6 +379,19 @@ func (b *Bxmpp) handleXMPP() error {
 				b.httpUploadMaxSize = foundSize
 				b.Unlock()
 			}
+		case xmpp.Slot:
+			b.Log.Debugf("Received upload slot ID %s", v.ID)
+			b.Lock()
+			entry, ok := b.httpUploadBuffer[v.ID]
+			b.Unlock()
+
+			if !ok {
+				b.Log.Warnf("Received upload slot ID %s doesn't match a known file", v.ID)
+				continue
+			}
+
+			b.Log.Debugf("Preparing to upload file %s to %s", entry.Name, v.Put.Url)
+			// TODO: upload file to the upload slot, then share it in the chat
 		}
 	}
 }
@@ -444,8 +461,17 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				continue
 			}
 		} else {
-			// TODO
-			b.Log.Warn("OOB file upload unimplemented yet")
+			// The file received from other bridges is just a bunch of bytes in fileInfo.Data
+			// We need to upload it to the XMPP server's HTTP upload component.
+			// This is defined in XEP-0363: https://xmpp.org/extensions/xep-0363.html
+			//
+			// The steps are:
+			//
+			// 1. Find the server's attached upload XMPP component (done on login)
+			// 2. Request an "upload slot" from the upload component (we are here)
+			// 3. Send a PUT request with the data to the remote HTTP "upload slot" (when receiving the slot)
+			fileId := xid.New().String()
+			b.requestUploadSlot(fileId, &fileInfo)
 		}
 	}
 	return nil
@@ -593,4 +619,35 @@ func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
 	}
 
 	return maxFileSize
+}
+
+func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo) {
+	reg := regexp.MustCompile(`[^a-zA-Z0-9\+\-\_\.]+`)
+	fileNameEscaped := reg.ReplaceAllString(fileInfo.Name, "_")
+
+	// Guess the mime-type
+	mimeType := mime.TypeByExtension(path.Ext(fileInfo.Name))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	b.Log.Debugf("Requesting upload slot ID %s for %s (escaped) with mime-type %s", fileId, fileNameEscaped, mimeType)
+
+	request := fmt.Sprintf("<request xmlns='urn:xmpp:http:upload:0' filename='%s' size='%d' content-type='%s' />", fileNameEscaped, fileInfo.Size, mimeType)
+
+	b.Lock()
+	httpUploadComponent := b.httpUploadComponent
+	b.Unlock()
+
+	_, err := b.xc.RawInformation(b.xc.JID(), httpUploadComponent, fileId, "get", request)
+	if err != nil {
+		b.Log.WithError(err).Error("Failed to request upload slot")
+		return
+	}
+
+	// Save the FileInfo in the buffer to actually upload it later
+	// when we receive the upload slot.
+	b.Lock()
+	b.httpUploadBuffer[fileId] = fileInfo
+	b.Unlock()
 }
