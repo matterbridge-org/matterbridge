@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image/png"
 	"io"
@@ -19,6 +20,12 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/sirupsen/logrus"
 )
+
+var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
+
+func HttpGetNotOkError(url string, code int) error {
+	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, url, code)
+}
 
 // DownloadFile downloads the given non-authenticated URL.
 func DownloadFile(url string) (*[]byte, error) {
@@ -42,8 +49,21 @@ func DownloadFileAuth(url string, auth string) (*[]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	io.Copy(&buf, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, HttpGetNotOkError(url, resp.StatusCode)
+	}
+
+	_, err = io.Copy(&buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	data := buf.Bytes()
 	return &data, nil
 }
