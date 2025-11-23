@@ -374,7 +374,7 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) stri
 
 func (gw *Gateway) modifyAvatar(msg *config.Message, dest *bridge.Bridge) string {
 	iconurl := dest.GetString("IconURL")
-	iconurl = strings.Replace(iconurl, "{NICK}", msg.Username, -1)
+	iconurl = strings.ReplaceAll(iconurl, "{NICK}", msg.Username)
 	if msg.Avatar == "" {
 		msg.Avatar = iconurl
 	}

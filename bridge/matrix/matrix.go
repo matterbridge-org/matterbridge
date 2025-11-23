@@ -569,7 +569,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]in
 	if url, ok = content["url"].(string); !ok {
 		return fmt.Errorf("url isn't a %T", url)
 	}
-	url = strings.Replace(url, "mxc://", b.GetString("Server")+"/_matrix/media/v1/download/", -1)
+	url = strings.ReplaceAll(url, "mxc://", b.GetString("Server")+"/_matrix/media/v1/download/")
 
 	if info, ok = content["info"].(map[string]interface{}); !ok {
 		return fmt.Errorf("info isn't a %T", info)

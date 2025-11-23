@@ -349,7 +349,7 @@ func (b *Bxmpp) handleXMPP() error {
 
 func (b *Bxmpp) replaceAction(text string) (string, bool) {
 	if strings.HasPrefix(text, "/me ") {
-		return strings.Replace(text, "/me ", "", -1), true
+		return strings.ReplaceAll(text, "/me ", ""), true
 	}
 	return text, false
 }
