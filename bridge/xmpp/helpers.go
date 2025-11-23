@@ -110,7 +110,7 @@ func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
 //
 // Will stall until the compoennt is advertised by the server, or until a timeout has been reached.
 // This method must therefore be called from a background thread.
-func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo) {
+func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo, to string, text string, description string) {
 	retry := 0
 
 	httpUploadComponent := ""
@@ -153,6 +153,12 @@ func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo) {
 	// Save the FileInfo in the buffer to actually upload it later
 	// when we receive the upload slot.
 	b.Lock()
-	b.httpUploadBuffer[fileId] = fileInfo
+	b.httpUploadBuffer[fileId] = &UploadBufferEntry{
+		FileInfo:    fileInfo,
+		Mime:        mimeType,
+		Text:        text,
+		To:          to,
+		Description: description,
+	}
 	b.Unlock()
 }
