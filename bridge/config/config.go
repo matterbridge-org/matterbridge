@@ -385,9 +385,9 @@ func GetIconURL(msg *Message, iconURL string) string {
 	info := strings.Split(msg.Account, ".")
 	protocol := info[0]
 	name := info[1]
-	iconURL = strings.Replace(iconURL, "{NICK}", msg.Username, -1)
-	iconURL = strings.Replace(iconURL, "{BRIDGE}", name, -1)
-	iconURL = strings.Replace(iconURL, "{PROTOCOL}", protocol, -1)
+	iconURL = strings.ReplaceAll(iconURL, "{NICK}", msg.Username)
+	iconURL = strings.ReplaceAll(iconURL, "{BRIDGE}", name)
+	iconURL = strings.ReplaceAll(iconURL, "{PROTOCOL}", protocol)
 	return iconURL
 }
 

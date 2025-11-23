@@ -94,7 +94,7 @@ func (b *Bmattermost) apiLogin() error {
 // replaceAction replace the message with the correct action (/me) code
 func (b *Bmattermost) replaceAction(text string) (string, bool) {
 	if strings.HasPrefix(text, "*") && strings.HasSuffix(text, "*") {
-		return strings.Replace(text, "*", "", -1), true
+		return strings.ReplaceAll(text, "*", ""), true
 	}
 	return text, false
 }
