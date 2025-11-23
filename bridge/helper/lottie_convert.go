@@ -78,8 +78,6 @@ func SupportsFormat(format string) bool {
 		fallthrough
 	case "webp":
 		return true
-	default:
-		return false
 	}
 	return false
 }

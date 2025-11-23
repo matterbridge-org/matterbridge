@@ -245,11 +245,12 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 	}
 
 	// only handle posted, edited or deleted events
-	if !(message.Raw.EventType() == "posted" || message.Raw.EventType() == model.WebsocketEventPostEdited ||
-		message.Raw.EventType() == model.WebsocketEventPostDeleted) {
+	switch message.Raw.EventType() {
+	case "posted", model.WebsocketEventPostEdited, model.WebsocketEventPostDeleted:
+		return false
+	default:
 		return true
 	}
-	return false
 }
 
 func (b *Bmattermost) getVersion() string {
