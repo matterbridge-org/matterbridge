@@ -89,7 +89,7 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) {
 			//
 			// Steps 2 and 3 are commented as HTTP_UPLOAD_SLOT
 			fileId := xid.New().String()
-			go b.requestUploadSlot(fileId, &fileInfo)
+			go b.requestUploadSlot(fileId, &fileInfo, msg.Channel+"@"+b.GetString("Muc"), msg.Username+fileInfo.Comment, fileInfo.Comment)
 		}
 	}
 }

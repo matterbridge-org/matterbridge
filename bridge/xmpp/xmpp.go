@@ -19,6 +19,16 @@ import (
 	"github.com/xmppo/go-xmpp"
 )
 
+// UploadBufferEntry is data stored between requesting an upload,
+// and actually performing the upload.
+type UploadBufferEntry struct {
+	FileInfo    *config.FileInfo // Data received from other bridges
+	Mime        string           // Mimetype for the file upload
+	Description string           // Raw comment without authorship
+	Text        string           // Computed comment (including authorship) for the upload
+	To          string           // Room to send the upload announcement once completed
+}
+
 type Bxmpp struct {
 	*bridge.Config
 
@@ -47,7 +57,7 @@ type Bxmpp struct {
 	//
 	// Note that in most cases, remote bridges will provide an attachment URL, no file
 	// will actually be uploaded on XMPP side, and this buffer will be untouched.
-	httpUploadBuffer map[string]*config.FileInfo
+	httpUploadBuffer map[string]*UploadBufferEntry
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -56,7 +66,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
-		httpUploadBuffer:   make(map[string]*config.FileInfo),
+		httpUploadBuffer:   make(map[string]*UploadBufferEntry),
 	}
 }
 
@@ -417,8 +427,31 @@ func (b *Bxmpp) handleXMPP() error {
 				continue
 			}
 
-			b.Log.Debugf("Preparing to upload file %s to %s", entry.Name, v.Put.Url)
-			// TODO: upload file to the upload slot, then share it in the chat
+			b.Log.Debugf("Preparing to upload file %s to %s", entry.FileInfo.Name, v.Put.Url)
+
+			go func() {
+				headers := make(map[string]string)
+				headers["Content-Type"] = entry.Mime
+
+				for _, h := range v.Put.Headers {
+					switch h.Name {
+					case "Authorization", "Cookie", "Expires":
+						b.Log.Debugf("Setting header %s to %s", h.Name, h.Value)
+						headers[h.Name] = h.Value
+					default:
+						b.Log.Warnf("Unknown header from HTTP upload component: %s: %s", h.Name, h.Value)
+					}
+				}
+
+				err := b.HttpUpload(http.MethodPut, v.Put.Url, headers, entry.FileInfo.Data, []int{http.StatusOK, http.StatusCreated})
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to upload file %s", entry.FileInfo.Name)
+				}
+
+				// Actually perform the chat announcement
+				// HTTP_UPLOAD_SLOT step 3
+				b.announceUploadedFile(entry.To, entry.Text, entry.Description, v.Get.Url)
+			}()
 		}
 	}
 }
