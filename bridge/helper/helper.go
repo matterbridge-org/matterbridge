@@ -159,7 +159,7 @@ func HandleDownloadSize(logger *logrus.Entry, msg *config.Message, name string, 
 			}
 		}
 	}
-	logger.Debugf("Trying to download %#v with size %#v", name, size)
+	logger.Debugf("Trying to download %s with size %d", name, size)
 	if int(size) > general.MediaDownloadSize {
 		msg.Event = config.EventFileFailureSize
 		msg.Extra[msg.Event] = append(msg.Extra[msg.Event], config.FileInfo{
