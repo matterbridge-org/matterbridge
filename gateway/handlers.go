@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha1" //nolint:gosec
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -157,7 +156,7 @@ func (gw *Gateway) handleFilesLocal(fi *config.FileInfo) error {
 	path := dir + "/" + fi.Name
 	gw.logger.Debugf("mediaserver path placing file: %s", path)
 
-	err = ioutil.WriteFile(path, *fi.Data, os.ModePerm)
+	err = os.WriteFile(path, *fi.Data, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("mediaserver path failed, could not writefile: %s %#v", err, err)
 	}

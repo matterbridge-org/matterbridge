@@ -231,7 +231,7 @@ func (b *Bslack) getUsersInConversation(channelID string) ([]string, error) {
 		members, nextCursor, err := b.sc.GetUsersInConversation(queryParams)
 		if err != nil {
 			if err = handleRateLimit(b.Log, err); err != nil {
-				return channelMembers, fmt.Errorf("Could not retrieve users in channels: %#v", err)
+				return channelMembers, fmt.Errorf("could not retrieve users in channels: %#v", err)
 			}
 			continue
 		}

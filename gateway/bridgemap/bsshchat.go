@@ -1,5 +1,4 @@
 //go:build !nosshchat
-// +build !nosshchat
 
 package bridgemap
 

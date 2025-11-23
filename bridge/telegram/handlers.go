@@ -575,9 +575,9 @@ func (b *Btelegram) handleQuote(message, quoteNick, quoteMessage string) string 
 			quoteMessage += "..."
 		}
 	}
-	format = strings.Replace(format, "{MESSAGE}", message, -1)
-	format = strings.Replace(format, "{QUOTENICK}", quoteNick, -1)
-	format = strings.Replace(format, "{QUOTEMESSAGE}", quoteMessage, -1)
+	format = strings.ReplaceAll(format, "{MESSAGE}", message)
+	format = strings.ReplaceAll(format, "{QUOTENICK}", quoteNick)
+	format = strings.ReplaceAll(format, "{QUOTEMESSAGE}", quoteMessage)
 	return format
 }
 

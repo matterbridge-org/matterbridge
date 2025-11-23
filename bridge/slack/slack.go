@@ -130,7 +130,7 @@ func (b *Bslack) Connect() error {
 	)
 	if b.GetString(outgoingWebhookConfig) != "" {
 		b.Log.Info("Using specified webhook for outgoing messages.")
-		b.mh.Url = b.GetString(outgoingWebhookConfig)
+		b.mh.URL = b.GetString(outgoingWebhookConfig)
 	}
 	if b.GetString(incomingWebhookConfig) != "" {
 		b.Log.Info("Setting up local webhook for incoming messages.")

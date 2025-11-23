@@ -94,7 +94,7 @@ func (b *Bmattermost) apiLogin() error {
 // replaceAction replace the message with the correct action (/me) code
 func (b *Bmattermost) replaceAction(text string) (string, bool) {
 	if strings.HasPrefix(text, "*") && strings.HasSuffix(text, "*") {
-		return strings.Replace(text, "*", "", -1), true
+		return strings.ReplaceAll(text, "*", ""), true
 	}
 	return text, false
 }
@@ -245,11 +245,12 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 	}
 
 	// only handle posted, edited or deleted events
-	if !(message.Raw.EventType() == "posted" || message.Raw.EventType() == model.WebsocketEventPostEdited ||
-		message.Raw.EventType() == model.WebsocketEventPostDeleted) {
+	switch message.Raw.EventType() {
+	case "posted", model.WebsocketEventPostEdited, model.WebsocketEventPostDeleted:
+		return false
+	default:
 		return true
 	}
-	return false
 }
 
 func (b *Bmattermost) getVersion() string {

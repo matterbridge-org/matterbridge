@@ -1,7 +1,7 @@
 package samechannel
 
 import (
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/42wim/matterbridge/bridge/config"
@@ -69,7 +69,7 @@ var (
 
 func TestGetConfig(t *testing.T) {
 	logger := logrus.New()
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 	cfg := config.NewConfigFromString(logger, []byte(testConfig))
 	sgw := New(cfg)
 	configs := sgw.GetConfig()

@@ -1,5 +1,4 @@
 //go:build whatsappmulti
-// +build whatsappmulti
 
 package bridgemap
 

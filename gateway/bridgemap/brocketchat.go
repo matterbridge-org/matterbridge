@@ -1,5 +1,4 @@
 //go:build !norocketchat
-// +build !norocketchat
 
 package bridgemap
 

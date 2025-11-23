@@ -73,7 +73,7 @@ func (b *Bdiscord) Connect() error {
 	}
 	// if we have a User token, remove the `Bot` prefix
 	if strings.HasPrefix(b.GetString("Token"), "User ") {
-		token = strings.Replace(b.GetString("Token"), "User ", "", -1)
+		token = strings.ReplaceAll(b.GetString("Token"), "User ", "")
 	}
 
 	b.c, err = discordgo.New(token)
@@ -98,7 +98,7 @@ func (b *Bdiscord) Connect() error {
 	if err != nil {
 		return err
 	}
-	serverName := strings.Replace(b.GetString("Server"), "ID:", "", -1)
+	serverName := strings.ReplaceAll(b.GetString("Server"), "ID:", "")
 	b.nick = userinfo.Username
 	b.userID = userinfo.ID
 
@@ -255,7 +255,7 @@ func (b *Bdiscord) Send(msg config.Message) (string, error) {
 
 	channelID := b.getChannelID(msg.Channel)
 	if channelID == "" {
-		return "", fmt.Errorf("Could not find channelID for %v", msg.Channel)
+		return "", fmt.Errorf("could not find channelID for %v", msg.Channel)
 	}
 
 	if msg.Event == config.EventUserTyping {

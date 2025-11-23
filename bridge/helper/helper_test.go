@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -118,7 +117,7 @@ func TestConvertWebPToPNG(t *testing.T) {
 		t.Skip()
 	}
 
-	input, err := ioutil.ReadFile("test.webp")
+	input, err := os.ReadFile("test.webp")
 	if err != nil {
 		t.Fail()
 	}
@@ -129,7 +128,7 @@ func TestConvertWebPToPNG(t *testing.T) {
 		t.Fail()
 	}
 
-	err = ioutil.WriteFile("test.png", *d, 0o644) // nolint:gosec
+	err = os.WriteFile("test.png", *d, 0o644) // nolint:gosec
 	if err != nil {
 		t.Fail()
 	}

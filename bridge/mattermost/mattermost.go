@@ -111,7 +111,7 @@ func (b *Bmattermost) JoinChannel(channel config.ChannelInfo) error {
 	if b.GetString("WebhookURL") == "" && b.GetString("WebhookBindAddress") == "" {
 		id := b.getChannelID(channel.Name)
 		if id == "" {
-			return fmt.Errorf("Could not find channel ID for channel %s", channel.Name)
+			return fmt.Errorf("could not find channel ID for channel %s", channel.Name)
 		}
 
 		return b.mc.JoinChannel(id)
