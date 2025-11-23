@@ -22,7 +22,7 @@ func (b *Bmumble) decodeImage(uri string, parts *[]MessagePart) error {
 	// Decode the data:image/... URI
 	image, err := dataurl.DecodeString(uri)
 	if err != nil {
-		b.Log.WithError(err).Info("No image extracted")
+		b.Log.WithError(err).Info("no image extracted")
 		return err
 	}
 	// Determine the file extensions for that image

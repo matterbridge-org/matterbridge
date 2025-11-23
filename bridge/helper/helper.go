@@ -155,7 +155,7 @@ func HandleDownloadSize(logger *logrus.Entry, msg *config.Message, name string, 
 				continue
 			}
 			if re.MatchString(name) {
-				return fmt.Errorf("Matching blacklist %s. Not downloading %s", entry, name)
+				return fmt.Errorf("matching blacklist %s. Not downloading %s", entry, name)
 			}
 		}
 	}
@@ -167,7 +167,7 @@ func HandleDownloadSize(logger *logrus.Entry, msg *config.Message, name string, 
 			Comment: msg.Text,
 			Size:    size,
 		})
-		return fmt.Errorf("File %#v to large to download (%#v). MediaDownloadSize is %#v", name, size, general.MediaDownloadSize)
+		return fmt.Errorf("file %s to large to download (%d). MediaDownloadSize is %d", name, size, general.MediaDownloadSize)
 	}
 	return nil
 }

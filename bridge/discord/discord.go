@@ -255,7 +255,7 @@ func (b *Bdiscord) Send(msg config.Message) (string, error) {
 
 	channelID := b.getChannelID(msg.Channel)
 	if channelID == "" {
-		return "", fmt.Errorf("Could not find channelID for %v", msg.Channel)
+		return "", fmt.Errorf("could not find channelID for %v", msg.Channel)
 	}
 
 	if msg.Event == config.EventUserTyping {
