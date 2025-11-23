@@ -257,15 +257,15 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		}
 
 		rmsg.NewContent = SubTextMessage{
-			Body:          rmsg.TextMessage.Body,
-			FormattedBody: rmsg.TextMessage.FormattedBody,
-			Format:        rmsg.TextMessage.Format,
+			Body:          rmsg.Body,
+			FormattedBody: rmsg.FormattedBody,
+			Format:        rmsg.Format,
 			MsgType:       "m.text",
 		}
 
 		if b.GetBool("HTMLDisable") {
-			rmsg.TextMessage.Format = ""
-			rmsg.TextMessage.FormattedBody = ""
+			rmsg.Format = ""
+			rmsg.FormattedBody = ""
 			rmsg.NewContent.Format = ""
 			rmsg.NewContent.FormattedBody = ""
 		}
@@ -329,8 +329,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		}
 
 		if b.GetBool("HTMLDisable") {
-			m.TextMessage.Format = ""
-			m.TextMessage.FormattedBody = ""
+			m.Format = ""
+			m.FormattedBody = ""
 		}
 
 		m.RelatedTo = InReplyToRelation{

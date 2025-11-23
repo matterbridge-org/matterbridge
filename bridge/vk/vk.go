@@ -294,7 +294,7 @@ func (b *Bvk) getFiles(attachments []object.MessagesMessageAttachment) ([]string
 			urls = append(urls, a.Graffiti.URL)
 
 		case audioMessage:
-			urls = append(urls, a.AudioMessage.DocsDocPreviewAudioMessage.LinkOgg)
+			urls = append(urls, a.AudioMessage.LinkOgg)
 
 		case sticker:
 			var resolution float64 = 0

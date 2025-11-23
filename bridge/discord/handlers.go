@@ -72,7 +72,7 @@ func (b *Bdiscord) messageUpdate(s *discordgo.Session, m *discordgo.MessageUpdat
 		return
 	}
 	// only when message is actually edited
-	if m.Message.EditedTimestamp != nil {
+	if m.EditedTimestamp != nil {
 		b.Log.Debugf("Sending edit message")
 		m.Content += b.GetString("EditSuffix")
 		msg := &discordgo.MessageCreate{
@@ -110,7 +110,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	b.Log.Debugf("== Receiving event %#v", m.Message)
 
 	if m.Content != "" {
-		m.Message.Content = b.replaceChannelMentions(m.Message.Content)
+		m.Content = b.replaceChannelMentions(m.Content)
 		rmsg.Text, err = m.ContentWithMoreMentionsReplaced(b.c)
 		if err != nil {
 			b.Log.Errorf("ContentWithMoreMentionsReplaced failed: %s", err)
@@ -132,8 +132,8 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	}
 
 	// if we have embedded content add it to text
-	if b.GetBool("ShowEmbeds") && m.Message.Embeds != nil {
-		for _, embed := range m.Message.Embeds {
+	if b.GetBool("ShowEmbeds") && m.Embeds != nil {
+		for _, embed := range m.Embeds {
 			rmsg.Text += handleEmbed(embed)
 		}
 	}
@@ -175,22 +175,22 @@ func (b *Bdiscord) memberUpdate(s *discordgo.Session, m *discordgo.GuildMemberUp
 	b.membersMutex.Lock()
 	defer b.membersMutex.Unlock()
 
-	if currMember, ok := b.userMemberMap[m.Member.User.ID]; ok {
+	if currMember, ok := b.userMemberMap[m.User.ID]; ok {
 		b.Log.Debugf(
 			"%s: memberupdate: user %s (nick %s) changes nick to %s",
 			b.Account,
-			m.Member.User.Username,
-			b.userMemberMap[m.Member.User.ID].Nick,
-			m.Member.Nick,
+			m.User.Username,
+			b.userMemberMap[m.User.ID].Nick,
+			m.Nick,
 		)
 		delete(b.nickMemberMap, currMember.User.Username)
 		delete(b.nickMemberMap, currMember.Nick)
-		delete(b.userMemberMap, m.Member.User.ID)
+		delete(b.userMemberMap, m.User.ID)
 	}
-	b.userMemberMap[m.Member.User.ID] = m.Member
-	b.nickMemberMap[m.Member.User.Username] = m.Member
-	if m.Member.Nick != "" {
-		b.nickMemberMap[m.Member.Nick] = m.Member
+	b.userMemberMap[m.User.ID] = m.Member
+	b.nickMemberMap[m.User.Username] = m.Member
+	if m.Nick != "" {
+		b.nickMemberMap[m.Nick] = m.Member
 	}
 }
 
@@ -206,9 +206,9 @@ func (b *Bdiscord) memberAdd(s *discordgo.Session, m *discordgo.GuildMemberAdd) 
 		b.Log.Warnf("Received member update with no member information: %#v", m)
 		return
 	}
-	username := m.Member.User.Username
-	if m.Member.Nick != "" {
-		username = m.Member.Nick
+	username := m.User.Username
+	if m.Nick != "" {
+		username = m.Nick
 	}
 
 	rmsg := config.Message{
@@ -234,9 +234,9 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 		b.Log.Warnf("Received member update with no member information: %#v", m)
 		return
 	}
-	username := m.Member.User.Username
-	if m.Member.Nick != "" {
-		username = m.Member.Nick
+	username := m.User.Username
+	if m.Nick != "" {
+		username = m.Nick
 	}
 
 	rmsg := config.Message{

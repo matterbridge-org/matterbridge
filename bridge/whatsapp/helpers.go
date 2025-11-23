@@ -36,7 +36,7 @@ func qrFromTerminal(invert bool) chan string {
 
 func (b *Bwhatsapp) readSession() (whatsapp.Session, error) {
 	session := whatsapp.Session{}
-	sessionFile := b.Config.GetString(sessionFile)
+	sessionFile := b.GetString(sessionFile)
 
 	if sessionFile == "" {
 		return session, errors.New("if you won't set SessionFile then you will need to scan QR code on every restart")
@@ -55,7 +55,7 @@ func (b *Bwhatsapp) readSession() (whatsapp.Session, error) {
 }
 
 func (b *Bwhatsapp) writeSession(session whatsapp.Session) error {
-	sessionFile := b.Config.GetString(sessionFile)
+	sessionFile := b.GetString(sessionFile)
 
 	if sessionFile == "" {
 		// we already sent a warning while starting the bridge, so let's be quiet here

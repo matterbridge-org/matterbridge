@@ -26,9 +26,9 @@ func (b *Bmumble) decodeImage(uri string, parts *[]MessagePart) error {
 		return err
 	}
 	// Determine the file extensions for that image
-	ext, err := mime.ExtensionsByType(image.MediaType.ContentType())
+	ext, err := mime.ExtensionsByType(image.ContentType())
 	if err != nil || len(ext) == 0 {
-		b.Log.WithError(err).Infof("No file extension registered for MIME type '%s'", image.MediaType.ContentType())
+		b.Log.WithError(err).Infof("no file extension registered for MIME type '%s'", image.ContentType())
 		return err
 	}
 	// Add the image to the MessagePart slice
