@@ -23,6 +23,16 @@ import (
 	"github.com/xmppo/go-xmpp"
 )
 
+// UploadBufferEntry is data stored between requesting an upload,
+// and actually performing the upload.
+type UploadBufferEntry struct {
+	FileInfo    *config.FileInfo // Data received from other bridges
+	Mime        string           // Mimetype for the file upload
+	Description string           // Raw comment without authorship
+	Text        string           // Computed comment (including authorship) for the upload
+	To          string           // Room to send the upload announcement once completed
+}
+
 type Bxmpp struct {
 	*bridge.Config
 
@@ -37,7 +47,7 @@ type Bxmpp struct {
 
 	httpUploadComponent string
 	httpUploadMaxSize   int64
-	httpUploadBuffer    map[string]*config.FileInfo
+	httpUploadBuffer    map[string]*UploadBufferEntry
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -46,7 +56,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
-		httpUploadBuffer:   make(map[string]*config.FileInfo),
+		httpUploadBuffer:   make(map[string]*UploadBufferEntry),
 	}
 }
 
@@ -390,8 +400,30 @@ func (b *Bxmpp) handleXMPP() error {
 				continue
 			}
 
-			b.Log.Debugf("Preparing to upload file %s to %s", entry.Name, v.Put.Url)
-			// TODO: upload file to the upload slot, then share it in the chat
+			b.Log.Debugf("Preparing to upload file %s to %s", entry.FileInfo.Name, v.Put.Url)
+
+			go func() {
+				headers := make(map[string]string)
+				headers["Content-Type"] = entry.Mime
+
+				for _, h := range v.Put.Headers {
+					switch h.Name {
+					case "Authorization", "Cookie", "Expires":
+						b.Log.Debugf("Setting header %s to %s", h.Name, h.Value)
+						headers[h.Name] = h.Value
+					default:
+						b.Log.Warnf("Unknown header from HTTP upload component: %s: %s", h.Name, h.Value)
+					}
+				}
+
+				err := b.HttpUpload(http.MethodPut, v.Put.Url, headers, entry.FileInfo.Data, []int{http.StatusOK, http.StatusCreated})
+				if err != nil {
+					b.Log.WithError(err).Errorf("Failed to upload file %s", entry.FileInfo.Name)
+				}
+
+				// Actually perform the chat announcement
+				b.announceUploadedFile(entry.To, entry.Text, entry.Description, v.Get.Url)
+			}()
 		}
 	}
 }
@@ -428,38 +460,13 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				urlDesc = fileInfo.Comment
 			}
 		}
-		if _, err := b.xc.Send(xmpp.Chat{
-			Type:   "groupchat",
-			Remote: msg.Channel + "@" + b.GetString("Muc"),
-			Text:   msg.Username + msg.Text,
-		}); err != nil {
-			return err
-		}
 
+		room := msg.Channel + "@" + b.GetString("Muc")
+
+		text := msg.Username + fileInfo.Comment
 		if fileInfo.URL != "" {
 			// The file has a URL because it was uploaded to matterbridge's mediaserver
-
-			// Send separate message with the username and optional file comment
-			// because we can't have an attachment comment/description.
-			_, err := b.xc.Send(xmpp.Chat{
-				Type:   "groupchat",
-				Remote: msg.Channel + "@" + b.GetString("Muc"),
-				Text:   msg.Username + fileInfo.Comment,
-			})
-			if err != nil {
-				b.Log.WithError(err).Warn("Failed to announce file sharer, not sharing file.")
-				continue
-			}
-
-			if _, err := b.xc.SendOOB(xmpp.Chat{
-				Type:    "groupchat",
-				Remote:  msg.Channel + "@" + b.GetString("Muc"),
-				Ooburl:  fileInfo.URL,
-				Oobdesc: urlDesc,
-			}); err != nil {
-				b.Log.WithError(err).Warn("Failed to send share URL.")
-				continue
-			}
+			b.announceUploadedFile(room, text, urlDesc, fileInfo.URL)
 		} else {
 			// The file received from other bridges is just a bunch of bytes in fileInfo.Data
 			// We need to upload it to the XMPP server's HTTP upload component.
@@ -471,7 +478,7 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 			// 2. Request an "upload slot" from the upload component (we are here)
 			// 3. Send a PUT request with the data to the remote HTTP "upload slot" (when receiving the slot)
 			fileId := xid.New().String()
-			b.requestUploadSlot(fileId, &fileInfo)
+			b.requestUploadSlot(fileId, &fileInfo, room, text, urlDesc)
 		}
 	}
 	return nil
@@ -621,7 +628,7 @@ func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
 	return maxFileSize
 }
 
-func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo) {
+func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo, to string, text string, description string) {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9\+\-\_\.]+`)
 	fileNameEscaped := reg.ReplaceAllString(fileInfo.Name, "_")
 
@@ -648,6 +655,41 @@ func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo) {
 	// Save the FileInfo in the buffer to actually upload it later
 	// when we receive the upload slot.
 	b.Lock()
-	b.httpUploadBuffer[fileId] = fileInfo
+	b.httpUploadBuffer[fileId] = &UploadBufferEntry{
+		FileInfo:    fileInfo,
+		Mime:        mimeType,
+		Text:        text,
+		To:          to,
+		Description: description,
+	}
 	b.Unlock()
+}
+
+func (b *Bxmpp) announceUploadedFile(to string, text string, urlDesc string, urlStr string) {
+	b.Log.Debugf("Announcing uploaded file to %s: text `%s` desc `%s` url `%s`", to, text, urlDesc, urlStr)
+
+	// Send separate message with the username and optional file comment
+	// because we can't have an attachment comment/description.
+	_, err := b.xc.Send(xmpp.Chat{
+		Type:   "groupchat",
+		Remote: to,
+		Text:   text,
+	})
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to announce file sharer, not sharing file.")
+		return
+	}
+
+	_, err = b.xc.SendOOB(xmpp.Chat{
+		Type:   "groupchat",
+		Remote: to,
+		Oob: xmpp.Oob{
+			Url:  urlStr,
+			Desc: urlDesc,
+		},
+	})
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to send share URL.")
+		return
+	}
 }
