@@ -158,7 +158,10 @@ func (c *Client) Send(msg OMessage) error {
 	defer resp.Body.Close()
 
 	// Read entire body to completion to re-use keep-alive connections.
-	io.Copy(io.Discard, resp.Body)
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil && err != io.EOF {
+		return fmt.Errorf("unable to discard body reader: %w", err)
+	}
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)

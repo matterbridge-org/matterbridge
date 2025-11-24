@@ -60,9 +60,15 @@ func (b *Bxmpp) Disconnect() error {
 func (b *Bxmpp) JoinChannel(channel config.ChannelInfo) error {
 	if channel.Options.Key != "" {
 		b.Log.Debugf("using key %s for channel %s", channel.Options.Key, channel.Name)
-		b.xc.JoinProtectedMUC(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"), channel.Options.Key, xmpp.NoHistory, 0, nil)
+		_, err := b.xc.JoinProtectedMUC(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"), channel.Options.Key, xmpp.NoHistory, 0, nil)
+		if err != nil {
+			return err
+		}
 	} else {
-		b.xc.JoinMUCNoHistory(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"))
+		_, err := b.xc.JoinMUCNoHistory(channel.Name+"@"+b.GetString("Muc"), b.GetString("Nick"))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -308,7 +314,10 @@ func (b *Bxmpp) handleXMPP() error {
 				if !sok {
 					b.Log.Debugf("Requesting avatar data")
 					b.avatarAvailability[v.Remote] = false
-					b.xc.AvatarRequestData(v.Remote)
+					err := b.xc.AvatarRequestData(v.Remote)
+					if err != nil {
+						b.Log.Error("Failed to request avatar:", err)
+					}
 				} else if available {
 					avatar = getAvatar(b.avatarMap, v.Remote, b.General)
 				}

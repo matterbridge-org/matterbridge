@@ -43,7 +43,10 @@ func DownloadFileAuth(url string, auth string) (*[]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	io.Copy(&buf, resp.Body)
+	_, err = io.Copy(&buf, resp.Body)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
 	data := buf.Bytes()
 	return &data, nil
 }
