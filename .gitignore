@@ -10,3 +10,7 @@ matterbridge.toml
 
 # Ignore vendoring in repository
 /vendor
+
+# OS files
+.DS_Store
+*~
