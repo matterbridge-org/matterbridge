@@ -24,6 +24,8 @@ output:
 # linters that we should / shouldn't run
 linters:
   default: standard
+  enable:
+    - unused
   disable:
     - gochecknoglobals
     - lll
@@ -34,7 +36,6 @@ linters:
     - godot
     - errcheck
     - containedctx
-    - unused
     - goheader
     - wsl_v5
     - gochecknoinits

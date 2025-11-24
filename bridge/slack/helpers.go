@@ -220,32 +220,6 @@ func (b *Bslack) replaceCodeFence(text string) string {
 	return codeFenceRE.ReplaceAllString(text, "```")
 }
 
-// getUsersInConversation returns an array of userIDs that are members of channelID
-func (b *Bslack) getUsersInConversation(channelID string) ([]string, error) {
-	channelMembers := []string{}
-	for {
-		queryParams := &slack.GetUsersInConversationParameters{
-			ChannelID: channelID,
-		}
-
-		members, nextCursor, err := b.sc.GetUsersInConversation(queryParams)
-		if err != nil {
-			if err = handleRateLimit(b.Log, err); err != nil {
-				return channelMembers, fmt.Errorf("could not retrieve users in channels: %#v", err)
-			}
-			continue
-		}
-
-		channelMembers = append(channelMembers, members...)
-
-		if nextCursor == "" {
-			break
-		}
-		queryParams.Cursor = nextCursor
-	}
-	return channelMembers, nil
-}
-
 func handleRateLimit(log *logrus.Entry, err error) error {
 	rateLimit, ok := err.(*slack.RateLimitedError)
 	if !ok {

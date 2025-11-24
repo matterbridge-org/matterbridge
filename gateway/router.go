@@ -100,7 +100,6 @@ func (r *Router) Start() error {
 		}
 	}
 	go r.handleReceive()
-	//go r.updateChannelMembers()
 	return nil
 }
 
@@ -167,27 +166,5 @@ func (r *Router) handleReceive() {
 				}
 			}
 		}
-	}
-}
-
-// updateChannelMembers sends every minute an GetChannelMembers event to all bridges.
-func (r *Router) updateChannelMembers() {
-	// TODO sleep a minute because slack can take a while
-	// fix this by having actually connectionDone events send to the router
-	time.Sleep(time.Minute)
-	for {
-		for _, gw := range r.Gateways {
-			for _, br := range gw.Bridges {
-				// only for slack now
-				if br.Protocol != "slack" {
-					continue
-				}
-				r.logger.Debugf("sending %s to %s", config.EventGetChannelMembers, br.Account)
-				if _, err := br.Send(config.Message{Event: config.EventGetChannelMembers}); err != nil {
-					r.logger.Errorf("updateChannelMembers: %s", err)
-				}
-			}
-		}
-		time.Sleep(time.Minute)
 	}
 }
