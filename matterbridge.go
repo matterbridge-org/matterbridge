@@ -74,7 +74,7 @@ func setupLogger() *logrus.Logger {
 		Out: os.Stdout,
 		Formatter: &prefixed.TextFormatter{
 			PrefixPadding: 13,
-			DisableColors: true,
+			DisableColors: false,
 		},
 		Level: logrus.InfoLevel,
 	}
@@ -82,7 +82,7 @@ func setupLogger() *logrus.Logger {
 		logger.SetReportCaller(true)
 		logger.Formatter = &prefixed.TextFormatter{
 			PrefixPadding: 13,
-			DisableColors: true,
+			DisableColors: false,
 			FullTimestamp: false,
 
 			CallerFormatter: func(function, file string) string {
