@@ -13,6 +13,8 @@
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - Go required version is now v1.24
+- Update WhatsApp bridge to the latest version of Whatsmeow ([#13](https://github.com/matterbridge-org/matterbridge/pull/13)). Thanks @alvindimas05
+- Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14) and [#16](https://github.com/matterbridge-org/matterbridge/pull/16)). Thanks @lil5 
 
 ## Upstream
 
