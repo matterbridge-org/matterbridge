@@ -1,0 +1,40 @@
+# For full documentation of the configuration options please
+# see: https://golangci-lint.run/docs/configuration/file/
+version: "2"
+
+# options for analysis running
+run:
+  go: "1.24"
+
+  # which dirs to skip: they won't be analyzed;
+  # can use regexp here: generated.*, regexp is applied on full path;
+  # default value is empty list, but next dirs are always skipped independently
+  # from this option's value:
+  #   	vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
+  # skip-dirs: gateway/bridgemap$
+
+# output configuration options
+output:
+  # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
+  formats:
+    text:
+      path: stdout
+      colors: true
+
+# linters that we should / shouldn't run
+linters:
+  default: none
+  enable:
+    - staticcheck
+  settings:
+    staticcheck:
+      checks: [ "QF1004" ]
+
+formatters:
+  settings:
+    gofmt:
+      # simplify code: gofmt with `-s` option, true by default
+      simplify: true
+    goimports:
+      # put imports beginning with prefix after 3rd-party packages;
+      local-prefixes: [ "github.com" ]
