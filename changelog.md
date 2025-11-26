@@ -13,12 +13,30 @@
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - Go required version is now v1.24
-- Update WhatsApp bridge to the latest version of Whatsmeow ([#13](https://github.com/matterbridge-org/matterbridge/pull/13)). Thanks @alvindimas05
-- Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14) and [#16](https://github.com/matterbridge-org/matterbridge/pull/16)). Thanks @lil5 
+
+## New Features
+
+- general
+  - matterbridge output now colors log level for easier log reading ([#25](https://github.com/matterbridge-org/matterbridge/pull/25))
+- mastodon
+  - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
+  - Supports public messages and private messages
+  - Supports attachments
+
+## Bugfixes
+
+- general
+  - when downloading a file attachment from a remote HTTP server, matterbridge will now error if
+    the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
 
 ## Upstream
 
 - xmpp: go-xmpp updated to xmppo/go-xmpp v0.2.18
+- whatsappmulti: whatsmeow updated to v20251116104239 ([#13](https://github.com/matterbridge-org/matterbridge/pull/13), thanks @alvindimas05)
+
+## Minor changes
+
+- MacOS `.DS_STORE` and vim recovery files are now ignored in git ([#26](https://github.com/matterbridge-org/matterbridge/pull/26))
 
 # v1.26.0
 
