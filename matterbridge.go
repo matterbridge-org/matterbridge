@@ -21,6 +21,7 @@ var (
 	flagDebug   = flag.Bool("debug", false, "enable debug")
 	flagVersion = flag.Bool("version", false, "show version")
 	flagGops    = flag.Bool("gops", false, "enable gops agent")
+	flagNoColor = flag.Bool("nocolor", false, "disable colored logs")
 )
 
 func main() {
@@ -74,7 +75,7 @@ func setupLogger() *logrus.Logger {
 		Out: os.Stdout,
 		Formatter: &prefixed.TextFormatter{
 			PrefixPadding: 13,
-			DisableColors: false,
+			DisableColors: *flagNoColor,
 		},
 		Level: logrus.InfoLevel,
 	}
@@ -82,7 +83,7 @@ func setupLogger() *logrus.Logger {
 		logger.SetReportCaller(true)
 		logger.Formatter = &prefixed.TextFormatter{
 			PrefixPadding: 13,
-			DisableColors: false,
+			DisableColors: *flagNoColor,
 			FullTimestamp: false,
 
 			CallerFormatter: func(function, file string) string {
