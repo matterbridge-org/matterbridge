@@ -2,6 +2,8 @@
 
 Matterbridge supports many protocols, although not all of them support all features. Here's a list of officially-maintained and 3rd-party-maintained networks for matterbridge.
 
+Please let us know if you are able to regularly test and maybe maintain a specific protocol [here](https://github.com/matterbridge-org/community/issues/1).
+
 ## Natively supported
 
 - [Discord](https://discordapp.com)
@@ -30,35 +32,35 @@ Matterbridge supports many protocols, although not all of them support all featu
     - [matrix docs](matrix/)
     - [matrix settings](matrix/settings.md)
   - Channel format: `#channel_name:server.org`
-- [Mattermost](https://github.com/mattermost/mattermost-server/)
+- [Mattermost](https://github.com/mattermost/mattermost-server/) (no active maintainer)
   - Matterbridge docs:
     - [matterbridge docs](matterbridge/)
     - [matterbridge settings](matterbridge/settings.md)
   - Channel format:
     - by name: `channel_name` as seen in the URL `https://yourmattermostserver/yourteam/channels/channel_name`
     - by ID: `ID:channel_id`
-- [Microsoft Teams](https://teams.microsoft.com)
+- [Microsoft Teams](https://teams.microsoft.com) (no active maintainer)
   - Matterbridge [msteams docs](msteams/)
   - Channel format: `19:82caxx@thread.skype` as seen in the URL `?threadId=19:82caxx@thread.skype`
 - [Mumble](https://www.mumble.info/)
   - Matterbridge [mumble docs](mumble/)
   - Channel format: `channel_id` as seen in the channel's `Edit` window
-- [Nextcloud Talk](https://nextcloud.com/talk/)
+- [Nextcloud Talk](https://nextcloud.com/talk/) (no active maintainer)
   - Matterbridge [nctalk docs](nctalk/)
   - Channel format: `channel_id` as seen at the end of URL (eg. `xs25tz5y`)
-- [Rocket.chat](https://rocket.chat)
+- [Rocket.chat](https://rocket.chat) (no active maintainer)
   - Matterbridge docs:
     - [rocketchat docs](rocketchat/)
     - [rocketchat settings](rocketchat/settings.md)
   - Channel format: `#channel_name` (don't forget the leading `#`, even on private channels)
-- [Slack](https://slack.com)
+- [Slack](https://slack.com) (no active maintainer)
   - Matterbridge docs:
     - [slack docs](slack/)
     - [slack settings](slack/settings.md)
   - Channel format:
     - by name: `channel_name` (without the leading `#`)
     - by ID: `ID:channel_id` (does not work with webhooks!)
-- [Ssh-chat](https://github.com/shazow/ssh-chat)
+- [Ssh-chat](https://github.com/shazow/ssh-chat) (no active maintainer)
   - Matterbridge [sshchat docs](sshchat/)
   - Channel format: Only a single `sshchat` channel is supported
 - [Telegram](https://telegram.org)
@@ -68,10 +70,10 @@ Matterbridge supports many protocols, although not all of them support all featu
   - Channel format:
     - for channels/groups: `-channel_id` where `channel_id` is a large number (see FAQ)
     - for forum topics (sub-groups): `-100channel_id/topic_id` (see FAQ), except the first `General` topic which is `-100channel_id` (**not** `-100channel_id/1`)
-- [Twitch](https://twitch.tv)
+- [Twitch](https://twitch.tv) (no active maintainer)
   - Matterbridge [twitch docs](twitch/)
   - Channel format: `#channel_name` (it's all lowercase, and don't forget the leading `#`)
-- [VK](https://vk.com/)
+- [VK](https://vk.com/) (no active maintainer)
   - Matterbridge [vk docs](vk/)
   - Channel format: `channel_id` (see FAQ)
 - [WhatsApp](https://www.whatsapp.com/)
@@ -86,7 +88,7 @@ Matterbridge supports many protocols, although not all of them support all featu
     - [xmpp docs](xmpp/)
     - [xmpp settings](xmpp/settings.md)
   - Channel format: `channel_name` (for `channel_name@muc.server.org` where `muc.server.org` has been configured as `Muc` for the corresponding xmpp account)
-- [Zulip](https://zulipchat.com)
+- [Zulip](https://zulipchat.com) (no active maintainer)
   - Matterbridge docs:
     - [zulip docs](zulip/)
     - [zulip settings](zulip/settings.md)
