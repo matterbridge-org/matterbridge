@@ -24,6 +24,7 @@ require (
 	github.com/matterbridge/matterclient v0.0.0-20240817214420-3d4c3aef3dc1
 	github.com/matterbridge/telegram-bot-api/v6 v6.5.0
 	github.com/mattermost/mattermost/server/public v0.1.6
+	github.com/mattn/go-mastodon v0.0.10
 	github.com/mattn/godown v0.0.1
 	github.com/mdp/qrterminal v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
@@ -35,7 +36,7 @@ require (
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d
 	github.com/shazow/ssh-chat v1.10.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/slack-go/slack v0.14.0
+	github.com/slack-go/slack v0.17.3
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vincent-petithory/dataurl v1.0.0
@@ -51,11 +52,9 @@ require (
 	google.golang.org/protobuf v1.36.10
 	layeh.com/gumble v0.0.0-20221205141517-d1df60a3cc14
 	modernc.org/sqlite v1.32.0
-	github.com/mattn/go-mastodon v0.0.10
 )
 
 require (
-	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Benau/go_rlottie v0.0.0-20210807002906-98c1b2421989 // indirect
 	github.com/Jeffail/gabs v1.4.0 // indirect
@@ -121,6 +120,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tinylib/msgp v1.2.0 // indirect
+	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.31 // indirect
