@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
-	"github.com/jpillora/backoff"
 	"github.com/rs/xid"
 	"github.com/xmppo/go-xmpp"
 )

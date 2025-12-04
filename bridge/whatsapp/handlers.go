@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matterbridge-org/matterbridge/bridge/config"
-	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/Rhymen/go-whatsapp"
 	"github.com/jpillora/backoff"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
 )
 
 /*
