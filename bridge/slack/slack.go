@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/matterbridge-org/matterbridge/matterhook"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/rs/xid"
 	"github.com/slack-go/slack"
 )

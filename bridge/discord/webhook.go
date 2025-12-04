@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
-	"github.com/bwmarrin/discordgo"
 )
 
 // shouldMessageUseWebhooks checks if have a channel specific webhook, if we're not using auto webhooks

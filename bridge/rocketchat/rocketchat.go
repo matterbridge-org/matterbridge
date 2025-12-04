@@ -5,12 +5,12 @@ import (
 	"strings"
 	"sync"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/matterbridge-org/matterbridge/hook/rockethook"
 	"github.com/matterbridge-org/matterbridge/matterhook"
-	lru "github.com/hashicorp/golang-lru"
 	// Library even upstream no longer actively maintained, should be replaced:
 	"github.com/matterbridge/Rocket.Chat.Go.SDK/models"
 	"github.com/matterbridge/Rocket.Chat.Go.SDK/realtime"
