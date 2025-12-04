@@ -4,7 +4,7 @@
 package bridgemap
 
 import (
-	bmattermost "github.com/42wim/matterbridge/bridge/mattermost"
+	bmattermost "github.com/matterbridge-org/matterbridge/bridge/mattermost"
 )
 
 func init() {
