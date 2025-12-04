@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/42wim/matterbridge/bridge/config"
-	"github.com/42wim/matterbridge/bridge/helper"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/bwmarrin/discordgo"
 )
 

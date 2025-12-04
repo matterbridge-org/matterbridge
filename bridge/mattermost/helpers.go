@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/42wim/matterbridge/bridge/config"
-	"github.com/42wim/matterbridge/bridge/helper"
-	"github.com/42wim/matterbridge/matterhook"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
+	"github.com/matterbridge-org/matterbridge/matterhook"
 	"github.com/matterbridge/matterclient"
 	"github.com/mattermost/mattermost/server/public/model"
 )

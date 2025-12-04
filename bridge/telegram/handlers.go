@@ -8,9 +8,10 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/42wim/matterbridge/bridge/config"
-	"github.com/42wim/matterbridge/bridge/helper"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/davecgh/go-spew/spew"
+	// Seems not much different from upstream https://github.com/go-telegram-bot-api/telegram-bot-api replace?
 	tgbotapi "github.com/matterbridge/telegram-bot-api/v6"
 )
 

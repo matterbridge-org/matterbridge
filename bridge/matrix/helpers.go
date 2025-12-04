@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	// Custom fork of unmaintained library, needs replacement:
 	matrix "github.com/matterbridge/gomatrix"
 )
 
