@@ -10,10 +10,10 @@ import (
 
 	"github.com/olahol/melody"
 
-	"github.com/42wim/matterbridge/bridge"
-	"github.com/42wim/matterbridge/bridge/config"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/matterbridge-org/matterbridge/bridge"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/mitchellh/mapstructure"
 	ring "github.com/zfjagann/golang-ring"
 )
