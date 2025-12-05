@@ -28,7 +28,12 @@ linters:
     - staticcheck
   settings:
     staticcheck:
-      checks: [ "QF1004" ]
+      checks: [
+        # Default configuration for staticcheck:
+        "all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022",
+        # Removed additional checks temporarily:
+        "-QF1008", "-QF1009", "-ST1005", "-QF1001", "-QF1006", "-SA1019"
+      ]
 
 formatters:
   settings:
