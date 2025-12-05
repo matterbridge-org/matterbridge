@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -51,8 +50,6 @@ type s3MediaServer struct {
 	bucket         string
 	uploadPrefix   string
 	downloadPrefix string
-
-	ctx context.Context
 }
 
 var _ mediaServer = (*httpPutMediaServer)(nil)
@@ -95,8 +92,6 @@ func createS3MediaServer(bg *config.BridgeValues, parsed *url.URL, logger *logru
 	bucketName := pathSplitted[0]
 	uploadPrefix := strings.Join(pathSplitted[1:], "/")
 
-	ctx := context.Background()
-
 	var s3BaseUrl string
 	if useSSL {
 		s3BaseUrl = "https://" + parsed.Host
@@ -115,7 +110,7 @@ func createS3MediaServer(bg *config.BridgeValues, parsed *url.URL, logger *logru
 	}).Debug("configured minio client")
 
 	// This will return an error if the bucket does not exist
-	headBucketResult, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	headBucketResult, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	if err != nil {
 		return nil, fmt.Errorf("failed checking if bucket exists: %w", err)
 	}
@@ -131,7 +126,6 @@ func createS3MediaServer(bg *config.BridgeValues, parsed *url.URL, logger *logru
 			logger: logger,
 		},
 
-		ctx:      ctx,
 		s3client: client,
 
 		bucket:         bucketName,
@@ -196,20 +190,22 @@ func (h *httpPutMediaServer) handleFilesUpload(fi *config.FileInfo) (string, err
 	}
 	// Use MediaServerUpload. Upload using a PUT HTTP request and basicauth.
 	sha1sum := fmt.Sprintf("%x", sha1.Sum(*fi.Data))[:8] //nolint:gosec
-	url := h.httpUploadPath + "/" + sha1sum + "/" + fi.Name
+	uploadUrl := h.httpUploadPath + "/" + sha1sum + "/" + fi.Name
 
-	req, err := http.NewRequest("PUT", url, bytes.NewReader(*fi.Data))
+	req, err := http.NewRequest(http.MethodPut, uploadUrl, bytes.NewReader(*fi.Data))
 	if err != nil {
 		return "", fmt.Errorf("mediaserver upload failed, could not create request: %#v", err)
 	}
 
-	h.logger.Debugf("mediaserver upload url: %s", url)
+	h.logger.Debugf("mediaserver upload url: %s", uploadUrl)
 
 	req.Header.Set("Content-Type", "binary/octet-stream")
-	_, err = client.Do(req)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("mediaserver upload failed, could not Do request: %#v", err)
 	}
+	defer resp.Body.Close()
 
 	return h.httpDownloadPrefix + "/" + sha1sum + "/" + fi.Name, nil
 }
@@ -227,7 +223,7 @@ func (h *localMediaServer) handleFilesUpload(fi *config.FileInfo) (string, error
 	path := dir + "/" + fi.Name
 	h.logger.Debugf("mediaserver path placing file: %s", path)
 
-	err = ioutil.WriteFile(path, *fi.Data, os.ModePerm)
+	err = os.WriteFile(path, *fi.Data, os.ModePerm)
 	if err != nil {
 		return "", fmt.Errorf("mediaserver path failed, could not writefile: %s %#v", err, err)
 	}
@@ -244,7 +240,7 @@ func (h *s3MediaServer) handleFilesUpload(fi *config.FileInfo) (string, error) {
 
 	// We do not bother with multipart uploads for now, as files are expected to be small (less than 5GB).
 	// If needed, we can implement that later.
-	info, err := h.s3client.PutObject(h.ctx, &s3.PutObjectInput{
+	info, err := h.s3client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:        aws.String(h.bucket),
 		Key:           aws.String(key),
 		Body:          bytes.NewReader(*fi.Data),
