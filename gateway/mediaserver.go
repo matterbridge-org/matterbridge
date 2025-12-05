@@ -18,7 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go/logging"
 
-	"github.com/42wim/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
 )
 
