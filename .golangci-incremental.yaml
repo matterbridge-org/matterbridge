@@ -26,6 +26,7 @@ linters:
   default: none
   enable:
     - staticcheck
+    - govet
   settings:
     staticcheck:
       checks: [ "QF1004" ]
