@@ -28,7 +28,7 @@ linters:
     - staticcheck
   settings:
     staticcheck:
-      checks: [ "QF1004" ]
+      checks: [ "QF1004", "SA1019" ]
 
 formatters:
   settings:
