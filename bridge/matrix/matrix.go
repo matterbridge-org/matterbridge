@@ -3,7 +3,9 @@ package bmatrix
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"mime"
+	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -393,6 +395,17 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	return resp.EventID, err
 }
 
+func (b *Bmatrix) NewHttpRequest(method, uri string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, uri, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", "Bearer "+b.mc.AccessToken)
+
+	return req, nil
+}
+
 func (b *Bmatrix) handlematrix() {
 	syncer := b.mc.Syncer.(*matrix.DefaultSyncer)
 	syncer.OnEventType("m.room.redaction", b.handleEvent)
@@ -472,6 +485,25 @@ func (b *Bmatrix) handleReply(ev *matrix.Event, rmsg config.Message) bool {
 	return true
 }
 
+func (b *Bmatrix) handleAttachment(ev *matrix.Event, rmsg config.Message) bool {
+	if !b.containsAttachment(ev.Content) {
+		return false
+	}
+
+	go func() {
+		// File download is processed in the background to avoid stalling
+		err := b.handleDownloadFile(&rmsg, ev.Content)
+		if err != nil {
+			b.Log.Errorf("%#v", err)
+			return
+		}
+
+		b.Remote <- rmsg
+	}()
+
+	return true
+}
+
 func (b *Bmatrix) handleMemberChange(ev *matrix.Event) {
 	// Update the displayname on join messages, according to https://matrix.org/docs/spec/client_server/r0.6.1#events-on-change-of-profile-information
 	if ev.Content["membership"] == "join" {
@@ -539,12 +571,10 @@ func (b *Bmatrix) handleEvent(ev *matrix.Event) {
 			return
 		}
 
-		// Do we have attachments
-		if b.containsAttachment(ev.Content) {
-			err := b.handleDownloadFile(&rmsg, ev.Content)
-			if err != nil {
-				b.Log.Errorf("download failed: %#v", err)
-			}
+		// Do we have an attachment
+		// TODO: does matrix support multiple attachments?
+		if b.handleAttachment(ev, rmsg) {
+			return
 		}
 
 		b.Log.Debugf("<= Sending message from %s on %s to gateway", ev.Sender, b.Account)
@@ -570,7 +600,10 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]in
 	if url, ok = content["url"].(string); !ok {
 		return fmt.Errorf("url isn't a %T", url)
 	}
-	url = strings.ReplaceAll(url, "mxc://", b.GetString("Server")+"/_matrix/media/v1/download/")
+	// Matrix downloads now have to be authenticated with an access token
+	// See https://github.com/matrix-org/matrix-spec-proposals/blob/main/proposals/3916-authentication-for-media.md
+	// Also see: https://github.com/matterbridge-org/matterbridge/issues/36
+	url = strings.ReplaceAll(url, "mxc://", b.GetString("Server")+"/_matrix/client/v1/media/download/")
 
 	if info, ok = content["info"].(map[string]interface{}); !ok {
 		return fmt.Errorf("info isn't a %T", info)
@@ -601,18 +634,11 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]in
 		}
 	}
 
-	// check if the size is ok
-	err := helper.HandleDownloadSize(b.Log, rmsg, name, int64(size), b.General)
+	// TODO: add attachment ID?
+	err := b.AddAttachmentFromURL(rmsg, name, "", "", url)
 	if err != nil {
 		return err
 	}
-	// actually download the file
-	data, err := helper.DownloadFile(url)
-	if err != nil {
-		return fmt.Errorf("download %s failed %#v", url, err)
-	}
-	// add the downloaded data to the message
-	helper.HandleDownloadData(b.Log, rmsg, name, "", url, data, b.General)
 	return nil
 }
 
