@@ -2,6 +2,8 @@ package bridge
 
 import (
 	"log"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,7 @@ type Bridge struct {
 	Log            *logrus.Entry
 	Config         config.Config
 	General        *config.Protocol
+	HttpClient     *http.Client // Unique HTTP settings per bridge
 }
 
 type Config struct {
@@ -41,6 +44,8 @@ type Config struct {
 // Factory is the factory function to create a bridge
 type Factory func(*Config) Bridger
 
+// New is a basic constructor. More important fields are populated
+// in gateway/gateway.go (AddBridge method).
 func New(bridge *config.Bridge) *Bridge {
 	accInfo := strings.Split(bridge.Account, ".")
 	if len(accInfo) != 2 {
@@ -132,4 +137,36 @@ func (b *Bridge) GetStringSlice2D(key string) [][]string {
 		val, _ = b.Config.GetStringSlice2D("general." + key)
 	}
 	return val
+}
+
+// NewHttpClient produces a single unified http.Client per bridge.
+//
+// This allows to have project-wide defaults (timeout) as well as
+// bridge-configurable values (`http_proxy`).
+//
+// This method is left public so that if that's needed, a bridge can
+// override this constructor.
+//
+// TODO: maybe protocols without HTTP downloads at all could override
+// this method and return nil? Or the other way around?
+func (b *Bridge) NewHttpClient(http_proxy string) (*http.Client, error) {
+	if http_proxy != "" {
+		proxyUrl, err := url.Parse(b.GetString("http_proxy"))
+		if err != nil {
+			return nil, err
+		}
+
+		b.Log.Debugf("%s using HTTP proxy %s", b.Protocol, proxyUrl)
+
+		return &http.Client{
+			Timeout:   time.Second * 15,
+			Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)},
+		}, nil
+	}
+
+	b.Log.Debugf("%s not using HTTP proxy", b.Protocol)
+
+	return &http.Client{
+		Timeout: time.Second * 5,
+	}, nil
 }

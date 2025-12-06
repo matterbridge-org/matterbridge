@@ -82,7 +82,10 @@ func (gw *Gateway) FindCanonicalMsgID(protocol string, mID string) string {
 	return ""
 }
 
-// AddBridge sets up a new bridge in the gateway object with the specified configuration.
+// AddBridge sets up a new bridge on startup.
+//
+// It's added in the gateway object with the specified configuration, and is
+// not triggered again on config change.
 func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 	br := gw.Router.getBridge(cfg.Account)
 	if br == nil {
@@ -91,6 +94,15 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 		br.Config = gw.Router.Config
 		br.General = &gw.BridgeValues().General
 		br.Log = gw.logger.WithFields(logrus.Fields{"prefix": br.Protocol})
+
+		// Instantiate bridge's HTTP client
+		http_client, err := br.NewHttpClient(br.GetString("http_proxy"))
+		if err != nil {
+			br.Log.Fatalf("config failure for account %s, HTTP settings incorrect", br.Account)
+		}
+
+		br.HttpClient = http_client
+
 		brconfig := &bridge.Config{
 			Remote: gw.Message,
 			Bridge: br,
@@ -106,6 +118,9 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 	return nil
 }
 
+// checkConfig checks a bridge config, on startup.
+//
+// This is not triggered when config is reloaded from disk.
 func (gw *Gateway) checkConfig(cfg *config.Bridge) {
 	match := false
 	for _, key := range gw.Router.Config.Viper().AllKeys() {
