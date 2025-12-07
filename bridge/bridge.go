@@ -183,6 +183,8 @@ func HttpGetNotOkError(uri string, code int) error {
 	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, uri, code)
 }
 
+// HttpGetBytes returns bytes from a given URI, if the request
+// succeeds and HTTP response status is 200 (OK).
 func (b *Bridge) HttpGetBytes(uri string) (*[]byte, error) {
 	req, err := b.Bridger.NewHttpRequest("GET", uri, nil)
 	if err != nil {
@@ -215,6 +217,52 @@ func (b *Bridge) HttpGetBytes(uri string) (*[]byte, error) {
 	data := buf.Bytes()
 
 	return &data, nil
+}
+
+// HttpUpload uploads data to a URI, and validates the response status code.
+//
+// Params:
+//
+// - method: specific HTTP verb
+// - uri: remote URL
+// - headers: map of headers to insert in the request
+// - data: raw bytes to upload in the body
+// - ok_status: list of HTTP status codes considered successful (default: 200, 201)
+//
+// The response body is always discarded.
+func (b *Bridge) HttpUpload(method string, uri string, headers map[string]string, data *[]byte, ok_status []int) error {
+	req, err := b.Bridger.NewHttpRequest(method, uri, bytes.NewReader(*data))
+	if err != nil {
+		return err
+	}
+
+	for header_name, header_value := range headers {
+		req.Header.Set(header_name, header_value)
+	}
+
+	b.Log.Debugf("HTTP upload request: %v", req)
+
+	resp, err := b.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	// By default, allow codes 200 (OK) and 201 (CREATED)
+	if len(ok_status) == 0 {
+		ok_status = []int{200, 201}
+	}
+
+	for _, expected_code := range ok_status {
+		b.Log.Debugf("Successful file upload with code %d", expected_code)
+		return nil
+	}
+
+	return HttpGetNotOkError(uri, resp.StatusCode)
 }
 
 func (b *Bridge) AddAttachmentFromURL(msg *config.Message, filename string, id string, comment string, uri string) error {
