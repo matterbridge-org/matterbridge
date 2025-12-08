@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -47,13 +48,16 @@ const apiProtocol = "api"
 func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 	logger := rootLogger.WithFields(logrus.Fields{"prefix": "gateway"})
 
-	mediaServer, err := createMediaServer(r.Config.BridgeValues(), rootLogger.WithField("prefix", "mediaserver"))
+	mediaServerInstance, err := createMediaServer(r.BridgeValues(), rootLogger.WithField("prefix", "mediaserver"))
 	if err != nil {
-		logger.Errorf("Failed to configure media server for gateway: %#v", err)
-	}
+		if errors.Is(err, ErrMediaConfigurationNotWanted) {
+			// media server not wanted, ignore
+			mediaServerInstance = nil
 
-	if mediaServer == nil {
-		logger.Warn("Media server is disabled")
+			logger.Info("Media server not configured, skipping media server setup")
+		} else {
+			logger.WithError(err).Error("Failed to configure media server for gateway")
+		}
 	}
 
 	cache, _ := lru.New(5000)
@@ -65,7 +69,7 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 		Config:      r.Config,
 		Messages:    cache,
 		logger:      logger,
-		mediaServer: mediaServer,
+		mediaServer: mediaServerInstance,
 	}
 	if err := gw.AddConfig(cfg); err != nil {
 		logger.Errorf("Failed to add configuration to gateway: %#v", err)

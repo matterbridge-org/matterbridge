@@ -216,6 +216,12 @@ type Protocol struct {
 	VerboseJoinPart        bool       // IRC
 	WebhookBindAddress     string     // mattermost, slack
 	WebhookURL             string     // mattermost, slack
+
+	S3Endpoint       string // general, mediaserver configuration
+	S3AccessKey      string // general, mediaserver configuration
+	S3SecretKey      string // general, mediaserver configuration
+	S3ForcePathStyle bool   // general, mediaserver configuration
+	S3Presign        bool   // general, mediaserver configuration
 }
 
 type ChannelOptions struct {
