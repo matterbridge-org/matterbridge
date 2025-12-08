@@ -229,7 +229,6 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	// Upload a file if it exists
 	if msg.Extra != nil {
 		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
-			rmsg := rmsg
 
 			err := b.retry(func() error {
 				_, err := b.mc.SendText(channel, rmsg.Username+rmsg.Text)
@@ -571,7 +570,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]in
 		return fmt.Errorf("url isn't a %T", url)
 	}
 	// https://github.com/matrix-org/matrix-spec-proposals/blob/main/proposals/3916-authentication-for-media.md
-	url = strings.Replace(url, "mxc://", b.GetString("Server")+"/_matrix/client/v1/media/download/", -1)
+	url = strings.ReplaceAll(url, "mxc://", b.GetString("Server")+"/_matrix/client/v1/media/download/")
 
 	if info, ok = content["info"].(map[string]interface{}); !ok {
 		return fmt.Errorf("info isn't a %T", info)
