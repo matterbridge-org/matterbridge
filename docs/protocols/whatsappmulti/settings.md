@@ -14,17 +14,6 @@ Number you will use as a relay bot. Tip: Get some disposable sim card, don't rel
   Number="+48111222333"
   ```
 
-## QrOnWhiteTerminal
-
-If your terminal is white we need to invert QR code in order for it to be scanned properly
-
-- Setting: **OPTIONAL**
-- Format: *boolean*
-- Example:
-  ```toml
-  QrOnWhiteTerminal=true
-  ```
-
 ## SessionFile
 
 First time that you login you will need to scan QR code, then credentials will

@@ -1,4 +1,4 @@
-# Whatsapp
+# Whatsappmulti
 
 - Status: ???
 - Maintainers: ???
@@ -12,14 +12,12 @@
 **Basic configuration example:**
 
 ```toml
-[whatsapp.mywhatsapp]
+[whatsappmulti.mywhatsapp]
 RemoteNickFormat="[{PROTOCOL}] @{NICK}: "
 # Get a disposable SIM card
 Number="+48111222333"
 # See FAQ
 SessionFile="session-48111222333.gob"
-# If your terminal uses a light color scheme, uncommebt below
-#QrOnWhiteTerminal=true
 ```
 
 ## FAQ
