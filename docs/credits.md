@@ -10,7 +10,7 @@ Matterbridge wouldn't exist without these libraries:
 - gozulipbot - <https://github.com/ifo/gozulipbot>
 - gumble - <https://github.com/layeh/gumble>
 - irc - <https://github.com/lrstanley/girc>
-- matrix - <https://github.com/matrix-org/gomatrix>
+- matrix - <https://maunium.net/go/mautrix>
 - mattermost - <https://github.com/mattermost/mattermost-server>
 - msgraph.go - <https://github.com/yaegashi/msgraph.go>
 - mumble - <https://github.com/layeh/gumble>
