@@ -34,10 +34,12 @@
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - image attachments are now send as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+- xmpp
+  - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 
 ## Upstream
 
-- xmpp: go-xmpp updated to xmppo/go-xmpp v0.2.18
+- xmpp: go-xmpp updated to xmppo/go-xmpp v0.3.1
 - whatsappmulti: whatsmeow updated to v20251116104239 ([#13](https://github.com/matterbridge-org/matterbridge/pull/13), thanks @alvindimas05)
 
 ## Minor changes
