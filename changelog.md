@@ -11,6 +11,7 @@
   - steam protocol has changed profoundly
   - keybase has been removed because we don't have a maintainer for it. See
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
+  - whatsapp backend has been deprecated in favor of whatsappmulti. See [issue #32](https://github.com/matterbridge-org/matterbridge/issues/32)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - Go required version is now v1.24
 
