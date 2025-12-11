@@ -154,6 +154,7 @@ func (b *Bmatrix) containsAttachment(content map[string]interface{}) bool {
 	// Only allow image,video or file msgtypes
 	if !(content["msgtype"].(string) == "m.image" ||
 		content["msgtype"].(string) == "m.video" ||
+		content["msgtype"].(string) == "m.audio" ||
 		content["msgtype"].(string) == "m.file") {
 		return false
 	}
