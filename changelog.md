@@ -18,6 +18,7 @@
 
 - general
   - matterbridge output now colors log level for easier log reading ([#25](https://github.com/matterbridge-org/matterbridge/pull/25))
+  - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
