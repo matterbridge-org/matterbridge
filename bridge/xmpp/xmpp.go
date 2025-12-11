@@ -5,8 +5,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
+	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +23,16 @@ import (
 	"github.com/xmppo/go-xmpp"
 )
 
+// UploadBufferEntry is data stored between requesting an upload,
+// and actually performing the upload.
+type UploadBufferEntry struct {
+	FileInfo    *config.FileInfo // Data received from other bridges
+	Mime        string           // Mimetype for the file upload
+	Description string           // Raw comment without authorship
+	Text        string           // Computed comment (including authorship) for the upload
+	To          string           // Room to send the upload announcement once completed
+}
+
 type Bxmpp struct {
 	*bridge.Config
 
@@ -30,6 +44,10 @@ type Bxmpp struct {
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
+
+	httpUploadComponent string
+	httpUploadMaxSize   int64
+	httpUploadBuffer    map[string]*UploadBufferEntry
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -38,6 +56,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
+		httpUploadBuffer:   make(map[string]*UploadBufferEntry),
 	}
 }
 
@@ -324,6 +343,7 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+					Extra: make(map[string][]any),
 				}
 
 				// Check if we have an action event.
@@ -333,6 +353,9 @@ func (b *Bxmpp) handleXMPP() error {
 					rmsg.Event = config.EventUserAction
 				}
 
+				if b.handleDownloadFile(&rmsg, &v) {
+					continue
+				}
 				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
 				b.Log.Debugf("<= Message is %#v", rmsg)
 				b.Remote <- rmsg
@@ -343,6 +366,64 @@ func (b *Bxmpp) handleXMPP() error {
 			b.Log.Debugf("Avatar for %s is now available", v.From)
 		case xmpp.Presence:
 			// Do nothing.
+		case xmpp.DiscoItems:
+			// Received a list of items, most likely from trying to find the HTTP upload server
+			// Send a disco info query to all items to find out which is which
+			for _, item := range v.Items {
+				_, err := b.xc.DiscoverInfo(item.Jid)
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to disco info from %s", item.Jid)
+				}
+			}
+		case xmpp.DiscoResult:
+			for _, identity := range v.Identities {
+				if identity.Type != "file" || identity.Category != "store" {
+					continue
+				}
+
+				foundSize := b.extractMaxSizeFromX(&v.X)
+
+				b.Log.Debugf("Found HTTP file upload component %s (maximum size: %d)", v.From, foundSize)
+				b.Lock()
+				b.httpUploadComponent = v.From
+				b.httpUploadMaxSize = foundSize
+				b.Unlock()
+			}
+		case xmpp.Slot:
+			b.Log.Debugf("Received upload slot ID %s", v.ID)
+			b.Lock()
+			entry, ok := b.httpUploadBuffer[v.ID]
+			b.Unlock()
+
+			if !ok {
+				b.Log.Warnf("Received upload slot ID %s doesn't match a known file", v.ID)
+				continue
+			}
+
+			b.Log.Debugf("Preparing to upload file %s to %s", entry.FileInfo.Name, v.Put.Url)
+
+			go func() {
+				headers := make(map[string]string)
+				headers["Content-Type"] = entry.Mime
+
+				for _, h := range v.Put.Headers {
+					switch h.Name {
+					case "Authorization", "Cookie", "Expires":
+						b.Log.Debugf("Setting header %s to %s", h.Name, h.Value)
+						headers[h.Name] = h.Value
+					default:
+						b.Log.Warnf("Unknown header from HTTP upload component: %s: %s", h.Name, h.Value)
+					}
+				}
+
+				err := b.HttpUpload(http.MethodPut, v.Put.Url, headers, entry.FileInfo.Data, []int{http.StatusOK, http.StatusCreated})
+				if err != nil {
+					b.Log.WithError(err).Errorf("Failed to upload file %s", entry.FileInfo.Name)
+				}
+
+				// Actually perform the chat announcement
+				b.announceUploadedFile(entry.To, entry.Text, entry.Description, v.Get.Url)
+			}()
 		}
 	}
 }
@@ -355,6 +436,15 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 }
 
 // handleUploadFile handles native upload of files
+// IMPORTANT NOTES:
+//
+// Some clients only display a preview when the body is exactly the URL, not only contains it.
+// https://docs.modernxmpp.org/client/protocol/#communicating-the-url
+//
+// This is the case with Gajim/Conversations for example.
+//
+// This means we cannot have an actual description of the uploaded file, nor can we add
+// information about who posted it... at least in the same message.
 func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 	var urlDesc string
 
@@ -370,23 +460,25 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				urlDesc = fileInfo.Comment
 			}
 		}
-		if _, err := b.xc.Send(xmpp.Chat{
-			Type:   "groupchat",
-			Remote: msg.Channel + "@" + b.GetString("Muc"),
-			Text:   msg.Username + msg.Text,
-		}); err != nil {
-			return err
-		}
 
+		room := msg.Channel + "@" + b.GetString("Muc")
+
+		text := msg.Username + fileInfo.Comment
 		if fileInfo.URL != "" {
-			if _, err := b.xc.SendOOB(xmpp.Chat{
-				Type:    "groupchat",
-				Remote:  msg.Channel + "@" + b.GetString("Muc"),
-				Ooburl:  fileInfo.URL,
-				Oobdesc: urlDesc,
-			}); err != nil {
-				b.Log.WithError(err).Warn("Failed to send share URL.")
-			}
+			// The file has a URL because it was uploaded to matterbridge's mediaserver
+			b.announceUploadedFile(room, text, urlDesc, fileInfo.URL)
+		} else {
+			// The file received from other bridges is just a bunch of bytes in fileInfo.Data
+			// We need to upload it to the XMPP server's HTTP upload component.
+			// This is defined in XEP-0363: https://xmpp.org/extensions/xep-0363.html
+			//
+			// The steps are:
+			//
+			// 1. Find the server's attached upload XMPP component (done on login)
+			// 2. Request an "upload slot" from the upload component (we are here)
+			// 3. Send a PUT request with the data to the remote HTTP "upload slot" (when receiving the slot)
+			fileId := xid.New().String()
+			b.requestUploadSlot(fileId, &fileInfo, room, text, urlDesc)
 		}
 	}
 	return nil
@@ -440,11 +532,164 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 func (b *Bxmpp) setConnected(state bool) {
 	b.Lock()
 	b.connected = state
-	defer b.Unlock()
+	b.Unlock()
+
+	// We are now (re)connected, send a disco query to find out HTTP upload server
+	// Ignore any errors encountered
+	_, err := b.xc.DiscoverServerItems()
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to discover server items")
+	}
 }
 
 func (b *Bxmpp) Connected() bool {
 	b.RLock()
 	defer b.RUnlock()
 	return b.connected
+}
+
+// handleDownloadFile processes file downloads in the background.
+//
+// Returns true if the message was handled, false otherwise.
+//
+// This implements XEP-0066 https://xmpp.org/extensions/xep-0066.html
+func (b *Bxmpp) handleDownloadFile(rmsg *config.Message, v *xmpp.Chat) bool {
+	// Do we have an OOB attachment URL?
+	if v.Oob.Url != "" {
+		go func() {
+			b.handleDownloadFileInner(rmsg, v)
+		}()
+
+		return true
+	}
+
+	return false
+}
+
+// handleDownloadFileInner is a helper to actually download a remote attachment
+// and announce it to other bridges.
+//
+// It runs in the foreground, and should only be called in a background context
+// to avoid stalling in the main thread.
+//
+// If it encounters any error, it will log the error and skip the message.
+func (b *Bxmpp) handleDownloadFileInner(rmsg *config.Message, v *xmpp.Chat) {
+	parsed_url, err := url.Parse(v.Oob.Url)
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to parse OOB URL")
+		return
+	}
+	// We use the last part of the URL's path as filename. This prevents
+	// errors from extra slashes, but might not make sense if for example
+	// the URL is `/download?id=FOO`.
+	// TODO: investigate popular URL naming schemes in XMPP world, or
+	// consider naming the files after their own checksum.
+	fileName := path.Base(parsed_url.Path)
+
+	err = b.AddAttachmentFromURL(rmsg, fileName, "", "", v.Oob.Url)
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to download remote XMPP OOB attachment")
+		return
+	}
+
+	b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
+	b.Log.Debugf("<= Message is %#v", rmsg)
+
+	b.Remote <- *rmsg
+}
+
+func (b *Bxmpp) extractMaxSizeFromX(disco_x *[]xmpp.DiscoX) int64 {
+	for _, x := range *disco_x {
+		for i, field := range x.Field {
+			if field.Var == "max-file-size" {
+				if i > 0 {
+					if x.Field[i-1].Value[0] == "urn:xmpp:http:upload:0" {
+						return b.extractMaxSizeFromXFieldValue(field.Value[0])
+					}
+				}
+			}
+		}
+	}
+
+	b.Log.Debug("No HTTP max upload size found")
+
+	return 0
+}
+
+func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
+	maxFileSize, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		// If the max-file-size can't be parsed, assume it's 0
+		// and log the error.
+		b.Log.Errorf("Failed to parse HTTP max upload size: %s", value)
+		return 0
+	}
+
+	return maxFileSize
+}
+
+func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo, to string, text string, description string) {
+	reg := regexp.MustCompile(`[^a-zA-Z0-9\+\-\_\.]+`)
+	fileNameEscaped := reg.ReplaceAllString(fileInfo.Name, "_")
+
+	// Guess the mime-type
+	mimeType := mime.TypeByExtension(path.Ext(fileInfo.Name))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	b.Log.Debugf("Requesting upload slot ID %s for %s (escaped) with mime-type %s", fileId, fileNameEscaped, mimeType)
+
+	request := fmt.Sprintf("<request xmlns='urn:xmpp:http:upload:0' filename='%s' size='%d' content-type='%s' />", fileNameEscaped, fileInfo.Size, mimeType)
+
+	b.Lock()
+	httpUploadComponent := b.httpUploadComponent
+	b.Unlock()
+
+	_, err := b.xc.RawInformation(b.xc.JID(), httpUploadComponent, fileId, "get", request)
+	if err != nil {
+		b.Log.WithError(err).Error("Failed to request upload slot")
+		return
+	}
+
+	// Save the FileInfo in the buffer to actually upload it later
+	// when we receive the upload slot.
+	b.Lock()
+	b.httpUploadBuffer[fileId] = &UploadBufferEntry{
+		FileInfo:    fileInfo,
+		Mime:        mimeType,
+		Text:        text,
+		To:          to,
+		Description: description,
+	}
+	b.Unlock()
+}
+
+func (b *Bxmpp) announceUploadedFile(to string, text string, urlDesc string, urlStr string) {
+	b.Log.Debugf("Announcing uploaded file to %s: text `%s` desc `%s` url `%s`", to, text, urlDesc, urlStr)
+
+	// Send separate message with the username and optional file comment
+	// because we can't have an attachment comment/description.
+	_, err := b.xc.Send(xmpp.Chat{
+		Type:   "groupchat",
+		Remote: to,
+		Text:   text,
+	})
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to announce file sharer, not sharing file.")
+		return
+	}
+
+	_, err = b.xc.SendOOB(xmpp.Chat{
+		Type:   "groupchat",
+		Remote: to,
+		Oob: xmpp.Oob{
+			Url:  urlStr,
+			Desc: urlDesc,
+		},
+	})
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to send share URL.")
+		return
+	}
 }

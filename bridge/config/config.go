@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -285,14 +286,16 @@ type Config interface {
 	GetString(key string) (string, bool)
 	GetStringSlice(key string) ([]string, bool)
 	GetStringSlice2D(key string) ([][]string, bool)
+	IsFilenameBlacklisted(filename string) bool
 }
 
 type config struct {
 	sync.RWMutex
 
-	logger *logrus.Entry
-	v      *viper.Viper
-	cv     *BridgeValues
+	logger                        *logrus.Entry
+	v                             *viper.Viper
+	cv                            *BridgeValues
+	MediaDownloadBlackListRegexes *[]*regexp.Regexp
 }
 
 // NewConfig instantiates a new configuration based on the specified configuration file path.
@@ -319,6 +322,12 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 	if mycfg.cv.General.MediaDownloadSize == 0 {
 		mycfg.cv.General.MediaDownloadSize = 1000000
 	}
+
+	// Precompile MediaBlackList regexes so we make sure they're correct,
+	// and they don't have to be compiled on every file attachment, because
+	// that's a slow operation.
+	mycfg.compileMediaDownloadBlackListRegexes()
+
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
 		logger.Println("Config file changed:", e.Name)
@@ -420,6 +429,44 @@ func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
 		result = append(result, result2)
 	}
 	return result, true
+}
+
+// IsFilenameBlackListed checks if a given file name matches the
+// configured blacklist. This is useful to filter potentially-harmful
+// files that could be served over HTTP (eg. `.html` with XSS).
+func (c *config) IsFilenameBlacklisted(filename string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, re := range *c.MediaDownloadBlackListRegexes {
+		if re.MatchString(filename) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *config) compileMediaDownloadBlackListRegexes() {
+	regexes := []*regexp.Regexp{}
+
+	// TODO: apparently c.cv.General does not get updated when config reloads
+	// see https://github.com/matterbridge-org/matterbridge/issues/57
+	// for _, regex := range c.cv.General.MediaDownloadBlackList {
+	for _, regex := range c.v.GetStringSlice("general.MediaDownloadBlackList") {
+		c.logger.Debugf("Found blacklist regex %s", regex)
+
+		re, err := regexp.Compile(regex)
+		if err != nil {
+			c.logger.Errorf("incorrect regexp %s for MediaDownloadBlackList", regex)
+			continue
+		}
+
+		regexes = append(regexes, re)
+	}
+
+	c.MediaDownloadBlackListRegexes = &regexes
+	c.logger.Debug("Successfully applied new `MediaDownloadBlackList` regexes")
 }
 
 func GetIconURL(msg *Message, iconURL string) string {

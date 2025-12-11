@@ -1,7 +1,13 @@
 package bridge
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +36,7 @@ type Bridge struct {
 	Log            *logrus.Entry
 	Config         config.Config
 	General        *config.Protocol
+	HttpClient     *http.Client // Unique HTTP settings per bridge
 }
 
 type Config struct {
@@ -41,6 +48,8 @@ type Config struct {
 // Factory is the factory function to create a bridge
 type Factory func(*Config) Bridger
 
+// New is a basic constructor. More important fields are populated
+// in gateway/gateway.go (AddBridge method).
 func New(bridge *config.Bridge) *Bridge {
 	accInfo := strings.Split(bridge.Account, ".")
 	if len(accInfo) != 2 {
@@ -132,4 +141,214 @@ func (b *Bridge) GetStringSlice2D(key string) [][]string {
 		val, _ = b.Config.GetStringSlice2D("general." + key)
 	}
 	return val
+}
+
+// NewHttpClient produces a single unified http.Client per bridge.
+//
+// This allows to have project-wide defaults (timeout) as well as
+// bridge-configurable values (`http_proxy`).
+//
+// This method is left public so that if that's needed, a bridge can
+// override this constructor.
+//
+// TODO: maybe protocols without HTTP downloads at all could override
+// this method and return nil? Or the other way around?
+func (b *Bridge) NewHttpClient(http_proxy string) (*http.Client, error) {
+	if http_proxy != "" {
+		// TODO: support https_proxy as well
+		// see https://github.com/golang/go/issues/40909 for reasoning
+		proxyUrl, err := url.Parse(b.GetString("http_proxy"))
+		if err != nil {
+			return nil, err
+		}
+
+		b.Log.Debugf("%s using HTTP proxy %s", b.Protocol, proxyUrl)
+
+		return &http.Client{
+			Timeout:   time.Second * 5,
+			Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)},
+		}, nil
+	}
+
+	b.Log.Debugf("%s not using HTTP proxy", b.Protocol)
+
+	return &http.Client{
+		Timeout: time.Second * 5,
+	}, nil
+}
+
+var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
+
+func HttpGetNotOkError(uri string, code int) error {
+	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, uri, code)
+}
+
+// HttpGetBytes returns bytes from a given URI, if the request
+// succeeds and HTTP response status is 200 (OK).
+func (b *Bridge) HttpGetBytes(uri string) (*[]byte, error) {
+	req, err := b.NewHttpRequest("GET", uri, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := b.HttpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, HttpGetNotOkError(uri, resp.StatusCode)
+	}
+
+	var buf bytes.Buffer
+
+	_, err = io.Copy(&buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	data := buf.Bytes()
+
+	return &data, nil
+}
+
+// HttpUpload uploads data to a URI, and validates the response status code.
+//
+// Params:
+//
+// - method: specific HTTP verb
+// - uri: remote URL
+// - headers: map of headers to insert in the request
+// - data: raw bytes to upload in the body
+// - ok_status: list of HTTP status codes considered successful
+//
+// The response body is always discarded.
+func (b *Bridge) HttpUpload(method string, uri string, headers map[string]string, data *[]byte, ok_status []int) error {
+	req, err := b.NewHttpRequest(method, uri, bytes.NewReader(*data))
+	if err != nil {
+		return err
+	}
+
+	for header_name, header_value := range headers {
+		req.Header.Set(header_name, header_value)
+	}
+
+	b.Log.Debugf("HTTP upload request: %v", req)
+
+	resp, err := b.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	for _, expected_code := range ok_status {
+		b.Log.Debugf("Successful file upload with code %d", expected_code)
+		return nil
+	}
+
+	return HttpGetNotOkError(uri, resp.StatusCode)
+}
+
+func (b *Bridge) AddAttachmentFromURL(msg *config.Message, filename string, id string, comment string, uri string) error {
+	return b.addAttachment(msg, filename, id, comment, uri, nil, false)
+}
+
+func (b *Bridge) AddAttachmentFromBytes(msg *config.Message, filename string, id string, comment string, data *[]byte) error {
+	return b.addAttachment(msg, filename, id, comment, "", data, false)
+}
+
+func (b *Bridge) AddAvatarFromURL(msg *config.Message, filename string, id string, comment string, uri string) error {
+	return b.addAttachment(msg, filename, id, comment, uri, nil, true)
+}
+
+func (b *Bridge) AddAvatarFromBytes(msg *config.Message, filename string, id string, comment string, data *[]byte) error {
+	return b.addAttachment(msg, filename, id, comment, "", data, true)
+}
+
+// NewHttpRequest produces a new http.Request instance with bridge-specific settings.
+//
+// This is used by bridges where HTTP downloads require a cookie/token, by overriding
+// this method in the bridge struct.
+func (b *Bridge) NewHttpRequest(method, uri string, body io.Reader) (*http.Request, error) {
+	return http.NewRequest(method, uri, body)
+}
+
+// Internal method including common parts to attachment/avatar handling methods.
+//
+// This method will process received bytes. If bytes are not set, they will be downloaded from the given URL.
+// If neither data bytes nor uri is provided, this will be a hard error because there's a logic error somewhere.
+func (b *Bridge) addAttachment(msg *config.Message, filename string, id string, comment string, uri string, data *[]byte, avatar bool) error {
+	if data != nil {
+		return b.addAttachmentProcess(msg, filename, id, comment, uri, data, avatar)
+	}
+
+	if uri == "" {
+		// This should never happen
+		b.Log.Fatalf("Logic error in bridge %s: attachment should have either URL or data set, neither was provided", b.Protocol)
+	}
+
+	data, err := b.HttpGetBytes(uri)
+	if err != nil {
+		return err
+	}
+
+	return b.addAttachmentProcess(msg, filename, id, comment, uri, data, avatar)
+}
+
+type errFileTooLarge struct {
+	FileName string
+	Size     int
+	MaxSize  int
+}
+
+func (e *errFileTooLarge) Error() string {
+	return fmt.Sprintf("File %#v to large to download (%#v). MediaDownloadSize is %#v", e.FileName, e.Size, e.MaxSize)
+}
+
+type errFileBlacklisted struct {
+	FileName string
+}
+
+func (e *errFileBlacklisted) Error() string {
+	return fmt.Sprintf("File %#v matches the backlist, not downloading it", e.FileName)
+}
+
+func (b *Bridge) addAttachmentProcess(msg *config.Message, filename string, id string, comment string, uri string, data *[]byte, avatar bool) error {
+	size := len(*data)
+	if size > b.General.MediaDownloadSize {
+		return &errFileTooLarge{
+			FileName: filename,
+			Size:     size,
+			MaxSize:  b.General.MediaDownloadSize,
+		}
+	}
+
+	// Apply `MediaDownloadBlackList` regexes
+	if b.Config.IsFilenameBlacklisted(filename) {
+		return &errFileBlacklisted{
+			FileName: filename,
+		}
+	}
+
+	b.Log.Debugf("Download OK %#v %#v", filename, size)
+	msg.Extra["file"] = append(msg.Extra["file"], config.FileInfo{
+		Name:    filename,
+		Data:    data,
+		URL:     uri,
+		Comment: comment,
+		Avatar:  avatar,
+		// TODO: if id is not set, maybe use hash of bytes?
+		NativeID: id,
+	})
+
+	return nil
 }
