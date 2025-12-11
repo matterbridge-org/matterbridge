@@ -34,29 +34,3 @@ You should now have matterbridge binary in the ~/go/bin directory:
 $ ls ~/go/bin/
 matterbridge
 ```
-
-## Building with whatsapp (beta) multidevice support
-
-Because the library we use for Whatsapp multidevice support includes a GPL3 library we can not provide you binaries.
-(as this would require the Matterbridge to change it license to GPL)
-
-Matterbridge can be build without gcc/c-compiler: If you're running on windows first run `set CGO_ENABLED=0` on other platforms you prepend `CGO_ENABLED=0` to the `go build` command. (eg `CGO_ENABLED=0 go install github.com/matterbridge-org/matterbridge`)
-
-So this means you have to build it yourself using the instructions below:
-
-```bash
-go install -tags whatsappmulti github.com/matterbridge-org/matterbridge@master
-```
-
-If you're low on memory and don't need msteams:
-
-```bash
-go install -tags nomsteams,whatsappmulti github.com/matterbridge-org/matterbridge@master
-```
-
-You should now have matterbridge binary in the ~/go/bin directory:
-
-```bash
-$ ls ~/go/bin/
-matterbridge
-```
