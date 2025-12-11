@@ -39,13 +39,13 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vincent-petithory/dataurl v1.0.0
 	github.com/writeas/go-strip-markdown v2.0.1+incompatible
-	github.com/xmppo/go-xmpp v0.2.18
+	github.com/xmppo/go-xmpp v0.3.1
 	github.com/yaegashi/msgraph.go v0.1.4
 	github.com/zfjagann/golang-ring v0.0.0-20220330170733-19bcea1b6289
 	go.mau.fi/whatsmeow v0.0.0-20251116104239-3aca43070cd4
 	golang.org/x/image v0.19.0
 	golang.org/x/oauth2 v0.22.0
-	golang.org/x/text v0.31.0
+	golang.org/x/text v0.32.0
 	gomod.garykim.dev/nc-talk v0.3.0
 	google.golang.org/protobuf v1.36.10
 	layeh.com/gumble v0.0.0-20221205141517-d1df60a3cc14
@@ -128,11 +128,11 @@ require (
 	go.mau.fi/libsignal v0.2.1 // indirect
 	go.mau.fi/util v0.9.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240722135656-d784300faade // indirect
 	google.golang.org/grpc v1.65.0 // indirect
