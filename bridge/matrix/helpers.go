@@ -53,21 +53,23 @@ func interface2Struct(in interface{}, out interface{}) error {
 }
 
 // getDisplayName retrieves the displayName for mxid, querying the homeserver if the mxid is not in the cache.
-func (b *Bmatrix) getDisplayName(mxid id.UserID) string {
+func (b *Bmatrix) getDisplayName(ctx context.Context, mxid id.UserID) string {
 	// Localpart is the user name. Return it if UseUserName is set.
 	if b.GetBool("UseUserName") {
 		return mxid.Localpart()
 	}
 
 	b.RLock()
+
 	if val, present := b.NicknameMap[mxid.Localpart()]; present {
 		b.RUnlock()
 
 		return val.displayName
 	}
+
 	b.RUnlock()
 
-	resp, err := b.mc.GetDisplayName(context.TODO(), mxid)
+	resp, err := b.mc.GetDisplayName(ctx, mxid)
 	if err != nil {
 		b.Log.Errorf("Retrieving the display name for %s failed: %s", mxid, err)
 
@@ -89,6 +91,7 @@ func (b *Bmatrix) cacheDisplayName(mxid id.UserID, displayName string) string {
 	conflict := false
 
 	b.Lock()
+
 	for localpart, v := range b.NicknameMap {
 		// to prevent username reuse across matrix servers - or even on the same server, append
 		// the mxid to the username when there is a conflict
@@ -162,8 +165,8 @@ func (b *Bmatrix) containsAttachment(content map[string]interface{}) bool {
 }
 
 // getAvatarURL returns the avatar URL of the specified sender.
-func (b *Bmatrix) getAvatarURL(sender id.UserID) string {
-	urlPath, err := b.mc.GetAvatarURL(context.TODO(), sender)
+func (b *Bmatrix) getAvatarURL(ctx context.Context, sender id.UserID) string {
+	urlPath, err := b.mc.GetAvatarURL(ctx, sender)
 	if err != nil {
 		b.Log.Errorf("getAvatarURL failed: %s", err)
 
