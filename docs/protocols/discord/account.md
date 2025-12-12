@@ -18,7 +18,7 @@ Next, click on Bot on the left-hand menu
 
 ![Bot menu item](https://user-images.githubusercontent.com/987487/218298058-f61f44d3-aba7-4639-9987-e52bf60b34dc.png)
 
-hen click "Add Bot"
+Then click "Add Bot"
 
 ![Add Bot](https://user-images.githubusercontent.com/987487/212194343-5ca1e46e-8e59-4f5a-8f26-08e4894f42e0.png)
 
@@ -32,7 +32,7 @@ On the Bot screen you will generate your **token**. Click "Reset Token" and "Yes
 
 ![Yes, Reset Token](https://user-images.githubusercontent.com/987487/212194347-0c424124-d5c2-4939-8f25-a492a6f6c79b.png)
 
-Then you can click "Copy" to put the token it in your clipboard. Keep this for your matterbridge config file. 
+Then you can click "Copy" to put the token in to your clipboard. Keep this for your matterbridge config file.
 
 ![Token](https://user-images.githubusercontent.com/987487/212194348-d15c249f-d8e7-45ea-b807-ddedaaeb6442.png)
 
@@ -106,6 +106,6 @@ Take the bot's token (the _token_, not the client ID) and add it to your matterb
 [discord.yourbridgeid]
 Token="MY_SECRET_TOKEN"
 # ....
-``` 
+```
 
 Then [[set up your individual bridges|Section-Discord-(basic)]].
