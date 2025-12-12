@@ -27,7 +27,7 @@
   - Supports public messages and private messages
   - Supports attachments
 - xmpp
-  - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
+  - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, `NoPlain`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
 
 ## Bugfixes
 
