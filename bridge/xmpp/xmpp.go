@@ -203,6 +203,7 @@ func (b *Bxmpp) createXMPP() error {
 		InsecureAllowUnencryptedAuth: !b.GetBool("UseDirectTLS") && b.GetBool("NoStartTLS"),
 		DebugWriter:                  b.Log.Writer(),
 		Mechanism:                    b.GetString("Mechanism"),
+		NoPLAIN:                      b.GetBool("NoPLAIN"),
 	}
 	var err error
 	b.xc, err = options.NewClient()

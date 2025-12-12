@@ -122,3 +122,17 @@ bugs. If you don't understand it, you don't need it.
   ```toml
   Mechanism="PLAIN"
   ```
+
+## NoPLAIN
+
+Prevent using `PLAIN` SASL authentication to the server. This is an advanced setting
+which is incompatible with many servers (eg. those using LDAP auth). When enabled,
+this setting will make sure your configured password is *never* sent to the server,
+only establishing a secure handshake such as [SCRAM](https://en.wikipedia.org/wiki/Salted_Challenge_Response_Authentication_Mechanism).
+
+- Setting: **OPTIONAL**
+- Format: *boolean*
+- Example:
+  ```toml
+  NoPLAIN=true
+  ```
