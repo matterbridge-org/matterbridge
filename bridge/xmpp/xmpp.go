@@ -165,6 +165,11 @@ func (b *Bxmpp) postSlackCompatibleWebhook(msg config.Message) error {
 }
 
 func (b *Bxmpp) createXMPP() error {
+	// TODO: remove in release after first community fork release (N+2)
+	if b.GetBool("NoTLS") {
+		b.Log.Fatalf("NoTLS setting has been deprecated. If you'd like to disable StartTLS and start a plaintext connection, use NoStartTLS instead.")
+	}
+
 	var serverName string
 	switch {
 	case !b.GetBool("Anonymous"):
@@ -187,15 +192,15 @@ func (b *Bxmpp) createXMPP() error {
 		Host:                         b.GetString("Server"),
 		User:                         b.GetString("Jid"),
 		Password:                     b.GetString("Password"),
-		NoTLS:                        true,
-		StartTLS:                     !b.GetBool("NoTLS"),
+		NoTLS:                        !b.GetBool("UseDirectTLS"),
+		StartTLS:                     !b.GetBool("NoStartTLS"),
 		TLSConfig:                    tc,
 		Debug:                        b.GetBool("debug"),
 		Session:                      true,
 		Status:                       "",
 		StatusMessage:                "",
 		Resource:                     "",
-		InsecureAllowUnencryptedAuth: b.GetBool("NoTLS"),
+		InsecureAllowUnencryptedAuth: !b.GetBool("UseDirectTLS") && b.GetBool("NoStartTLS"),
 		DebugWriter:                  b.Log.Writer(),
 		Mechanism:                    b.GetString("Mechanism"),
 	}
