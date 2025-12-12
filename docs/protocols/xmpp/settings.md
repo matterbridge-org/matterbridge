@@ -81,3 +81,16 @@ XMPP server to connect to.
   ```toml
   Server="jabber.example.com:5222"
   ```
+
+## Mechanism
+
+Force an explicit SASL mechanism for authentication. This is a very advanced setting
+when debugging authentication problems and potential upstream go-xmpp authentication
+bugs. If you don't understand it, you don't need it.
+
+- Setting: **OPTIONAL**
+- Format: *string*
+- Example:
+  ```toml
+  Mechanism="PLAIN"
+  ```
