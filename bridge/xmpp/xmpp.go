@@ -197,6 +197,7 @@ func (b *Bxmpp) createXMPP() error {
 		Resource:                     "",
 		InsecureAllowUnencryptedAuth: b.GetBool("NoTLS"),
 		DebugWriter:                  b.Log.Writer(),
+		Mechanism:                    b.GetString("Mechanism"),
 	}
 	var err error
 	b.xc, err = options.NewClient()
