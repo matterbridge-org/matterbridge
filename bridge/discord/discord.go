@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
@@ -28,6 +30,8 @@ type Bdiscord struct {
 	userID  string
 	guildID string
 
+	httpProxy string
+
 	channelsMutex  sync.RWMutex
 	channels       []*discordgo.Channel
 	channelInfoMap map[string]*config.ChannelInfo
@@ -35,6 +39,9 @@ type Bdiscord struct {
 	membersMutex  sync.RWMutex
 	userMemberMap map[string]*discordgo.Member
 	nickMemberMap map[string]*discordgo.Member
+
+	// Never send Discord's attachments as URLs, always download and re-upload them to the destination as regular files
+	alwaysDownloadFiles bool
 
 	// Webhook specific logic
 	useAutoWebhooks bool
@@ -56,6 +63,10 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	b.userMemberMap = make(map[string]*discordgo.Member)
 	b.nickMemberMap = make(map[string]*discordgo.Member)
 	b.channelInfoMap = make(map[string]*config.ChannelInfo)
+
+	b.httpProxy = b.GetString("HttpProxy")
+
+	b.alwaysDownloadFiles = b.GetBool("AlwaysDownloadFiles")
 
 	b.useAutoWebhooks = b.GetBool("AutoWebhooks")
 	if b.useAutoWebhooks {
@@ -81,6 +92,14 @@ func (b *Bdiscord) Connect() error {
 		return err
 	}
 	b.Log.Info("Connection succeeded")
+
+	if b.httpProxy != "" {
+		b.Log.Info("Using HTTP proxy to connect Discord")
+		proxyURL, _ := url.Parse(b.httpProxy)
+		b.c.Client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+		b.c.Dialer.Proxy = http.ProxyURL(proxyURL)
+	}
+
 	// Add privileged intent for guild member tracking. This is needed to track nicks
 	// for display names and @mention translation
 	b.c.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged |
