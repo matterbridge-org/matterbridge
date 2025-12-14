@@ -766,6 +766,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	)
 
 	rmsg.Extra = make(map[string][]interface{})
+
 	if url, ok = content.Raw["url"].(string); !ok {
 		return fmt.Errorf("url isn't a %T", url)
 	}
@@ -774,18 +775,22 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	// Also see: https://github.com/matterbridge-org/matterbridge/issues/36
 	url = strings.ReplaceAll(url, "mxc://", b.GetString("Server")+"/_matrix/client/v1/media/download/")
 
-	if info, ok = content.Raw["info"].(map[string]interface{}); !ok {
+	if info, ok = content.Raw["info"].(map[string]any); !ok {
 		return fmt.Errorf("info isn't a %T", info)
 	}
+
 	if size, ok = info["size"].(float64); !ok {
 		return fmt.Errorf("size isn't a %T", size)
 	}
+
 	if name, ok = content.Raw["body"].(string); !ok {
 		return fmt.Errorf("name isn't a %T", name)
 	}
+
 	if msgtype, ok = content.Raw["msgtype"].(string); !ok {
 		return fmt.Errorf("msgtype isn't a %T", msgtype)
 	}
+
 	if mtype, ok = info["mimetype"].(string); !ok {
 		return fmt.Errorf("mtype isn't a %T", mtype)
 	}

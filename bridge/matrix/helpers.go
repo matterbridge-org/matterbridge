@@ -156,9 +156,9 @@ func (b *Bmatrix) containsAttachment(content event.Content) bool {
 	}
 
 	// Only allow image,video or file msgtypes
-	if !(content.AsMessage().MsgType == event.MsgImage ||
-		content.AsMessage().MsgType == event.MsgVideo ||
-		content.AsMessage().MsgType == event.MsgFile) {
+	if content.AsMessage().MsgType != event.MsgImage &&
+		content.AsMessage().MsgType != event.MsgVideo &&
+		content.AsMessage().MsgType != event.MsgFile {
 		return false
 	}
 
