@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
 	"io"
 	"mime"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	// Initialize specific format decoders,
+	// see https://pkg.go.dev/image
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -882,16 +889,29 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	case strings.Contains(mtype, "image"):
 		b.Log.Debugf("sendImage %s", res.ContentURI)
 
+		cfg, format, err2 := image.DecodeConfig(bytes.NewReader(*fi.Data))
+		if err2 != nil {
+			b.Log.WithError(err2).Errorf("Failed to decode image %s", fi.Name)
+			return
+		}
+
+		b.Log.Debugf("Image format detected: %s (%dx%d)", format, cfg.Width, cfg.Height)
+
+		img := event.MessageEventContent{
+			MsgType: event.MsgImage,
+			Body:    fi.Name,
+			URL:     id.ContentURIString(res.ContentURI.String()),
+			Info: &event.FileInfo{
+				MimeType: mtype,
+				Size:     len(*fi.Data),
+				Width:    cfg.Width,  // #nosec G115 -- go std will not returned negative size
+				Height:   cfg.Height, // #nosec G115 -- go std will not returned negative size
+			},
+		}
+
 		err = b.retry(func() error {
-			content := event.MessageEventContent{
-				MsgType:  event.MsgImage,
-				FileName: fi.Name,
-				URL:      id.ContentURIString(res.ContentURI.String()),
-			}
-
-			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
-
-			return err2
+			_, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, img)
+			return err
 		})
 		if err != nil {
 			b.Log.Errorf("sendImage failed: %#v", err)
