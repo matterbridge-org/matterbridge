@@ -565,13 +565,13 @@ func (b *Bmatrix) handleReply(ev *event.Event, rmsg config.Message) bool {
 }
 
 func (b *Bmatrix) handleAttachment(ev *event.Event, rmsg config.Message) bool {
-	if !b.containsAttachment(ev.Content.Raw) {
+	if !b.containsAttachment(ev.Content) {
 		return false
 	}
 
 	go func() {
 		// File download is processed in the background to avoid stalling
-		err := b.handleDownloadFile(&rmsg, ev.Content.Raw)
+		err := b.handleDownloadFile(&rmsg, ev.Content)
 		if err != nil {
 			b.Log.Errorf("%#v", err)
 			return
@@ -757,7 +757,7 @@ func (b *Bmatrix) handleMessageEvent(ctx context.Context, ev *event.Event) {
 }
 
 // handleDownloadFile handles file download
-func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]interface{}) error {
+func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content) error {
 	var (
 		ok                        bool
 		url, name, msgtype, mtype string
@@ -766,7 +766,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]in
 	)
 
 	rmsg.Extra = make(map[string][]interface{})
-	if url, ok = content["url"].(string); !ok {
+	if url, ok = content.Raw["url"].(string); !ok {
 		return fmt.Errorf("url isn't a %T", url)
 	}
 	// Matrix downloads now have to be authenticated with an access token
@@ -774,16 +774,16 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content map[string]in
 	// Also see: https://github.com/matterbridge-org/matterbridge/issues/36
 	url = strings.ReplaceAll(url, "mxc://", b.GetString("Server")+"/_matrix/client/v1/media/download/")
 
-	if info, ok = content["info"].(map[string]interface{}); !ok {
+	if info, ok = content.Raw["info"].(map[string]interface{}); !ok {
 		return fmt.Errorf("info isn't a %T", info)
 	}
 	if size, ok = info["size"].(float64); !ok {
 		return fmt.Errorf("size isn't a %T", size)
 	}
-	if name, ok = content["body"].(string); !ok {
+	if name, ok = content.Raw["body"].(string); !ok {
 		return fmt.Errorf("name isn't a %T", name)
 	}
-	if msgtype, ok = content["msgtype"].(string); !ok {
+	if msgtype, ok = content.Raw["msgtype"].(string); !ok {
 		return fmt.Errorf("msgtype isn't a %T", msgtype)
 	}
 	if mtype, ok = info["mimetype"].(string); !ok {
