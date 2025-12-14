@@ -9,6 +9,7 @@ import (
 	"time"
 
 	mautrix "maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -148,16 +149,16 @@ func handleError(err error) *httpError {
 	return &httpErr
 }
 
-func (b *Bmatrix) containsAttachment(content map[string]interface{}) bool {
+func (b *Bmatrix) containsAttachment(content event.Content) bool {
 	// Skip empty messages
-	if content["msgtype"] == nil {
+	if content.AsMessage().MsgType == "" {
 		return false
 	}
 
 	// Only allow image,video or file msgtypes
-	if !(content["msgtype"].(string) == "m.image" ||
-		content["msgtype"].(string) == "m.video" ||
-		content["msgtype"].(string) == "m.file") {
+	if !(content.AsMessage().MsgType == event.MsgImage ||
+		content.AsMessage().MsgType == event.MsgVideo ||
+		content.AsMessage().MsgType == event.MsgFile) {
 		return false
 	}
 
