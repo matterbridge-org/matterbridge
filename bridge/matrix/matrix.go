@@ -646,6 +646,7 @@ func (b *Bmatrix) handleRedactionEvent(ctx context.Context, ev *event.Event) {
 }
 
 // Outgoing messages to other bridges
+//
 //nolint:funlen // This function is necessarily long because it is an event handler
 func (b *Bmatrix) handleMessageEvent(ctx context.Context, ev *event.Event) {
 	b.Log.Debugf("== Receiving message event: %#v", ev)
