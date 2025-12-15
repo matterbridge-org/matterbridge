@@ -230,7 +230,7 @@ func (b *Bmatrix) JoinChannel(channel config.ChannelInfo) error {
 	})
 }
 
-// Send outgoing messages from Matrix to other platforms
+// Incoming messages from other bridges
 func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	b.Log.Debugf("=> Receiving %#v", msg)
 
@@ -666,6 +666,7 @@ func (b *Bmatrix) handleRedactionEvent(ctx context.Context, ev *event.Event) {
 	}
 }
 
+// Outgoing messages to other bridges
 //nolint:funlen // This function is necessarily long because it is an event handler
 func (b *Bmatrix) handleMessageEvent(ctx context.Context, ev *event.Event) {
 	b.Log.Debugf("== Receiving message event: %#v", ev)
