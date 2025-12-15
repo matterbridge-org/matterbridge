@@ -145,7 +145,6 @@ func (b *Bmatrix) Connect() error {
 	/**
 	// BEGIN CACHED MESSAGES FIX
 	**/
-	var initialSyncComplete = false
 
 	accountStore := mautrix.NewAccountDataStore("org.example.mybot.synctoken", b.mc)
 	b.mc.Store = accountStore
@@ -177,32 +176,6 @@ func (b *Bmatrix) Connect() error {
 	if err != nil {
 		b.Log.Fatalf("Failed to save initial sync token: %v", err)
 	}
-
-	syncer := b.mc.Syncer.(*mautrix.DefaultSyncer) //nolint:forcetypeassert // We're only using DefaultSyncer
-	syncer.OnEventType(event.EventMessage, func(ctx context.Context, evt *event.Event) {
-		// Check if we are still in the initial sync phase
-		if !initialSyncComplete {
-			return
-		}
-	})
-
-	go func() {
-		for {
-			// Call SyncWithContext() with *only* the context.
-			// It will use the FilterID and empty NextBatch token saved in the store.
-			syncErr := b.mc.SyncWithContext(context.TODO())
-			if syncErr != nil {
-				b.Log.Debugf("Sync() returned %v, retrying in 5 seconds...\n", syncErr)
-				time.Sleep(time.Second * 5)
-
-				continue
-			}
-
-			if !initialSyncComplete {
-				initialSyncComplete = true
-			}
-		}
-	}()
 	/**
 	// END CACHED MESSAGES FIX
 	**/
@@ -506,8 +479,14 @@ func (b *Bmatrix) handlematrix() {
 			if b == nil {
 				return
 			}
-			if err := b.mc.Sync(); err != nil {
-				b.Log.Println("Sync() returned ", err)
+			// Call SyncWithContext() with *only* the context.
+			// It will use the FilterID and empty NextBatch token saved in the store.
+			syncErr := b.mc.SyncWithContext(context.TODO())
+			if syncErr != nil {
+				b.Log.Debugf("Sync() returned %v, retrying in 5 seconds...\n", syncErr)
+				time.Sleep(time.Second * 5)
+
+				continue
 			}
 		}
 	}()
