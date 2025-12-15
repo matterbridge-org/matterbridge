@@ -412,6 +412,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 			FormattedBody: formattedBody,
 			Format:        event.FormatHTML,
 			RelatesTo: &event.RelatesTo{
+				Type: "m.reply",
 				InReplyTo: &event.InReplyTo{
 					EventID: id.EventID(msg.ParentID),
 				},
