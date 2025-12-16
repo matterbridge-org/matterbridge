@@ -108,8 +108,8 @@ func (b *Bmatrix) Connect() error {
 	var err error
 	b.Log.Infof("Connecting %s", b.GetString("Server"))
 
-	if b.GetString("MxID") != "" && b.GetString("Token") != "" {
-		userID := id.NewUserID(b.GetString("MxID"), b.GetString("Server"))
+	if b.GetString("MxID") != "" && b.GetString("Token") != "" && b.GetString("DeviceID") != "" {
+		userID := id.UserID(b.GetString("MxID"))
 
 		b.mc, err = mautrix.NewClient(
 			b.GetString("Server"), userID, b.GetString("Token"),
