@@ -12,6 +12,7 @@
   - keybase has been removed because we don't have a maintainer for it. See
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
   - whatsapp backend has been deprecated in favor of whatsappmulti. See [issue #32](https://github.com/matterbridge-org/matterbridge/issues/32)
+- matrix: Change to mautrix.go for the matrix backend. See ([pr #79](https://github.com/matterbridge-org/matterbridge/pull/79)/[issue #60](https://github.com/matterbridge-org/matterbridge/issues/60)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
 - Go required version is now v1.24
@@ -377,9 +378,9 @@ This release couldn't exist without the following contributors:
 
 ## Breaking
 
-- matrix: Send the display name instead of the user name (matrix) (#1282)  
+- matrix: Send the display name instead of the user name (matrix) (#1282)
   Matrix now sends the displayname if set instead of the username. If you want to keep the username, add `UseUsername=true` to your matrix config. <https://github.com/42wim/matterbridge/wiki/Settings#useusername-1>
-- discord: Disable webhook editing (discord) (#1296)  
+- discord: Disable webhook editing (discord) (#1296)
   Because of issues with ratelimiting of webhook editing, this feature is now disabled. If you have multiple discord channels you bridge, you'll need to add a `webhookURL` to the `[gateway.inout.options]`. See <https://github.com/42wim/matterbridge/blob/master/matterbridge.toml.sample#L1864-L1870> for an example.
 
 ## New features
@@ -1511,7 +1512,7 @@ Special thanks to @Helcaraxan and @patcon for their work on improving/refactorin
 - irc: Limit message length. `MessageLength=400`
   Maximum length of message sent to irc server. If it exceeds <message clipped> will be add to the message.
 - irc: Add NOPINGNICK option.
-  The string "{NOPINGNICK}" (case sensitive) will be replaced by the actual nick / username, but with a ZWSP inside the nick, so the irc user with the same nick won't get pinged.  
+  The string "{NOPINGNICK}" (case sensitive) will be replaced by the actual nick / username, but with a ZWSP inside the nick, so the irc user with the same nick won't get pinged.
   See https://github.com/42wim/matterbridge/issues/175 for more information
 
 ## Bugfix
@@ -1767,12 +1768,12 @@ See matterbridge.toml.sample for an example
 
 ### IRC section
 
-- `Enabled` added (default false)  
+- `Enabled` added (default false)
   Add `Enabled=true` or `Enabled` to the `[IRC]` section if you want to enable the IRC bridge
 
 ### Mattermost section
 
-- `Enabled` added (default false)  
+- `Enabled` added (default false)
   Add `Enabled=true` or `Enabled` to the `[mattermost]` section if you want to enable the mattermost bridge
 
 ### General section
@@ -1783,8 +1784,8 @@ See matterbridge.toml.sample for an example
 
 - Matterbridge now bridges between any specified protocol (not only mattermost anymore)
 - XMPP support added. See matterbridge.conf.sample for more information
-- RemoteNickFormat {BRIDGE} variable added  
-  You can now add the originating bridge to `RemoteNickFormat`  
+- RemoteNickFormat {BRIDGE} variable added
+  You can now add the originating bridge to `RemoteNickFormat`
   eg `RemoteNickFormat="[{BRIDGE}] <{NICK}> "`
 
 # v0.5.0
