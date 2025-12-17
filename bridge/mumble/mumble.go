@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -119,7 +119,7 @@ func (b *Bmumble) buildTLSConfig() error {
 	}
 	// Load TLS CA used for server verification.  If not provided, the Go system trust anchor is used
 	if capath := b.GetString("TLSCACertificate"); capath != "" {
-		ca, err := ioutil.ReadFile(capath)
+		ca, err := os.ReadFile(capath) //nolint:gosec
 		if err != nil {
 			return err
 		}
