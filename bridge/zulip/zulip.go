@@ -13,6 +13,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/matterbridge-org/matterbridge/version"
+
 	// Seems not significantly different from upstream https://github.com/ifo/gozulipbot replace?
 	gzb "github.com/matterbridge/gozulipbot"
 )
