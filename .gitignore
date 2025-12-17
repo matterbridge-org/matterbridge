@@ -2,11 +2,14 @@
 /matterbridge
 /matterbridge.exe
 
-# Exclude configuration file
+# Exclude configuration files
 matterbridge.toml
+*.db
+*.db-*
 
 # Exclude IDE Files
 .vscode
+.trunk
 
 # Ignore vendoring in repository
 /vendor
