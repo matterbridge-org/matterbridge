@@ -158,9 +158,9 @@ func (c *Client) Send(msg OMessage) error {
 	defer resp.Body.Close()
 
 	// Read entire body to completion to re-use keep-alive connections.
-	_, err2 := io.Copy(io.Discard, resp.Body)
-	if err2 != nil {
-		return err2
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return err
 	}
 
 	if resp.StatusCode != 200 {
