@@ -19,6 +19,10 @@
 
 ## New Features
 
+- discord:
+  - Embeds are now formatted nicely with markup
+  - Support for hiding the 'embed:' text at the top of embeds that marks them
+  To enable add `DontMarkEmbeds=true` to your discord config
 - general
   - matterbridge output now colors log level for easier log reading ([#25](https://github.com/matterbridge-org/matterbridge/pull/25))
   - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
