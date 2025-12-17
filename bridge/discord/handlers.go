@@ -168,7 +168,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	// if we have embedded content add it to text
 	if b.GetBool("ShowEmbeds") && m.Message.Embeds != nil {
 		for _, embed := range m.Message.Embeds {
-			rmsg.Text += handleEmbed(embed)
+			rmsg.Text += handleEmbed(embed, b.GetBool("DontMarkEmbeds"))
 		}
 	}
 
@@ -284,7 +284,8 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 	b.Remote <- rmsg
 }
 
-func handleEmbed(embed *discordgo.MessageEmbed) string {
+//nolint:funlen
+func handleEmbed(embed *discordgo.MessageEmbed, dontMarkEmbeds bool) string {
 	var (
 		t      []string
 		result string
@@ -336,8 +337,15 @@ func handleEmbed(embed *discordgo.MessageEmbed) string {
 		t = append(t, strings.TrimSpace(embed.Description))
 	}
 
+	var embedMarker string
+	if dontMarkEmbeds {
+		embedMarker = ""
+	} else {
+		embedMarker = "\nembed:"
+	}
+
 	if len(t) > 0 {
-		result = fmt.Sprintf("\n%s\n", strings.Join(t, "\n"))
+		result = fmt.Sprintf("%s\n%s\n", embedMarker, strings.Join(t, "\n"))
 	} else {
 		result = ""
 	}
