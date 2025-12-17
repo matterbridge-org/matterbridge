@@ -24,7 +24,7 @@ From the directory where you have your configuration `matterbridge.toml`, create
 version: '3.7'
 services:
   matterbridge:
-    image: 42wim/matterbridge:stable
+    image: ghcr.io/matterbridge-org/matterbridge:latest
     restart: unless-stopped
     volumes:
     - ./matterbridge.toml:/etc/matterbridge/matterbridge.toml:ro
