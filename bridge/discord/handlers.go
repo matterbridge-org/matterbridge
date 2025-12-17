@@ -1,6 +1,9 @@
 package bdiscord
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -282,30 +285,61 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 }
 
 func handleEmbed(embed *discordgo.MessageEmbed) string {
-	var t []string
-	var result string
+	var (
+		t      []string
+		result string
+	)
 
-	t = append(t, embed.Title)
-	t = append(t, embed.Description)
-	t = append(t, embed.URL)
-
-	i := 0
-	for _, e := range t {
-		if e == "" {
-			continue
+	if strings.TrimSpace(embed.Author.Name) != "" {
+		if strings.TrimSpace(embed.Author.URL) != "" {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"[%s](%s)",
+					strings.TrimSpace(embed.Author.Name),
+					strings.TrimSpace(embed.Author.URL),
+				),
+			)
+		} else {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"**%s**",
+					strings.TrimSpace(embed.Author.Name),
+				),
+			)
 		}
-
-		i++
-		if i == 1 {
-			result += " embed: " + e
-			continue
-		}
-
-		result += " - " + e
 	}
 
-	if result != "" {
-		result += "\n"
+	if strings.TrimSpace(embed.Title) != "" {
+		if strings.TrimSpace(embed.URL) != "" {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"[%s](%s)",
+					strings.TrimSpace(embed.Title),
+					strings.TrimSpace(embed.URL),
+				),
+			)
+		} else {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"**%s**",
+					strings.TrimSpace(embed.Title),
+				),
+			)
+		}
+	}
+
+	if strings.TrimSpace(embed.Description) != "" {
+		t = append(t, strings.TrimSpace(embed.Description))
+	}
+
+	if len(t) > 0 {
+		result = fmt.Sprintf("\n%s\n", strings.Join(t, "\n"))
+	} else {
+		result = ""
 	}
 
 	return result
