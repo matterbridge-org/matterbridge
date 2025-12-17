@@ -26,15 +26,15 @@ server=""
 [[gateway]]
     name = "bridge1"
     enable=true
-    
+
     [[gateway.inout]]
     account = "irc.freenode"
     channel = "#wimtesting"
-    
+
     [[gateway.inout]]
     account = "discord.test"
     channel = "general"
-    
+
     [[gateway.inout]]
     account="slack.test"
     channel="testing"
@@ -53,26 +53,26 @@ server=""
 [[gateway]]
     name = "bridge1"
     enable=true
-    
+
     [[gateway.in]]
     account = "irc.freenode"
     channel = "#wimtesting"
-    
+
     [[gateway.inout]]
     account = "discord.test"
     channel = "general"
-    
+
     [[gateway.out]]
     account="slack.test"
     channel="testing"
 [[gateway]]
     name = "bridge2"
     enable=true
-    
+
     [[gateway.in]]
     account = "irc.freenode"
     channel = "#wimtesting2"
-    
+
     [[gateway.out]]
     account = "discord.test"
     channel = "general2"
@@ -91,7 +91,7 @@ enable=true
 
     [[gateway.inout]]
     account="irc.zzz"
-    channel="#main"		
+    channel="#main"
 
     [[gateway.inout]]
     account="telegram.zzz"
@@ -99,52 +99,52 @@ enable=true
 
     [[gateway.inout]]
     account="slack.zzz"
-    channel="irc"	
-	
+    channel="irc"
+
 [[gateway]]
 name="announcements"
 enable=true
-	
+
     [[gateway.in]]
     account="telegram.zzz"
-    channel="-2222222222222"	
-	
+    channel="-2222222222222"
+
     [[gateway.out]]
     account="irc.zzz"
-    channel="#main"		
-	
+    channel="#main"
+
     [[gateway.out]]
     account="irc.zzz"
-    channel="#main-help"	
+    channel="#main-help"
 
     [[gateway.out]]
     account="telegram.zzz"
-    channel="--333333333333"	
+    channel="--333333333333"
 
     [[gateway.out]]
     account="slack.zzz"
-    channel="general"		
-	
+    channel="general"
+
 [[gateway]]
 name="bridge2"
 enable=true
 
     [[gateway.inout]]
     account="irc.zzz"
-    channel="#main-help"	
+    channel="#main-help"
 
     [[gateway.inout]]
     account="telegram.zzz"
-    channel="--444444444444"	
+    channel="--444444444444"
 
-	
+
 [[gateway]]
 name="bridge3"
 enable=true
 
     [[gateway.inout]]
     account="irc.zzz"
-    channel="#main-telegram"	
+    channel="#main-telegram"
 
     [[gateway.inout]]
     account="telegram.zzz"
