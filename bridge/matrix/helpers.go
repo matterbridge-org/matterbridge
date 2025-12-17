@@ -9,6 +9,9 @@ import (
 	"time"
 
 	mautrix "maunium.net/go/mautrix"
+	/* trunk-ignore(golangci-lint2/typecheck) */
+	"maunium.net/go/mautrix/crypto"
+	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
@@ -40,17 +43,6 @@ func (b *Bmatrix) getRoomID(channel string) id.RoomID {
 	}
 
 	return ""
-}
-
-// interface2Struct marshals and immediately unmarshals an interface.
-// Useful for converting map[string]interface{} to a struct.
-func interface2Struct(in interface{}, out interface{}) error {
-	jsonObj, err := json.Marshal(in)
-	if err != nil {
-		return err //nolint:wrapcheck
-	}
-
-	return json.Unmarshal(jsonObj, out)
 }
 
 // getDisplayName retrieves the displayName for mxid, querying the homeserver if the mxid is not in the cache.
@@ -212,4 +204,52 @@ func (b *Bmatrix) retry(f func() error) error {
 			return nil
 		}
 	}
+}
+
+// Use this function to set up your client for E2EE
+func setupEncryptedClientHelper(client *mautrix.Client, pickleKey []byte, sessionFile string) (*cryptohelper.CryptoHelper, error) {
+	// The cryptohelper manages the creation of the correct CryptoStore and StateStore implementations.
+	ch, err := cryptohelper.NewCryptoHelper(client, pickleKey, sessionFile)
+	if err != nil {
+		// This usually catches errors with opening the database file or key issues.
+		return nil, fmt.Errorf("failed to create crypto helper: %w", err)
+	}
+
+	// Init MUST be called to load data from the database and prepare the internal machine.
+	err = ch.Init(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize crypto helper: %w", err)
+	}
+
+	// Hook the helper into the client
+	client.Crypto = ch
+
+	return ch, nil
+}
+
+// Verifies your recovery key with Matrix so you can message unimpeded
+func verifyWithRecoveryKey(ctx context.Context, machine *crypto.OlmMachine, recoveryKey string) error {
+	keyId, keyData, err := machine.SSSS.GetDefaultKeyData(ctx)
+	if err != nil {
+		return err
+	}
+
+	key, err := keyData.VerifyRecoveryKey(keyId, recoveryKey)
+	if err != nil {
+		return err
+	}
+
+	err = machine.FetchCrossSigningKeysFromSSSS(ctx, key)
+	if err != nil {
+		return err
+	}
+
+	err = machine.SignOwnDevice(ctx, machine.OwnIdentity())
+	if err != nil {
+		return err
+	}
+
+	err = machine.SignOwnMasterKey(ctx)
+
+	return err
 }
