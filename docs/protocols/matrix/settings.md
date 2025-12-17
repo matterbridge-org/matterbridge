@@ -23,7 +23,7 @@ Messages sent from this user will not be relayed to avoid loops.
 
 - Setting: **REQUIRED**
 - Format: *string*
-- Example: 
+- Example:
   ```toml
   Login="yourlogin"
   ```
@@ -46,7 +46,7 @@ password of your bot.
 
 - Setting: **REQUIRED**
 - Format: *string*
-- Example: 
+- Example:
   ```toml
   Password="yourpass"
   ```
@@ -57,7 +57,7 @@ Server is your homeserver (eg https://matrix.org)
 
 - Setting: **REQUIRED**
 - Format: *string*
-- Example: 
+- Example:
   ```toml
   Server="https://matrix.org"
   ```
