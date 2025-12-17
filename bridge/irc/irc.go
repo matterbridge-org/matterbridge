@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"io/ioutil"
+	"io"
 	"net"
 	"sort"
 	"strconv"
@@ -293,7 +293,7 @@ func (b *Birc) getClient() (*girc.Client, error) {
 		realName = b.GetString("Nick")
 	}
 
-	debug := ioutil.Discard
+	debug := io.Discard
 	if b.GetInt("DebugLevel") == 2 {
 		debug = b.Log.Writer()
 	}

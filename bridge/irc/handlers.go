@@ -3,7 +3,7 @@ package birc
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -247,7 +247,8 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 			b.Log.Errorf("charset to utf-8 conversion failed: %s", err)
 			return
 		}
-		output, _ := ioutil.ReadAll(r)
+
+		output, _ := io.ReadAll(r)
 		rmsg.Text = string(output)
 	}
 

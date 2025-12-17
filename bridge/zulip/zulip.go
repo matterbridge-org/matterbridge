@@ -3,7 +3,7 @@ package bzulip
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,6 +13,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/matterbridge-org/matterbridge/version"
+
 	// Seems not significantly different from upstream https://github.com/ifo/gozulipbot replace?
 	gzb "github.com/matterbridge/gozulipbot"
 )
@@ -181,7 +182,8 @@ func (b *Bzulip) sendMessage(msg config.Message) (string, error) {
 	}
 	if resp != nil {
 		defer resp.Body.Close()
-		res, err := ioutil.ReadAll(resp.Body)
+
+		res, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
 		}
