@@ -2,7 +2,7 @@ package brocketchat
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 	"net/url"
@@ -14,6 +14,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/hook/rockethook"
 	"github.com/matterbridge-org/matterbridge/matterhook"
 	"github.com/nelsonken/gomf"
+
 	// Library even upstream no longer actively maintained, should be replaced:
 	"github.com/matterbridge/Rocket.Chat.Go.SDK/models"
 	"github.com/matterbridge/Rocket.Chat.Go.SDK/realtime"
@@ -137,7 +138,8 @@ func (b *Brocketchat) uploadFile(fi *config.FileInfo, channel string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
