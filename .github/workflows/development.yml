@@ -72,7 +72,7 @@ jobs:
         uses: actions/checkout@v5
       - name: Build/upload matterbridge for ${{ matrix.platform.goos }}-${{ matrix.arch }}
         run: |
-          CGO_ENABLED=0 GOOS=${{ matrix.platform.goos }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -X github.com/42wim/matterbridge/version.GitHash=$(git log --pretty=format:'%h' -n 1)" -o matterbridge
+          CGO_ENABLED=0 GOOS=${{ matrix.platform.goos }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -X github.com/matterbridge-org/matterbridge/version.GitHash=$(git log --pretty=format:'%h' -n 1)" -o matterbridge
       - name: Upload matterbridge-${{ matrix.name }}-${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         with:
