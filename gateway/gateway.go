@@ -232,7 +232,9 @@ func (gw *Gateway) getDestChannel(msg *config.Message, dest bridge.Bridge) []con
 	}
 
 	// discord join/leave is for the whole bridge, isn't a per channel join/leave
-	if msg.Event == config.EventJoinLeave && getProtocol(msg) == "discord" && msg.Channel == "" {
+	if (msg.Event == config.EventJoinLeave || msg.Event == config.EventJoin || msg.Event == config.EventLeave) &&
+		getProtocol(msg) == "discord" &&
+		msg.Channel == "" {
 		for _, channel := range gw.Channels {
 			if channel.Account == dest.Account && strings.Contains(channel.Direction, "out") &&
 				gw.validGatewayDest(msg) {
