@@ -256,9 +256,12 @@ func (b *Bslack) handleStatusEvent(ev *slack.MessageEvent, rmsg *config.Message)
 		// There's no further processing needed on channel events
 		// so we return 'true'.
 		return true
-	case sChannelJoin, sChannelLeave:
+	case sChannelJoin:
 		rmsg.Username = sSystemUser
-		rmsg.Event = config.EventJoinLeave
+		rmsg.Event = config.EventJoin
+	case sChannelLeave:
+		rmsg.Username = sSystemUser
+		rmsg.Event = config.EventLeave
 	case sChannelTopic, sChannelPurpose:
 		b.channels.populateChannels(false)
 		rmsg.Event = config.EventTopicChange

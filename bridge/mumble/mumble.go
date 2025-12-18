@@ -93,7 +93,12 @@ func (b *Bmumble) JoinChannel(channel config.ChannelInfo) error {
 func (b *Bmumble) Send(msg config.Message) (string, error) {
 	// Only process text messages
 	b.Log.Debugf("=> Received local message %#v", msg)
-	if msg.Event != "" && msg.Event != config.EventUserAction && msg.Event != config.EventJoinLeave {
+
+	if msg.Event != "" &&
+		msg.Event != config.EventUserAction &&
+		msg.Event != config.EventJoinLeave &&
+		msg.Event != config.EventJoin &&
+		msg.Event != config.EventLeave {
 		return "", nil
 	}
 

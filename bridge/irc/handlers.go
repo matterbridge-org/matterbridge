@@ -103,12 +103,47 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 		if b.GetBool("nosendjoinpart") {
 			return
 		}
-		msg := config.Message{Username: "system", Text: event.Source.Name + " " + strings.ToLower(event.Command) + "s", Channel: channel, Account: b.Account, Event: config.EventJoinLeave}
-		if b.GetBool("verbosejoinpart") {
-			b.Log.Debugf("<= Sending verbose JOIN_LEAVE event from %s to gateway", b.Account)
-			msg = config.Message{Username: "system", Text: event.Source.Name + " (" + event.Source.Ident + "@" + event.Source.Host + ") " + strings.ToLower(event.Command) + "s", Channel: channel, Account: b.Account, Event: config.EventJoinLeave}
-		} else {
-			b.Log.Debugf("<= Sending JOIN_LEAVE event from %s to gateway", b.Account)
+
+		msg := config.Message{
+			Username: event.Source.Name,
+			Text:     event.Source.Name + " " + strings.ToLower(event.Command) + "s",
+			Channel:  channel,
+			Account:  b.Account,
+			Event:    config.EventJoinLeave,
+		}
+		switch event.Command {
+		case "JOIN":
+			msg = config.Message{
+				Username: event.Source.Name,
+				Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
+				Channel: channel,
+				Account: b.Account,
+				Event:   config.EventJoin,
+			}
+
+			if b.GetBool("verbosejoinpart") {
+				b.Log.Debugf("<= Sending verbose JOIN event from %s to gateway", b.Account)
+
+				msg = config.Message{Username: "system", Text: event.Source.Name + " (" + event.Source.Ident + "@" + event.Source.Host + ") " + strings.ToLower(event.Command) + "s", Channel: channel, Account: b.Account, Event: config.EventJoin}
+			} else {
+				b.Log.Debugf("<= Sending JOIN event from %s to gateway", b.Account)
+			}
+		case "PART":
+			msg = config.Message{
+				Username: event.Source.Name,
+				Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
+				Channel: channel,
+				Account: b.Account,
+				Event:   config.EventLeave,
+			}
+
+			if b.GetBool("verbosejoinpart") {
+				b.Log.Debugf("<= Sending verbose LEAVE event from %s to gateway", b.Account)
+
+				msg = config.Message{Username: "system", Text: event.Source.Name + " (" + event.Source.Ident + "@" + event.Source.Host + ") " + strings.ToLower(event.Command) + "s", Channel: channel, Account: b.Account, Event: config.EventLeave}
+			} else {
+				b.Log.Debugf("<= Sending LEAVE event from %s to gateway", b.Account)
+			}
 		}
 		b.Log.Debugf("<= Message is %#v", msg)
 		b.Remote <- msg

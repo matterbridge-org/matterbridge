@@ -172,6 +172,8 @@ func (gw *Gateway) ignoreEvent(event string, dest *bridge.Bridge) bool {
 			return true
 		}
 	case config.EventJoinLeave:
+	case config.EventJoin:
+	case config.EventLeave:
 		// only relay join/part when configured
 		if !dest.GetBool("ShowJoinPart") {
 			return true
@@ -208,7 +210,7 @@ func (gw *Gateway) handleMessage(rmsg *config.Message, dest *bridge.Bridge) []*B
 	}
 
 	// broadcast to every out channel (irc QUIT)
-	if rmsg.Channel == "" && rmsg.Event != config.EventJoinLeave {
+	if rmsg.Channel == "" && rmsg.Event != config.EventJoinLeave && rmsg.Event != config.EventJoin && rmsg.Event != config.EventLeave {
 		gw.logger.Debug("empty channel")
 		return brMsgIDs
 	}
