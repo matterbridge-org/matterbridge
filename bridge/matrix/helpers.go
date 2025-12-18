@@ -127,8 +127,6 @@ func (b *Bmatrix) cacheDisplayName(mxid id.UserID, displayName string) string {
 }
 
 // handleError converts errors into httpError.
-//
-//nolint:exhaustivestruct
 func handleError(err error) *httpError {
 	var mErr mautrix.HTTPError
 	if !errors.As(err, &mErr) {
