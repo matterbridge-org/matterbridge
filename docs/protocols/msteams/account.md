@@ -57,7 +57,7 @@ Click on `New Registration` (top)
 
 ## Actually set permissions
 
-- Choose `graph API` 
+- Choose `graph API`
 - Choose `delegated permissions`
 - Add `Group.Read.All`, `Group.ReadWrite.All` and `User.Read`. These permissions are needed for sending/reading chat messages in a channel.
 - Add `Files.Read`, `Files.Read.All`, `Sites.Read.All`. These permissions are needed for reading the file attachments in messages.
@@ -121,7 +121,7 @@ Don't forget to click Save on top of the page
 
 Click on overview, left upper link.
 
-You'll see 2 ID's, these are needed for the matterbridge configuration. 
+You'll see 2 ID's, these are needed for the matterbridge configuration.
 
 - Tenant ID
 - Client ID
@@ -169,7 +169,7 @@ You should know have all the three ID's to configure matterbridge:
 
 ```toml
 [msteams.teams]
-TenantID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" 
+TenantID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ClientID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 TeamID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 RemoteNickFormat="[{PROTOCOL}] <{NICK}> "
@@ -228,7 +228,7 @@ Your `matterbridge.toml` file should contain:
 
 ```toml
 [msteams.teams]
-TenantID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" 
+TenantID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ClientID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 TeamID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 RemoteNickFormat="[{PROTOCOL}] <{NICK}> "
@@ -259,7 +259,7 @@ channel="19:82caxxxxxxxxxxxxxxxxxxxxxxxx@thread.skype"
 
 Now you can start matterbridge by running `matterbridge -conf matterbridge.toml`
 
-The first time you start matterbridge it'll ask you to authenticate the app on behalf of you. You can do this from your own account or use a specific bot account for it. 
+The first time you start matterbridge it'll ask you to authenticate the app on behalf of you. You can do this from your own account or use a specific bot account for it.
 
 Matterbridge can only read/send to the channels the account is in
 
@@ -286,4 +286,4 @@ Matterbridge by default will write a sessionfile containing tokens to the direct
 
 Be sure to keep this file secure!
 
-You can choose another path/filename, by adding `SessionFile="yourfilename"` to the `[msteams.teams]` configuration.
+You can choose another path/filename, by adding `SessionFile="/yourpath/yourfilename"` to the `[msteams.teams]` configuration.

@@ -27,5 +27,5 @@ until restarting matterbridge.
 - Format: *string*
 - Example:
   ```toml
-  SessionFile="session-48111222333.gob"
+  SessionFile="/usr/share/matterbridge/session-48111222333.gob"
   ```
