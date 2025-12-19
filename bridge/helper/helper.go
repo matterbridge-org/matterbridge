@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -29,16 +30,36 @@ func HttpGetNotOkError(url string, code int) error {
 
 // DownloadFile downloads the given non-authenticated URL.
 func DownloadFile(url string) (*[]byte, error) {
-	return DownloadFileAuth(url, "")
+	return DownloadFileAuthProxy(url, "", "")
+}
+
+func DownloadFileProxy(url string, proxy string) (*[]byte, error) {
+	return DownloadFileAuthProxy(url, "", proxy)
 }
 
 // DownloadFileAuth downloads the given URL using the specified authentication token.
 func DownloadFileAuth(url string, auth string) (*[]byte, error) {
+	return DownloadFileAuthProxy(url, auth, "")
+}
+
+func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, error) {
 	var buf bytes.Buffer
-	client := &http.Client{
-		Timeout: time.Second * 5,
+	var client *http.Client
+
+	if proxy != "" {
+		proxyURL, _ := url.Parse(proxy)
+		transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+		client = &http.Client{
+			Timeout: time.Second * 5,
+			Transport: transport,
+		}
+	} else {
+		client = &http.Client{
+			Timeout: time.Second * 5,
+		}
 	}
-	req, err := http.NewRequest("GET", url, nil)
+
+	req, err := http.NewRequest("GET", fileurl, nil)
 	if auth != "" {
 		req.Header.Add("Authorization", auth)
 	}
@@ -70,11 +91,27 @@ func DownloadFileAuth(url string, auth string) (*[]byte, error) {
 
 // DownloadFileAuthRocket downloads the given URL using the specified Rocket user ID and authentication token.
 func DownloadFileAuthRocket(url, token, userID string) (*[]byte, error) {
+	return  DownloadFileAuthRocketProxy(url, token, userID, "")
+}
+
+func DownloadFileAuthRocketProxy(fileurl, token, userID, proxy string) (*[]byte, error) {
 	var buf bytes.Buffer
-	client := &http.Client{
-		Timeout: time.Second * 5,
+	var client *http.Client
+
+	if proxy != "" {
+		proxyURL, _ := url.Parse(proxy)
+		transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+		client = &http.Client{
+			Timeout: time.Second * 5,
+			Transport: transport,
+		}
+	} else {
+		client = &http.Client{
+			Timeout: time.Second * 5,
+		}
 	}
-	req, err := http.NewRequest("GET", url, nil)
+
+	req, err := http.NewRequest("GET", fileurl, nil)
 
 	req.Header.Add("X-Auth-Token", token)
 	req.Header.Add("X-User-Id", userID)

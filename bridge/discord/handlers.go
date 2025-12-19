@@ -116,7 +116,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 				if err != nil {
 					return
 				}
-				data, err = helper.DownloadFile(url)
+				data, err = helper.DownloadFileProxy(url, b.httpProxy)
 				if err != nil {
 					return
 				}
