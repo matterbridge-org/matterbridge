@@ -518,35 +518,36 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 	var prev string
 
 	for _, f := range msg.Extra["file"] {
-		fi := f.(config.FileInfo) //nolint:forcetypeassert
-		var ftype string
+		if fi, ok := f.(config.FileInfo); ok {
+			var ftype string
 
-		switch filepath.Ext(fi.Name) {
-		case ".jpg", ".jpe", ".png":
-			ftype = "image"
-		case ".mp4", ".m4v":
-			ftype = "video"
-		case ".mp3", ".oga", ".ogg", ".opus", ".flac":
-			ftype = "audio"
-		default:
-			ftype = "document"
-		}
+			switch filepath.Ext(fi.Name) {
+			case ".jpg", ".jpe", ".png":
+				ftype = "image"
+			case ".mp4", ".m4v":
+				ftype = "video"
+			case ".mp3", ".oga", ".ogg", ".opus", ".flac":
+				ftype = "audio"
+			default:
+				ftype = "document"
+			}
 
-		if ftype == "document" {
-			equal = false
-			break
-		}
-
-		if first {
-			prev = ftype
-			equal = true
-			first = false
-		} else {
-			if prev != ftype {
+			if ftype == "document" {
 				equal = false
 				break
 			}
-			prev = ftype
+
+			if first {
+				prev = ftype
+				equal = true
+				first = false
+			} else {
+				if prev != ftype {
+					equal = false
+					break
+				}
+				prev = ftype
+			}
 		}
 	}
 
