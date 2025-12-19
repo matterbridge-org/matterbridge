@@ -72,7 +72,7 @@ func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, HttpGetNotOkError(url, resp.StatusCode)
+		return nil, HttpGetNotOkError(fileurl, resp.StatusCode)
 	}
 
 	_, err = io.Copy(&buf, resp.Body)
