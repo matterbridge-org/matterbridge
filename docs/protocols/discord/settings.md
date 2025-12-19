@@ -82,6 +82,23 @@ Show `#xxxx` discriminator with `UseUserName`
   UseDiscriminator=true
   ```
 
+## AlwaysDownloadFiles
+
+Any uploads will be always downloaded as files and re-uploaded to the destination
+gateway or the mediaproxy if enabled instead of forwarding URLs to Discord's CDNs.
+By default, any file uploads from Discord gets forwarded as a list URLs to the
+Discord CDN.
+
+Use this if direct use of Discord CDN leads inconveniences or just unavailable
+directly due to various reasons.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  AlwaysDownloadFiles=true
+  ```
+
 ## WebhookURL
 
 Specify WebhookURL. If given, will relay messages using the Webhook, which
