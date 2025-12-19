@@ -518,7 +518,7 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 	var prev string
 
 	for _, f := range msg.Extra["file"] {
-		fi := f.(config.FileInfo)
+		fi := f.(config.FileInfo) //nolint:forcetypeassert
 		var ftype string
 
 		switch filepath.Ext(fi.Name) {
