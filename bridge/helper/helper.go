@@ -24,22 +24,22 @@ import (
 
 var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
 
-func HttpGetNotOkError(url string, code int) error {
-	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, url, code)
+func HttpGetNotOkError(fileUrl string, code int) error {
+	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, fileUrl, code)
 }
 
 // DownloadFile downloads the given non-authenticated URL.
-func DownloadFile(url string) (*[]byte, error) {
-	return DownloadFileAuthProxy(url, "", "")
+func DownloadFile(fileUrl string) (*[]byte, error) {
+	return DownloadFileAuthProxy(fileUrl, "", "")
 }
 
-func DownloadFileProxy(url string, proxy string) (*[]byte, error) {
-	return DownloadFileAuthProxy(url, "", proxy)
+func DownloadFileProxy(fileUrl string, proxy string) (*[]byte, error) {
+	return DownloadFileAuthProxy(fileUrl, "", proxy)
 }
 
 // DownloadFileAuth downloads the given URL using the specified authentication token.
-func DownloadFileAuth(url string, auth string) (*[]byte, error) {
-	return DownloadFileAuthProxy(url, auth, "")
+func DownloadFileAuth(fileUrl string, auth string) (*[]byte, error) {
+	return DownloadFileAuthProxy(fileUrl, auth, "")
 }
 
 func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, error) {
