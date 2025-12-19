@@ -30,6 +30,8 @@
   - Supports attachments
 - xmpp
   - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, `NoPlain`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
+- discord
+  - `http_proxy` support ([#113](https://github.com/matterbridge-org/matterbridge/pull/113))
 
 ## Bugfixes
 
