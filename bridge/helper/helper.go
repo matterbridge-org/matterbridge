@@ -59,7 +59,7 @@ func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, 
 		}
 	}
 
-	req, err := http.NewRequest("GET", fileurl, nil)
+	req, err := http.NewRequest("GET", fileurl, nil)  //nolint:usestdlibvars
 	if auth != "" {
 		req.Header.Add("Authorization", auth)
 	}
@@ -111,7 +111,7 @@ func DownloadFileAuthRocketProxy(fileurl, token, userID, proxy string) (*[]byte,
 		}
 	}
 
-	req, err := http.NewRequest("GET", fileurl, nil)
+	req, err := http.NewRequest("GET", fileurl, nil)  //nolint:usestdlibvars
 
 	req.Header.Add("X-Auth-Token", token)
 	req.Header.Add("X-User-Id", userID)
