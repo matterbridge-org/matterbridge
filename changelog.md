@@ -43,8 +43,6 @@
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - image attachments are now send as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - audio attachments are now sent as documents, not as a voice messages, otherwise they won't be delivered
-- telegram
-  - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 - telegram
