@@ -107,6 +107,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		for _, attach := range m.Attachments {
 			if b.alwaysDownloadFiles {
 				var url, name, caption string
+				var data *[]byte
 
 				url = attach.URL
 				name = attach.Filename
@@ -115,7 +116,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 				if err != nil {
 					return
 				}
-				data, err := helper.DownloadFile(url)
+				data, err = helper.DownloadFile(url)
 				if err != nil {
 					return
 				}
@@ -169,7 +170,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	}
 
 	// no empty messages
-	if rmsg.Text == "" && len(m.Attachments) == 0 {
+	if rmsg.Text == "" && len(rmsg.Extra["file"]) == 0 {
 		return
 	}
 
