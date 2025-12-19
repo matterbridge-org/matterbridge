@@ -112,7 +112,8 @@ for each gateway and not in the account configuration.
 - Format: *string*
 - Example:
   ```toml
-  `WebhookURL="Yourwebhooktokenhere"` 
+  WebhookURL="Yourwebhooktokenhere"
+  ```
 
 ## AutoWebhooks
 
@@ -128,4 +129,6 @@ Setting: OPTIONAL \
 Format: boolean \
 Example:
 
-`AutoWebhooks=true`
+  ```toml
+  AutoWebhooks=true
+  ```
