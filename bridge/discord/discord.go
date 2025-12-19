@@ -96,6 +96,7 @@ func (b *Bdiscord) Connect() error {
 	if b.httpProxy != "" {
 		b.Log.Info("Using HTTP proxy to connect Discord")
 		proxyURL, _ := url.Parse(b.httpProxy)
+		// Implemented the use of proxy hinted here: https://github.com/bwmarrin/discordgo/issues/852
 		b.c.Client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 		b.c.Dialer.Proxy = http.ProxyURL(proxyURL)
 	}
