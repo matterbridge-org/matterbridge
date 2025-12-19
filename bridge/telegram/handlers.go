@@ -544,6 +544,7 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 		} else {
 			if prev != ftype {
 				equal = false
+				break
 			}
 			prev = ftype
 		}
