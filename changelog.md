@@ -41,6 +41,8 @@
   - image attachments are now send as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
+- telegram
+  - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
 
 ## Upstream
 
