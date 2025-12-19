@@ -43,6 +43,7 @@
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
+  - attachments of mixed types in the same message will be uploaded as documents
 
 ## Upstream
 
