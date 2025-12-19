@@ -11,6 +11,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
+
 	// Seems not much different from upstream https://github.com/go-telegram-bot-api/telegram-bot-api replace?
 	tgbotapi "github.com/matterbridge/telegram-bot-api/v6"
 )
@@ -539,6 +540,7 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 		if first {
 			prev = ftype
 			equal = true
+			first = false
 		} else {
 			if prev != ftype {
 				equal = false
@@ -587,15 +589,6 @@ func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid
 			}
 			ac.Caption = fi.Name
 			media = append(media, ac)
-//		case ".ogg":
-//			voc := tgbotapi.NewVoice(chatid, file)
-//			voc.Caption, voc.ParseMode = TGGetParseMode(b, msg.Username, fi.Comment)
-//			voc.ReplyToMessageID = parentID
-//			res, err := b.c.Send(voc)
-//			if err != nil {
-//				return "", err
-//			}
-//			return strconv.Itoa(res.MessageID), nil
 		default:
 			dc := tgbotapi.NewInputMediaDocument(file)
 			if fi.Comment != "" {
