@@ -903,26 +903,26 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		if err != nil {
 			b.Log.Errorf("sendImage failed: %#v", err)
 		}
-	case strings.Contains(mtype, "audio"):
-		b.Log.Debugf("sendAudio %s", res.ContentURI)
-		err = b.retry(func() error {
-			content := event.MessageEventContent{
-				MsgType:  event.MsgAudio,
-				FileName: fi.Name,
-				URL:      id.ContentURIString(res.ContentURI.String()),
-				Info: &event.FileInfo{
-					MimeType: mtype,
-					Size:     len(*fi.Data),
-				},
-			}
-
-			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
-
-			return err2
-		})
-		if err != nil {
-			b.Log.Errorf("sendAudio failed: %#v", err)
-		}
+//	case strings.Contains(mtype, "audio"):
+//		b.Log.Debugf("sendAudio %s", res.ContentURI)
+//		err = b.retry(func() error {
+//			content := event.MessageEventContent{
+//				MsgType:  event.MsgAudio,
+//				FileName: fi.Name,
+//				URL:      id.ContentURIString(res.ContentURI.String()),
+//				Info: &event.FileInfo{
+//					MimeType: mtype,
+//					Size:     len(*fi.Data),
+//				},
+//			}
+//
+//			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
+//
+//			return err2
+//		})
+//		if err != nil {
+//			b.Log.Errorf("sendAudio failed: %#v", err)
+//		}
 	default:
 		b.Log.Debugf("sendFile %s", res.ContentURI)
 		err = b.retry(func() error {
