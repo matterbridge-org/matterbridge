@@ -128,7 +128,18 @@ This feature requires the "Manage Webhooks" permission (either globally or as pe
 Setting: OPTIONAL \
 Format: boolean \
 Example:
-
   ```toml
   AutoWebhooks=true
+  ```
+
+## HttpProxy
+
+Specify the HTTP proxy to connect Discord. The URL should have the next format:
+`protocol://login:password@server:port`.
+
+- Setting: **OPTIONAL**
+- Format: *string*
+- Example:
+  ```toml
+  HttpProxy="http://login:password@server.example.org:1234"
   ```
