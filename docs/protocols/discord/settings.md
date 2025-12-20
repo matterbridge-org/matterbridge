@@ -141,5 +141,5 @@ Specify the HTTP proxy to connect Discord. The URL should have the next format:
 - Format: *string*
 - Example:
   ```toml
-  WebhookURL="http://login:password@server.example.org:1234"
+  HttpProxy="http://login:password@server.example.org:1234"
   ```
