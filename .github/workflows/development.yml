@@ -27,6 +27,7 @@ jobs:
           # Only compare with previous commit when pushing,
           # and with base branch when in PR.
           only-new-issues: true
+          args: --build-tags=goolm
       - name: golangci-lint (entire codebase)
         uses: golangci/golangci-lint-action@v8
         with:
