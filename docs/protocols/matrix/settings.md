@@ -5,9 +5,9 @@
 
 ## DeviceID
 
-The device id use when accessing E2EE encryption in an encryption database.
+The device id use when logging in with MxID.
 
-Unless this option is set, the Matrix client is unencrypted.
+Unless this option is set, the Matrix client is unencrypted and MxID based login won't work.
 
 - Setting: **OPTIONAL**
 - Format: *string*

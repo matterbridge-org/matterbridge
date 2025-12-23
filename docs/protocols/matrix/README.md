@@ -20,9 +20,10 @@ RemoteNickFormat="[{PROTOCOL}] <{NICK}> "
 Server="https://matrix.org"
 Login="yourlogin"
 Password="yourpass"
-# Alternatively, you can use MXID + a session Token
+# Alternatively, you can use MXID + a session Token + a device id
 #MxID="@yourbot:example.net"
 #Token="tokenforthebotuser"
+#DeviceID="deviceidofmxidandtokenlogin"
 ```
 
 ## FAQ
