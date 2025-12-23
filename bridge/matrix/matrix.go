@@ -25,6 +25,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 
 	mautrix "maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
@@ -42,7 +43,6 @@ type NicknameCacheEntry struct {
 type Bmatrix struct {
 	mc          *mautrix.Client
 	UserID      id.UserID
-	AccessToken string
 	NicknameMap map[string]NicknameCacheEntry
 	RoomMap     map[id.RoomID]string
 	rateMutex   sync.RWMutex
@@ -119,8 +119,9 @@ func (b *Bmatrix) Connect() error {
 		}
 
 		b.UserID = userID
-		b.AccessToken = b.GetString("Token")
 		b.Log.Info("Using existing Matrix credentials")
+
+		b.mc.DeviceID = id.DeviceID(b.GetString("DeviceID"))
 	} else {
 		b.mc, err = mautrix.NewClient(b.GetString("Server"), "", "")
 		if err != nil {
@@ -140,16 +141,16 @@ func (b *Bmatrix) Connect() error {
 			return err2
 		}
 		b.UserID = resp.UserID
-		b.AccessToken = resp.AccessToken
 	}
-	/**
-	// BEGIN CACHED MESSAGES FIX
-	**/
+
+	b.Log.Info("Connection succeeded")
+
+	b.Log.Infof("MxID: %s", b.mc.UserID)
+	b.Log.Infof("Token: %s", b.mc.AccessToken)
+	b.Log.Infof("Device ID: %s", b.mc.DeviceID)
 
 	accountStore := mautrix.NewAccountDataStore("org.example.mybot.synctoken", b.mc)
 	b.mc.Store = accountStore
-
-	b.Log.Info("Connection succeeded")
 
 	initialFilter := mautrix.Filter{
 		Room: &mautrix.RoomFilter{
@@ -176,9 +177,6 @@ func (b *Bmatrix) Connect() error {
 	if err != nil {
 		b.Log.Fatalf("Failed to save initial sync token: %v", err)
 	}
-	/**
-	// END CACHED MESSAGES FIX
-	**/
 
 	go b.handlematrix()
 	return nil
@@ -470,7 +468,38 @@ func (b *Bmatrix) NewHttpRequest(method, uri string, body io.Reader) (*http.Requ
 }
 
 func (b *Bmatrix) handlematrix() {
+	var (
+		ch  *cryptohelper.CryptoHelper = nil
+		err error
+	)
+
+	if b.GetString("SessionFile") != "" &&
+		b.GetString("PickleKey") != "" {
+		// Use a robust key generation method in production (e.g. from environment variable or key management service)
+		pickleKey := []byte(b.GetString("PickleKey"))
+
+		ch, err = setupEncryptedClientHelper(b.mc, pickleKey, b.GetString("SessionFile"))
+		if err != nil {
+			b.Log.Error(err)
+		} else {
+			b.Log.Info("Encryption subsystem configured and attached.")
+		}
+	}
+
 	syncer := b.mc.Syncer.(*mautrix.DefaultSyncer) //nolint:forcetypeassert // We're only using DefaultSyncer
+
+	readyChan := make(chan bool)
+	var once sync.Once
+
+	syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
+		once.Do(func() {
+			if ch != nil && b.GetString("RecoveryKey") != "" {
+				close(readyChan)
+			}
+		})
+
+		return true
+	})
 	syncer.OnEventType(event.EventRedaction, b.handleRedactionEvent)
 	syncer.OnEventType(event.EventMessage, b.handleMessageEvent)
 	syncer.OnEventType(event.StateMember, b.handleMemberChange)
@@ -490,6 +519,17 @@ func (b *Bmatrix) handlematrix() {
 			}
 		}
 	}()
+
+	b.Log.Debug("Waiting for sync to receive first event from an encrypted room...")
+	<-readyChan
+	b.Log.Debug("First sync received")
+
+	err = verifyWithRecoveryKey(context.Background(), ch.Machine(), b.GetString("RecoveryKey"))
+	if err != nil {
+		panic(err)
+	} else {
+		b.Log.Info("Verify with recovery key succeeded")
+	}
 }
 
 func (b *Bmatrix) handleEdit(ev *event.Event, rmsg config.Message) bool {
