@@ -8,7 +8,7 @@ COPY . /go/src/matterbridge
 
 RUN apk --no-cache add git
 RUN cd /go/src/matterbridge && \
-    CGO_ENABLED=0 go build -ldflags "-X github.com/matterbridge-org/matterbridge/version.GitHash=$(git log --pretty=format:'%h' -n 1)" -o /bin/matterbridge
+    CGO_ENABLED=0 go build -tags goolm -ldflags "-X github.com/matterbridge-org/matterbridge/version.GitHash=$(git log --pretty=format:'%h' -n 1)" -o /bin/matterbridge
 
 FROM alpine
 RUN apk --no-cache add ca-certificates mailcap
