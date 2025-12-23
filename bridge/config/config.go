@@ -135,6 +135,7 @@ type Protocol struct {
 	ColorNicks             bool     // only irc for now
 	Debug                  bool     // general
 	DebugLevel             int      // only for irc now
+	DeviceID               string   // matrix
 	DisableWebPagePreview  bool     // telegram
 	EditSuffix             string   // mattermost, slack, discord, telegram
 	EditDisable            bool     // mattermost, slack, discord, telegram
@@ -174,6 +175,7 @@ type Protocol struct {
 	NoSendJoinPart         bool       // all protocols
 	NoTLS                  bool       // mattermost, xmpp
 	Password               string     // IRC,mattermost,XMPP,matrix
+	PickleKey              string     // matrix
 	PrefixMessagesWithNick bool       // mattemost, slack
 	PreserveThreading      bool       // slack
 	Protocol               string     // all protocols
@@ -181,6 +183,7 @@ type Protocol struct {
 	QuoteFormat            string     // telegram
 	QuoteLengthLimit       int        // telegram
 	RealName               string     // IRC
+	RecoveryKey            string     // matrix
 	RejoinDelay            int        // IRC
 	ReplaceMessages        [][]string // all protocols
 	ReplaceNicks           [][]string // all protocols
