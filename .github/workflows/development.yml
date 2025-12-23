@@ -31,7 +31,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.1
-          args: --build-tags goolm --config=.golangci-incremental.yaml
+          args: --build-tags=goolm --config=.golangci-incremental.yaml
   test:
     strategy:
       matrix:
