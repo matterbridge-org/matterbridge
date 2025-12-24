@@ -66,4 +66,10 @@ MxID, Token and DeviceID are required for encryption even though they are option
 
 5. Restart the bot and enjoy encrypted messaging
 
-Note: If you enable encryption on a channel after enabling encryption on the bot, you may need to regenerate your RecoveryKey, Token and DeviceID before the bot can send encrypted messages
+##### Notes
+
+- If you enable encryption on a channel after enabling encryption on the bot, you may need to regenerate your RecoveryKey, Token and DeviceID before the bot can send encrypted messages
+- If Matterbridge was present before encryption was enabled on a channel, it will not initialize crypto correctly and will continue sending unencrypted messages.
+  1. Kick the bot from the room or leave the room with the bot's account (e.g in Element or some other client).
+  2. Re-invite the bot to the room.
+  3. The bot will get the encryption flag and start sending encrypted messages.
