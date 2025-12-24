@@ -625,6 +625,8 @@ func (gw *Gateway) modifyUsernameTengo(msg *config.Message, br *bridge.Bridge) (
 	_ = s.Add("channel", msg.Channel)
 	_ = s.Add("msgProtocol", msg.Protocol)
 	_ = s.Add("remoteAccount", br.Account)
+	_ = s.Add("msgEvent", msg.Event)
+	_ = s.Add("label", br.GetString("Label"))
 	_ = s.Add("protocol", br.Protocol)
 	_ = s.Add("bridge", br.Name)
 	_ = s.Add("gateway", gw.Name)
