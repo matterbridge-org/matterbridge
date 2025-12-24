@@ -232,7 +232,9 @@ func (gw *Gateway) getDestChannel(msg *config.Message, dest bridge.Bridge) []con
 	}
 
 	// discord join/leave is for the whole bridge, isn't a per channel join/leave
-	if msg.Event == config.EventJoinLeave && getProtocol(msg) == "discord" && msg.Channel == "" {
+	if (msg.Event == config.EventJoinLeave || msg.Event == config.EventJoin || msg.Event == config.EventLeave) &&
+		getProtocol(msg) == "discord" &&
+		msg.Channel == "" {
 		for _, channel := range gw.Channels {
 			if channel.Account == dest.Account && strings.Contains(channel.Direction, "out") &&
 				gw.validGatewayDest(msg) {
@@ -623,6 +625,8 @@ func (gw *Gateway) modifyUsernameTengo(msg *config.Message, br *bridge.Bridge) (
 	_ = s.Add("channel", msg.Channel)
 	_ = s.Add("msgProtocol", msg.Protocol)
 	_ = s.Add("remoteAccount", br.Account)
+	_ = s.Add("msgEvent", msg.Event)
+	_ = s.Add("label", br.GetString("Label"))
 	_ = s.Add("protocol", br.Protocol)
 	_ = s.Add("bridge", br.Name)
 	_ = s.Add("gateway", gw.Name)
