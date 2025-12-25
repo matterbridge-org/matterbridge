@@ -49,6 +49,17 @@ prevents the ping/notification.
   AllowMention=["everyone", "roles", "users"]
   ```
 
+## DontMarkEmbeds
+
+Stops the 'embed:' text from being added as the first line in an embed message
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  DontMarkEmbeds=true
+  ```
+
 ## ShowEmbeds
 
 Shows title, description and URL of embedded messages (sent by other bots)
