@@ -30,6 +30,9 @@
   - Supports attachments
 - xmpp
   - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, `NoPlain`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
+- discord
+  - Added a setting `AlwaysDownloadFiles` that allows to download and re-upload sent files from Discord CDN to other messengers or mediaproxy if configured
+  - Added support for the HTTP proxy support to connect the Discord that can be configured via `HttpProxy` settings
 
 ## Bugfixes
 
@@ -39,6 +42,7 @@
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - image attachments are now send as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+  - audio attachments are now sent as documents, not as a voice messages, otherwise they won't be delivered
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 - telegram
