@@ -50,7 +50,7 @@ func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, 
 		proxyURL, _ := url.Parse(proxy)
 		transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 		client = &http.Client{
-			Timeout: time.Second * 5,
+			Timeout:   time.Second * 5,
 			Transport: transport,
 		}
 	} else {
@@ -59,7 +59,7 @@ func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, 
 		}
 	}
 
-	req, err := http.NewRequest("GET", fileurl, nil)  //nolint:usestdlibvars
+	req, err := http.NewRequest("GET", fileurl, nil) //nolint:usestdlibvars
 	if auth != "" {
 		req.Header.Add("Authorization", auth)
 	}
@@ -91,7 +91,7 @@ func DownloadFileAuthProxy(fileurl string, auth string, proxy string) (*[]byte, 
 
 // DownloadFileAuthRocket downloads the given URL using the specified Rocket user ID and authentication token.
 func DownloadFileAuthRocket(url, token, userID string) (*[]byte, error) {
-	return  DownloadFileAuthRocketProxy(url, token, userID, "")
+	return DownloadFileAuthRocketProxy(url, token, userID, "")
 }
 
 func DownloadFileAuthRocketProxy(fileurl, token, userID, proxy string) (*[]byte, error) {
@@ -102,7 +102,7 @@ func DownloadFileAuthRocketProxy(fileurl, token, userID, proxy string) (*[]byte,
 		proxyURL, _ := url.Parse(proxy)
 		transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 		client = &http.Client{
-			Timeout: time.Second * 5,
+			Timeout:   time.Second * 5,
 			Transport: transport,
 		}
 	} else {
@@ -111,7 +111,7 @@ func DownloadFileAuthRocketProxy(fileurl, token, userID, proxy string) (*[]byte,
 		}
 	}
 
-	req, err := http.NewRequest("GET", fileurl, nil)  //nolint:usestdlibvars
+	req, err := http.NewRequest("GET", fileurl, nil) //nolint:usestdlibvars
 
 	req.Header.Add("X-Auth-Token", token)
 	req.Header.Add("X-User-Id", userID)

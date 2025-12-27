@@ -3,9 +3,9 @@ package bdiscord
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
