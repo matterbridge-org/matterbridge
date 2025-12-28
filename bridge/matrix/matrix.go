@@ -149,35 +149,6 @@ func (b *Bmatrix) Connect() error {
 	b.Log.Infof("Token: %s", b.mc.AccessToken)
 	b.Log.Infof("Device ID: %s", b.mc.DeviceID)
 
-	accountStore := mautrix.NewAccountDataStore("org.example.mybot.synctoken", b.mc)
-	b.mc.Store = accountStore
-
-	initialFilter := mautrix.Filter{
-		Room: &mautrix.RoomFilter{
-			Timeline: &mautrix.FilterPart{
-				Limit: 0, // Request zero history messages
-			},
-		},
-	}
-
-	// Upload the filter using client.CreateFilter()
-	filterResponse, err := b.mc.CreateFilter(context.TODO(), &initialFilter)
-	if err != nil {
-		b.Log.Fatalf("Failed to create filter: %v", err)
-	}
-
-	filterID := filterResponse.FilterID
-
-	err = b.mc.Store.SaveFilterID(context.Background(), b.UserID, filterID)
-	if err != nil {
-		b.Log.Fatalf("Failed to save filter ID to store: %v", err)
-	}
-
-	err = b.mc.Store.SaveNextBatch(context.TODO(), b.UserID, "")
-	if err != nil {
-		b.Log.Fatalf("Failed to save initial sync token: %v", err)
-	}
-
 	go b.handlematrix()
 	return nil
 }
@@ -491,6 +462,9 @@ func (b *Bmatrix) handlematrix() {
 	readyChan := make(chan bool)
 	var once sync.Once
 
+	// Drop historical messages so they don't get forwarded to other bridges
+	syncer.OnSync(b.mc.DontProcessOldEvents)
+	// Drop unencrypted room connection so we can reconnect encrypted if we are using encryption
 	syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
 		once.Do(func() {
 			if ch != nil && b.GetString("RecoveryKey") != "" {
@@ -508,11 +482,10 @@ func (b *Bmatrix) handlematrix() {
 			if b == nil {
 				return
 			}
-			// Call SyncWithContext() with *only* the context.
-			// It will use the FilterID and empty NextBatch token saved in the store.
-			syncErr := b.mc.SyncWithContext(context.TODO())
-			if syncErr != nil {
-				b.Log.Debugf("Sync() returned %v, retrying in 5 seconds...\n", syncErr)
+
+			err2 := b.mc.Sync()
+			if err2 != nil {
+				b.Log.Debugf("Sync() returned %v, retrying in 5 seconds...\n", err2)
 				time.Sleep(time.Second * 5)
 
 				continue
