@@ -2,6 +2,7 @@ package bdiscord
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -314,11 +315,12 @@ func handleEmbed(embed *discordgo.MessageEmbed, dontMarkEmbeds bool) string {
 
 	if strings.TrimSpace(embed.Title) != "" {
 		if strings.TrimSpace(embed.URL) != "" {
+			re := regexp.MustCompile(`[\\[\\]]`)
 			t = append(
 				t,
 				fmt.Sprintf(
 					"[%s](%s)",
-					strings.TrimSpace(embed.Title),
+					re.ReplaceAllString(strings.TrimSpace(embed.Title), ""),
 					strings.TrimSpace(embed.URL),
 				),
 			)
