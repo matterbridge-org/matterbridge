@@ -4,6 +4,7 @@ import (
 	"regexp"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/xmppo/go-xmpp"
 )
 
 var pathRegex = regexp.MustCompile("[^a-zA-Z0-9]+")
@@ -27,4 +28,42 @@ func (b *Bxmpp) cacheAvatar(msg *config.Message) string {
 		b.avatarMap[msg.UserID] = fi.SHA
 	}
 	return ""
+}
+
+// This method announces a file sharer and optional caption, then advertises the URL
+// for a file attachment.
+//
+// The second argument contains the uploader nickname with the caption, while the third
+// is the raw attachment caption.
+//
+// This method does not error. Errors are logged as warnings.
+func (b *Bxmpp) announceUploadedFile(to string, text string, urlDesc string, urlStr string) {
+	b.Log.Debugf("Announcing uploaded file to %s: text `%s` desc `%s` url `%s`", to, text, urlDesc, urlStr)
+
+	// Send separate message with the username and optional file comment
+	// because we can't have an attachment comment/description.
+	_, err := b.xc.Send(xmpp.Chat{
+		Type:   "groupchat",
+		Remote: to,
+		// This contains the uploader name, and the optional caption
+		Text: text,
+	})
+	if err != nil {
+		b.Log.WithError(err).Warnf("Skipping file announce due to failed sharer announce %s", text)
+		return
+	}
+
+	_, err = b.xc.SendOOB(xmpp.Chat{
+		Type:   "groupchat",
+		Remote: to,
+		Oob: xmpp.Oob{
+			Url: urlStr,
+			// This is the raw caption, if any
+			Desc: urlDesc,
+		},
+	})
+	if err != nil {
+		b.Log.WithError(err).Warnf("Skipping file announce due to failed OOB announce %s", urlStr)
+		return
+	}
 }

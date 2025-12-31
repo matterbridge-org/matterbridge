@@ -92,6 +92,8 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	// Upload a file (in XMPP case send the upload URL because XMPP has no native upload support).
 	var err error
 	if msg.Extra != nil {
+		// HandleExtra will produce error messages to be printed in the chat
+		// when the attachments are too big.
 		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
 			b.Log.Debugf("=> Sending attachement message %#v", rmsg)
 			if b.GetString("WebhookURL") != "" {
@@ -109,7 +111,8 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 			}
 		}
 		if len(msg.Extra["file"]) > 0 {
-			return "", b.handleUploadFile(&msg)
+			b.handleUploadFile(&msg)
+			return "", nil
 		}
 	}
 
@@ -359,44 +362,6 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 		return strings.ReplaceAll(text, "/me ", ""), true
 	}
 	return text, false
-}
-
-// handleUploadFile handles native upload of files
-func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
-	var urlDesc string
-
-	for _, file := range msg.Extra["file"] {
-		fileInfo := file.(config.FileInfo)
-		if fileInfo.Comment != "" {
-			msg.Text += fileInfo.Comment + ": "
-		}
-		if fileInfo.URL != "" {
-			msg.Text = fileInfo.URL
-			if fileInfo.Comment != "" {
-				msg.Text = fileInfo.Comment + ": " + fileInfo.URL
-				urlDesc = fileInfo.Comment
-			}
-		}
-		if _, err := b.xc.Send(xmpp.Chat{
-			Type:   "groupchat",
-			Remote: msg.Channel + "@" + b.GetString("Muc"),
-			Text:   msg.Username + msg.Text,
-		}); err != nil {
-			return err
-		}
-
-		if fileInfo.URL != "" {
-			if _, err := b.xc.SendOOB(xmpp.Chat{
-				Type:    "groupchat",
-				Remote:  msg.Channel + "@" + b.GetString("Muc"),
-				Ooburl:  fileInfo.URL,
-				Oobdesc: urlDesc,
-			}); err != nil {
-				b.Log.WithError(err).Warn("Failed to send share URL.")
-			}
-		}
-	}
-	return nil
 }
 
 func (b *Bxmpp) parseNick(remote string) string {
