@@ -5,7 +5,6 @@ import (
 	"path"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
-	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/rs/xid"
 	"github.com/xmppo/go-xmpp"
 )
@@ -23,16 +22,21 @@ func (b *Bxmpp) handleDownloadAvatar(avatar xmpp.AvatarData) {
 		Event:    config.EventAvatarDownload,
 		Extra:    make(map[string][]interface{}),
 	}
-	if _, ok := b.avatarMap[avatar.From]; !ok {
-		b.Log.Debugf("Avatar.From: %s", avatar.From)
 
-		err := helper.HandleDownloadSize(b.Log, &rmsg, avatar.From+".png", int64(len(avatar.Data)), b.General)
+	// TODO: why do we check if the avatar is already set?
+	// Can't we change avatar once set?
+	_, ok := b.avatarMap[avatar.From]
+	if !ok {
+		b.Log.Debugf("Avatar.From: %s", avatar.From)
+		fileName := avatar.From + ".png"
+
+		err := b.AddAvatarFromBytes(&rmsg, fileName, fileName, "", &avatar.Data)
 		if err != nil {
-			b.Log.Error(err)
+			b.Log.WithError(err).Warnf("Failed to save avatar for %s, ignoring.", avatar.From)
 			return
 		}
-		helper.HandleDownloadData(b.Log, &rmsg, avatar.From+".png", rmsg.Text, "", &avatar.Data, b.General)
-		b.Log.Debugf("Avatar download complete")
+
+		b.Log.Debugf("Avatar download complete: %s", avatar.From)
 		b.Remote <- rmsg
 	}
 }
