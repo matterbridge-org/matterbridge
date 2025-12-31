@@ -30,6 +30,12 @@
   - Supports attachments
 - xmpp
   - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, `NoPlain`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
+- discord
+  - `http_proxy` support ([#113](https://github.com/matterbridge-org/matterbridge/pull/113))
+  - `AlwaysDownloadFiles` setting enables upload of discord media to 3rd party
+    media server and protocols, to work around Discord providing short-lived
+    URLs for attachments ([#44](https://github.com/matterbridge-org/matterbridge/pull/44))
+    (this setting may be deprecated and become the default in the future, see [this discussion](https://github.com/matterbridge-org/matterbridge/issues/37#issuecomment-3694667703))
 
 ## Bugfixes
 
@@ -38,7 +44,8 @@
     the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
-  - image attachments are now send as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+  - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+  - audio attachments are now sent as documents, not as a voice messages, otherwise they won't be delivered ([#45](https://github.com/matterbridge-org/matterbridge/pull/45))
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 - telegram

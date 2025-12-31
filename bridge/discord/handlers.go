@@ -4,7 +4,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
-	"github.com/matterbridge-org/matterbridge/bridge/helper"
 )
 
 func (b *Bdiscord) messageDelete(s *discordgo.Session, m *discordgo.MessageDelete) { //nolint:unparam
@@ -106,32 +105,27 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		first := true
 		for _, attach := range m.Attachments {
 			if b.alwaysDownloadFiles {
-				var url, name, caption string
-				var data *[]byte
-
-				url = attach.URL
-				name = attach.Filename
-
-				err = helper.HandleDownloadSize(b.Log, &rmsg, name, int64(attach.Size), b.General)
-				if err != nil {
-					return
-				}
-				data, err = helper.DownloadFile(url)
-				if err != nil {
-					return
-				}
+				var caption string
 
 				if first {
 					caption = m.Content
 					if caption == "" {
-						caption = name
+						caption = attach.Filename
 					}
 					first = false
 				} else {
+					// There's only one caption for many attachments, see
+					// https://github.com/matterbridge-org/matterbridge/pull/44#discussion_r2590140958
 					caption = ""
 				}
 
-				helper.HandleDownloadData(b.Log, &rmsg, name, caption, "", data, b.General)
+				// TODO: does the discord API have a unique ID for the file?
+				// in the meantime, let's reuse the filename
+				err = b.AddAttachmentFromURL(&rmsg, attach.Filename, attach.Filename, caption, attach.URL)
+				if err != nil {
+					b.Log.WithError(err).Warn("Failed to download one attachment. Skipping to the next.")
+					continue
+				}
 			} else {
 				m.Content = m.Content + "\n" + attach.URL
 			}
