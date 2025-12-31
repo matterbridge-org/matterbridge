@@ -1,8 +1,12 @@
 package bxmpp
 
 import (
+	"fmt"
+	"mime"
+	"path"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/xmppo/go-xmpp"
@@ -97,4 +101,58 @@ func (b *Bxmpp) extractMaxSizeFromXFieldValue(value string) int64 {
 	}
 
 	return maxFileSize
+}
+
+// HTTP_UPLOAD_SLOT step 1
+//
+// Request an upload slot from the HTTP upload component, saving the file
+// in the internal upload buffer for later processing.
+//
+// Will stall until the compoennt is advertised by the server, or until a timeout has been reached.
+// This method must therefore be called from a background thread.
+func (b *Bxmpp) requestUploadSlot(fileId string, fileInfo *config.FileInfo) {
+	retry := 0
+
+	httpUploadComponent := ""
+	for httpUploadComponent == "" {
+		retry += 1
+		if retry > 6 {
+			// No need to keep trying, the XMPP server apparently has no HTTP upload
+			// component configured.
+			b.Log.Warn("Abandoning file upload because XMPP server still hasn't advertised an HTTP upload component.")
+			break
+		}
+
+		b.Lock()
+		httpUploadComponent = b.httpUploadComponent
+		b.Unlock()
+
+		// Wait 5 seconds before next attempt
+		time.Sleep(5 * time.Second)
+	}
+
+	reg := regexp.MustCompile(`[^a-zA-Z0-9\+\-\_\.]+`)
+	fileNameEscaped := reg.ReplaceAllString(fileInfo.Name, "_")
+
+	// Guess the mime-type
+	mimeType := mime.TypeByExtension(path.Ext(fileInfo.Name))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	b.Log.Debugf("Requesting upload slot ID %s for %s (escaped) with mime-type %s", fileId, fileNameEscaped, mimeType)
+
+	request := fmt.Sprintf("<request xmlns='urn:xmpp:http:upload:0' filename='%s' size='%d' content-type='%s' />", fileNameEscaped, fileInfo.Size, mimeType)
+
+	_, err := b.xc.RawInformation(b.xc.JID(), httpUploadComponent, fileId, "get", request)
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to request upload slot")
+		return
+	}
+
+	// Save the FileInfo in the buffer to actually upload it later
+	// when we receive the upload slot.
+	b.Lock()
+	b.httpUploadBuffer[fileId] = fileInfo
+	b.Unlock()
 }

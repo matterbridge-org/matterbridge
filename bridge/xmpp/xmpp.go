@@ -36,6 +36,18 @@ type Bxmpp struct {
 	httpUploadComponent string
 	// The max attachment size is discovered in the last step of HTTP_UPLOAD_DISCO.
 	httpUploadMaxSize int64
+	// Files are stored in this buffer so we can perform the uploads asynchronously
+	// without blocking the main thread:
+	//
+	// - request an upload slot and store the file in the buffer (HTTP_UPLOAD_SLOT step 1)
+	// - (matterbridge processes other messages)
+	// - receive the upload slot and perform the HTTP upload (HTTP_UPLOAD_SLOT step 2)
+	// - (matterbridge processes other messages)
+	// - receive upload confirmation and post the OOB URL (HTTP_UPLOAD_SLOT step 3)
+	//
+	// Note that in most cases, remote bridges will provide an attachment URL, no file
+	// will actually be uploaded on XMPP side, and this buffer will be untouched.
+	httpUploadBuffer map[string]*config.FileInfo
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -44,6 +56,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
+		httpUploadBuffer:   make(map[string]*config.FileInfo),
 	}
 }
 
@@ -392,6 +405,20 @@ func (b *Bxmpp) handleXMPP() error {
 				b.httpUploadMaxSize = foundSize
 				b.Unlock()
 			}
+		case xmpp.Slot:
+			// HTTP_UPLOAD_SLOT step 2
+			b.Log.Debugf("Received upload slot ID %s", v.ID)
+			b.Lock()
+			entry, ok := b.httpUploadBuffer[v.ID]
+			b.Unlock()
+
+			if !ok {
+				b.Log.Warnf("Received upload slot ID %s doesn't match a known file", v.ID)
+				continue
+			}
+
+			b.Log.Debugf("Preparing to upload file %s to %s", entry.Name, v.Put.Url)
+			// TODO: upload file to the upload slot, then share it in the chat
 		}
 	}
 }
