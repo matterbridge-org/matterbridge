@@ -6,6 +6,7 @@ import (
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
+	"github.com/rs/xid"
 	"github.com/xmppo/go-xmpp"
 )
 
@@ -76,8 +77,19 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) {
 			// In this case, no need to reupload the file.
 			b.announceUploadedFile(msg.Channel+"@"+b.GetString("Muc"), msg.Username+fileInfo.Comment, fileInfo.Comment, fileInfo.URL)
 		} else {
-			// TODO
-			b.Log.Warn("OOB file upload unimplemented yet")
+			// The file received from other bridges is just a bunch of bytes in fileInfo.Data
+			// We need to upload it to the XMPP server's HTTP upload component.
+			// This is defined in XEP-0363: https://xmpp.org/extensions/xep-0363.html
+			//
+			// The steps are performed asynchronously:
+			//
+			// 1. Find the server's HTTP upload component (upon login, in HTTP_UPLOAD_DISCO steps)
+			// 2. Request an "upload slot" from the upload component (we are here)
+			// 3. Send a PUT request with the data to the remote HTTP "upload slot" (when receiving the slot)
+			//
+			// Steps 2 and 3 are commented as HTTP_UPLOAD_SLOT
+			fileId := xid.New().String()
+			go b.requestUploadSlot(fileId, &fileInfo)
 		}
 	}
 }
