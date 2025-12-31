@@ -1,6 +1,9 @@
 package bxmpp
 
 import (
+	"net/url"
+	"path"
+
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/xmppo/go-xmpp"
@@ -77,4 +80,57 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) {
 			b.Log.Warn("OOB file upload unimplemented yet")
 		}
 	}
+}
+
+// handleDownloadFile processes file downloads in the background.
+//
+// Returns true if the message was handled, false otherwise.
+//
+// This implements XEP-0066 https://xmpp.org/extensions/xep-0066.html
+func (b *Bxmpp) handleDownloadFile(rmsg *config.Message, v *xmpp.Chat) bool {
+	// Do we have an OOB attachment URL?
+	if v.Oob.Url != "" {
+		// Perform the download in the background
+		go b.handleDownloadFileInner(rmsg, v)
+
+		return true
+	}
+
+	return false
+}
+
+// handleDownloadFileInner is a helper to actually download a remote attachment
+// and announce it to other bridges.
+//
+// It runs in the foreground, and should only be called in a background context
+// to avoid stalling in the main thread.
+//
+// If it encounters any error, it will log the error and skip the message.
+func (b *Bxmpp) handleDownloadFileInner(rmsg *config.Message, v *xmpp.Chat) {
+	parsed_url, err := url.Parse(v.Oob.Url)
+	if err != nil {
+		b.Log.WithError(err).Warnf("Skipping message due to failed parsing of OOB URL %s", v.Oob.Url)
+		return
+	}
+	// We use the last part of the URL's path as filename. This prevents
+	// errors from extra slashes, but might not make sense if for example
+	// the URL is `/download?id=FOO`.
+	// TODO: investigate popular URL naming schemes in XMPP world, or
+	// consider naming the files after their own checksum.
+	fileName := path.Base(parsed_url.Path)
+
+	err = b.AddAttachmentFromURL(rmsg, fileName, "", "", v.Oob.Url)
+	if err != nil {
+		b.Log.WithError(err).Warnf("Skipping message due to failed OOB attachment download %s", v.Oob.Url)
+		return
+	}
+
+	// Special case: because XMPP OOB (mostly) only allows body with the OOB URL, we remove the
+	// body so we don't end up with duplicate information across bridges/channels.
+	rmsg.Text = ""
+
+	b.Log.Debugf("<= Sending message/attachment from %s on %s to gateway", rmsg.Username, b.Account)
+	b.Log.Debugf("<= Message is %#v", rmsg)
+
+	b.Remote <- *rmsg
 }

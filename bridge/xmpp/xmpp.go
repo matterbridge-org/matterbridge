@@ -334,6 +334,7 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+					Extra: make(map[string][]any),
 				}
 
 				// Check if we have an action event.
@@ -343,6 +344,9 @@ func (b *Bxmpp) handleXMPP() error {
 					rmsg.Event = config.EventUserAction
 				}
 
+				if b.handleDownloadFile(&rmsg, &v) {
+					continue
+				}
 				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
 				b.Log.Debugf("<= Message is %#v", rmsg)
 				b.Remote <- rmsg
