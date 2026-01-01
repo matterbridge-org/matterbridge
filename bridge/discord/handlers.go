@@ -6,7 +6,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
-	"github.com/matterbridge-org/matterbridge/bridge/helper"
 )
 
 func (b *Bdiscord) messageDelete(s *discordgo.Session, m *discordgo.MessageDelete) { //nolint:unparam
@@ -142,43 +141,6 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 
 	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: m.Author.ID, ID: m.ID, Extra: make(map[string][]interface{})}
 
-	// add the url of the attachments to content
-	if len(m.Attachments) > 0 {
-		first := true
-		for _, attach := range m.Attachments {
-			if b.alwaysDownloadFiles {
-				var url, name, caption string
-				var data *[]byte
-
-				url = attach.URL
-				name = attach.Filename
-
-				err = helper.HandleDownloadSize(b.Log, &rmsg, name, int64(attach.Size), b.General)
-				if err != nil {
-					return
-				}
-				data, err = helper.DownloadFile(url)
-				if err != nil {
-					return
-				}
-
-				if first {
-					caption = m.Content
-					if caption == "" {
-						caption = name
-					}
-					first = false
-				} else {
-					caption = ""
-				}
-
-				helper.HandleDownloadData(b.Log, &rmsg, name, caption, "", data, b.General)
-			} else {
-				m.Content = m.Content + "\n" + attach.URL
-			}
-		}
-	}
-
 	b.Log.Debugf("== Receiving event %#v", m.Message)
 
 	if m.Content != "" {
@@ -210,11 +172,6 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		}
 	}
 
-	// no empty messages
-	if rmsg.Text == "" && len(rmsg.Extra["file"]) == 0 {
-		return
-	}
-
 	// do we have a /me action
 	var ok bool
 	rmsg.Text, ok = b.replaceAction(rmsg.Text)
@@ -233,9 +190,46 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		rmsg.ParentID = ref.MessageID
 	}
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", m.Author.Username, b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
-	b.Remote <- rmsg
+	// no empty messages
+	if rmsg.Text == "" && len(m.Attachments) == 0 {
+		return
+	}
+
+	// if no attachments, send the message as-is
+	if len(m.Attachments) == 0 {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", m.Author.Username, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+
+		b.Remote <- rmsg
+
+		return
+	}
+
+	// We process attachments last, after all pre-processing is done
+	// Perform the operations in the background, so we can process other
+	// messages while we download the attachments.
+	go func() {
+		count := 0
+		for _, attach := range m.Attachments {
+			err := b.AddAttachmentFromURL(&rmsg, attach.Filename, attach.ID, "", attach.URL)
+			if err != nil {
+				b.Log.WithError(err).Warnf("Failed to download attachment %s", attach.Filename)
+				continue
+			}
+
+			count += 1
+		}
+
+		if rmsg.Text == "" && count == 0 {
+			b.Log.Warnf("Skipping message because there is no text and file uploads all failed")
+			return
+		}
+
+		b.Log.Debugf("<= Sending message attachments from %s on %s to gateway", m.Author.Username, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+
+		b.Remote <- rmsg
+	}()
 }
 
 func (b *Bdiscord) memberUpdate(s *discordgo.Session, m *discordgo.GuildMemberUpdate) {
