@@ -265,10 +265,32 @@ func (b *Bridge) HttpUpload(method string, uri string, headers map[string]string
 	return HttpGetNotOkError(uri, resp.StatusCode)
 }
 
+// AddAttachmentFromURL adds a file from a public URL.
+//
+// The data will be downloaded, and both the URL and the raw bytes will be
+// passed to other bridges. When media server is enabled, the content URL
+// will also be replaced by our own URL.
 func (b *Bridge) AddAttachmentFromURL(msg *config.Message, filename string, id string, comment string, uri string) error {
 	return b.addAttachment(msg, filename, id, comment, uri, nil, false)
 }
 
+// AddAttachmentFromProtectedURL adds a file from a private, protected URL.
+//
+// The data will be downloaded by the bridge, but only the raw bytes will be
+// passed to other bridges so that they don't relay broken URLs, such as
+// with Matrix authenticated media. When media server is URL, our new URL
+// will be inserted instead.
+func (b *Bridge) AddAttachmentFromProtectedURL(msg *config.Message, filename string, id string, comment string, uri string) error {
+	return b.addAttachmentNoURL(msg, filename, id, comment, uri, nil, false)
+}
+
+// AddAttachmentFromBytes adds a file from raw bytes.
+//
+// The data bytes will be passed to other bridges. If those bridges only
+// support URLs and not raw bytes upload:
+//
+// - if media server is enabled, matterbridge will produce a new URL
+// - otherwise, the message will be discarded by the remote bridge
 func (b *Bridge) AddAttachmentFromBytes(msg *config.Message, filename string, id string, comment string, data *[]byte) error {
 	return b.addAttachment(msg, filename, id, comment, "", data, false)
 }
@@ -309,6 +331,28 @@ func (b *Bridge) addAttachment(msg *config.Message, filename string, id string, 
 	}
 
 	return b.addAttachmentProcess(msg, filename, id, comment, uri, data, avatar)
+}
+
+// Internal method similar to addAttachment, but will not keep the URL.
+//
+// This is useful so protected URLs requiring specific headers (such as matrix authenticated media)
+// can be downloaded, and then omitted so other bridges don't spread along broken URLs.
+func (b *Bridge) addAttachmentNoURL(msg *config.Message, filename string, id string, comment string, uri string, data *[]byte, avatar bool) error {
+	if data != nil {
+		return b.addAttachmentProcess(msg, filename, id, comment, "", data, avatar)
+	}
+
+	if uri == "" {
+		// This should never happen
+		b.Log.Fatalf("Logic error in bridge %s: attachment should have either URL or data set, neither was provided", b.Protocol)
+	}
+
+	data, err := b.HttpGetBytes(uri)
+	if err != nil {
+		return err
+	}
+
+	return b.addAttachmentProcess(msg, filename, id, comment, "", data, avatar)
 }
 
 type errFileTooLarge struct {
