@@ -55,6 +55,14 @@
   - attachments of mixed types in the same message will be uploaded as documents
 - slack
   - file uploading now use the new upload steps described in the slack docs via `UploadFileV2`, replacing the deprecated and now disabled `file.upload` based method (via `UploadFile`) ([#129](https://github.com/matterbridge-org/matterbridge/pull/129))
+- discord
+  - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
+    longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37))
+- irc
+  - when there are attachments in the message, the body is now sent instead of being discarded silently ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
+  - when an attachment has no public URL, an error message is printed/logged encouraging the
+    matterbridge operator to enable the mediaserver, instead of producing an incoherent message
+    ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
 
 ## Upstream
 

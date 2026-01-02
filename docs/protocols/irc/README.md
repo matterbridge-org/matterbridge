@@ -40,3 +40,17 @@ Nick="yournick"
 Server="irc.oftc.net:6697"
 RunCommands=["PRIVMSG nickserv :IDENTIFY yourpass yournick"]
 ```
+
+# FAQ
+
+## Why can't matterbridge share files on IRC without a mediaserver?
+
+If you see in the chat the error « Could not share file FILE (no mediaserver configured) »,
+it means matterbridge tried to share a file which has no public URL when no media server
+is configured. Files from networks which provide us with a public URL are unaffected
+and can be shared to IRC freely.
+
+Some files such as Matrix file attachments are shared privately and while matterbridge
+can access the file content (raw bytes), there's no link to the file. In order to produce
+a link that can be shared on IRC, you need to enable [a mediaserver](../../advanced/mediaserver.md),
+which requires a public-facing web server.
