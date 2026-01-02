@@ -804,7 +804,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	}
 
 	// TODO: add attachment ID?
-	err := b.AddAttachmentFromURL(rmsg, name, "", "", url)
+	err := b.AddAttachmentFromProtectedURL(rmsg, name, "", "", url)
 	if err != nil {
 		return err
 	}
