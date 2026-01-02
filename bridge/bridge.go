@@ -399,6 +399,7 @@ func (b *Bridge) addAttachmentProcess(msg *config.Message, filename string, id s
 		Avatar:  avatar,
 		// TODO: if id is not set, maybe use hash of bytes?
 		NativeID: id,
+		Size:     int64(len(*data)),
 	})
 
 	return nil
