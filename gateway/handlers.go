@@ -1,15 +1,12 @@
 package gateway
 
 import (
-	"bytes"
 	"crypto/sha1" //nolint:gosec
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -71,9 +68,7 @@ func (gw *Gateway) handleFiles(msg *config.Message) {
 	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
 
 	// If we don't have a attachfield or we don't have a mediaserver configured return
-	if msg.Extra == nil ||
-		(gw.BridgeValues().General.MediaServerUpload == "" &&
-			gw.BridgeValues().General.MediaDownloadPath == "") {
+	if msg.Extra == nil || gw.BridgeValues().General.MediaDownloadPath == "" {
 		return
 	}
 
@@ -91,18 +86,11 @@ func (gw *Gateway) handleFiles(msg *config.Message) {
 
 		sha1sum := fmt.Sprintf("%x", sha1.Sum(*fi.Data))[:8] //nolint:gosec
 
-		if gw.BridgeValues().General.MediaServerUpload != "" {
-			// Use MediaServerUpload. Upload using a PUT HTTP request and basicauth.
-			if err := gw.handleFilesUpload(&fi); err != nil {
-				gw.logger.Error(err)
-				continue
-			}
-		} else {
-			// Use MediaServerPath. Place the file on the current filesystem.
-			if err := gw.handleFilesLocal(&fi); err != nil {
-				gw.logger.Error(err)
-				continue
-			}
+		// Use MediaServerPath. Place the file on the current filesystem.
+		err := gw.handleFilesLocal(&fi)
+		if err != nil {
+			gw.logger.Error(err)
+			continue
 		}
 
 		// Download URL.
@@ -116,31 +104,6 @@ func (gw *Gateway) handleFiles(msg *config.Message) {
 		extra.SHA = sha1sum
 		msg.Extra["file"][i] = extra
 	}
-}
-
-// handleFilesUpload uses MediaServerUpload configuration to upload the file.
-// Returns error on failure.
-func (gw *Gateway) handleFilesUpload(fi *config.FileInfo) error {
-	client := &http.Client{
-		Timeout: time.Second * 5,
-	}
-	// Use MediaServerUpload. Upload using a PUT HTTP request and basicauth.
-	sha1sum := fmt.Sprintf("%x", sha1.Sum(*fi.Data))[:8] //nolint:gosec
-	url := gw.BridgeValues().General.MediaServerUpload + "/" + sha1sum + "/" + fi.Name
-
-	req, err := http.NewRequest("PUT", url, bytes.NewReader(*fi.Data))
-	if err != nil {
-		return fmt.Errorf("mediaserver upload failed, could not create request: %#v", err)
-	}
-
-	gw.logger.Debugf("mediaserver upload url: %s", url)
-
-	req.Header.Set("Content-Type", "binary/octet-stream")
-	_, err = client.Do(req)
-	if err != nil {
-		return fmt.Errorf("mediaserver upload failed, could not Do request: %#v", err)
-	}
-	return nil
 }
 
 // handleFilesLocal use MediaServerPath configuration, places the file on the current filesystem.
