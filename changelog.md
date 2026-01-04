@@ -16,6 +16,9 @@
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
 - Go required version is now v1.24
+- `MediaServerUpload` has been deprecated ([#30](https://github.com/matterbridge-org/matterbridge/issues/30)),
+  because we don't know how to make it work and were improving those parts of the codebase.
+  If you were successfully using it, your feedback is welcome and we may reintroduce it.
 
 ## New Features
 

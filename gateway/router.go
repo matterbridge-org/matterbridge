@@ -58,6 +58,12 @@ func NewRouter(rootLogger *logrus.Logger, cfg config.Config, bridgeMap map[strin
 // Start will connect all gateways belonging to this router and subsequently route messages
 // between them.
 func (r *Router) Start() error {
+	// Deprecating MediaServerUpload. Remove in future v2.1 release
+	deprecatedValue, _ := r.GetString("MediaServerUpload")
+	if deprecatedValue != "" {
+		r.logger.Fatal("MediaServerUpload config option has been deprecated. You should either remove this option from your configuration, or help us document it.")
+	}
+
 	m := make(map[string]*bridge.Bridge)
 	if len(r.Gateways) == 0 {
 		return fmt.Errorf("no [[gateway]] configured. See https://github.com/42wim/matterbridge/wiki/How-to-create-your-config for more info")

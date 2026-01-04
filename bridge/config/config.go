@@ -150,10 +150,9 @@ type Protocol struct {
 	Login                  string   // mattermost, matrix
 	LogFile                string   // general
 	MediaDownloadBlackList []string
-	MediaDownloadPath      string // Basically MediaServerUpload, but instead of uploading it, just write it to a file on the same server.
+	MediaDownloadPath      string // Write upload to a file on the same server.
 	MediaDownloadSize      int    // all protocols
 	MediaServerDownload    string
-	MediaServerUpload      string
 	MediaConvertTgs        string     // telegram
 	MediaConvertWebPToPNG  bool       // telegram
 	MessageDelay           int        // IRC, time in millisecond to wait between messages

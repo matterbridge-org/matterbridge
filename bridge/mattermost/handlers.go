@@ -109,7 +109,7 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 		}
 
 		// only download avatars if we have a place to upload them (configured mediaserver)
-		if b.General.MediaServerUpload != "" || b.General.MediaDownloadPath != "" {
+		if b.General.MediaDownloadPath != "" {
 			b.handleDownloadAvatar(message.UserID, channelName)
 		}
 

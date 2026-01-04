@@ -2,46 +2,15 @@ Matterbridge is not going to implement it's own "mediaserver" instead we make us
 This mediaserver will be used to upload media to services that don't have support for uploading images/video/files.   
 At this moment this is xmpp and irc
 
-There are 2 options to set this up:
-* You already have a webserver running
-   * Matterbridge runs on the same server see [local download](#use-local-download)
-   * Matterbridge runs on another server. If the webserver is using caddy, see [caddy](#use-remote-upload)
-* You don't have a webserver running
-   * See [caddy](#use-remote-upload)
+> [!INFO]
+> The `MediaServerUpload` option has been deprecated. If you are using it and would like to
+> help reimplement and document it, please open an issue or a pull request.
 
-# Use remote upload
-## Caddy
-In this case we're using caddy for upload/downloading media. 
-Caddy has automatic https support, so I'm going to describe this for https only.
-
-
-### caddy install / configuration
-Go to https://caddyserver.com/download   
-Enable `http.upload` as plugin
-
-Make sure the process you're running caddy with has read/write access to `/var/www/upload/`
-
-Sample Caddyfile
-```
-yourserver.com:443 {
-   log stdout
-   root /var/www/upload/
-   browse
-   basicauth /web/upload a_user a_password
-   upload /upload {
-      to "/var/www/upload/"
-   }
-}
-```
-### matterbridge configuration
-configuration needs to happen in `[general]`
-```
-[general]
-MediaServerUpload="https://a_user:a_password@yourserver.com/upload"
-MediaServerDownload="https://yourserver.com/"
-```
+Running the media server requires a web server which publicly serves files
+in a given directory, where matterbridge can write the files.
 
 # Use local download
+
 In this case we're using matterbridge to download to a local path your webserver has read access to and matterbridge has write access to.
 Matterbridge is running on this same server.
 

@@ -209,9 +209,7 @@ Example: do not upload html and htm extension
 `MediaDownloadBlacklist=[".html$",".htm$"]`
 
 ## MediaDownloadPath
-MediaDownloadPath is the filesystem path where the media file will be placed, instead of uploaded, for if Matterbridge has write access to the directory your webserver is serving. \
-It is an alternative to MediaServerUpload.
-More information https://github.com/42wim/matterbridge/wiki/Mediaserver-setup-%28advanced%29
+MediaDownloadPath is the filesystem path where the media file will be placed, instead of uploaded, for if Matterbridge has write access to the directory your webserver is serving. [More information](https://github.com/matterbridge-org/matterbridge/blob/master/docs/advanced/mediaserver.md)
 
 Setting: OPTIONAL, RELOADABLE, GENERAL \
 Format: string \
@@ -220,7 +218,8 @@ Example:
 `MediaDownloadPath="/srv/http/yourserver.com/public/download"`
 
 ## MediaDownloadSize
-Maximum size in bytes matterbridge will download for use with (`MediaServerUpload` and `MediaDownloadPath`)
+Maximum size in bytes matterbridge will download for use with upload to the
+media server or to other bridges.
 
 Setting: OPTIONAL, RELOADABLE, GENERAL \
 Format: int \
@@ -240,19 +239,3 @@ Format: string \
 Example: 
 
 `MediaServerDownload="https://youserver.com/download"`
-
-
-## MediaServerUpload 
-Used for uploading images/files/video to a remote "mediaserver" (a webserver like caddy for example). \
-When configured images/files uploaded on bridges like mattermost, slack, telegram will be
-downloaded and uploaded again to MediaServerUpload URL.
-More information https://github.com/42wim/matterbridge/wiki/Mediaserver-setup-%28advanced%29
-
-Setting: OPTIONAL, RELOADABLE, GENERAL \
-Format: string \
-Example: 
-
-`MediaServerUpload="https://user:pass@yourserver.com/upload"`
-
-## RemoteNickFormat 
-See [RemoteNickFormat](#RemoteNickFormat)
