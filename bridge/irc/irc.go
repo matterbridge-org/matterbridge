@@ -236,8 +236,14 @@ func (b *Birc) doSend() {
 			text := msg.Text
 
 			// Work around girc chomping leading commas on single word messages?
-			if strings.HasPrefix(text, ":") && !strings.ContainsRune(text, ' ') {
-				text = ":" + text
+			if b.GetBool("DoubleColonPrefix") {
+				if strings.HasPrefix(text, ":") && !strings.ContainsRune(text, ' ') {
+					b.Log.Warn("This option may be deprecated in the future. If you are using it, please help us understand the usecase by commenting on this issue: https://github.com/matterbridge-org/matterbridge/issues/122")
+
+					text = ":" + text
+				}
+			} else {
+				b.Log.Debug("Leading colon workaround has been disabled; reenable it with `DoubleColonPrefix=true`.")
 			}
 
 			if msg.Event == config.EventUserAction {

@@ -276,3 +276,21 @@ Currently works for messages from the following bridges: irc
   ```toml
   VerboseJoinPart=true
   ```
+
+## DoubleColonPrefix
+
+> [!WARNING]
+> We are unsure what this setting is doing. If noone provides
+> actual documentation on the usecase, it will be removed
+> in a future release.
+
+Adds a leading colon (`:`) when a message starts with another colon
+and contains no whitespace. For example, turns `:D` into `::D`, potentially
+breaking emote/emoji shortcodes.
+
+- Setting: **OPTIONAL**
+- Format: *boolean*
+- Example:
+  ```toml
+  DoubleColonPrefix=true
+  ```
