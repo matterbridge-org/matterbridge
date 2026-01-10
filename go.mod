@@ -14,7 +14,7 @@ require (
 	github.com/jpillora/backoff v1.0.0
 	github.com/kyokomi/emoji/v2 v2.2.13
 	github.com/labstack/echo/v4 v4.12.0
-	github.com/lrstanley/girc v0.0.0-20240823210506-80555f2adb03
+	github.com/lrstanley/girc v1.1.1
 	github.com/matterbridge/Rocket.Chat.Go.SDK v0.0.0-20211016222428-79310a412696
 	github.com/matterbridge/gozulipbot v0.0.0-20211023205727-a19d6c1f3b75
 	github.com/matterbridge/logrus-prefixed-formatter v0.5.3-0.20200523233437-d971309a77ba
