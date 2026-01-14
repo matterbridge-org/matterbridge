@@ -85,10 +85,14 @@ func createS3MediaServer(bg *config.BridgeValues, bucketName string, uploadPrefi
 		return nil, fmt.Errorf("%w: s3 secret key is not configured", ErrMediaConfiguration)
 	}
 
+	if bg.General.S3Region == "" {
+		return nil, fmt.Errorf("%w: s3 region is not configured", ErrMediaConfiguration)
+	}
+
 	uploadPrefix = strings.Trim(uploadPrefix, "/")
 
 	client := s3.NewFromConfig(aws.Config{
-		Region:       "custom",
+		Region:       bg.General.S3Region,
 		Credentials:  credentials.NewStaticCredentialsProvider(bg.General.S3AccessKey, bg.General.S3SecretKey, ""),
 		Logger:       logging.Nop{},
 		BaseEndpoint: aws.String(bg.General.S3Endpoint),
