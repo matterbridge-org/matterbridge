@@ -280,8 +280,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	// Edit message if we have an ID
 	if msg.ID != "" {
 		content := event.MessageEventContent{
-			Body:          body,
-			FormattedBody: formattedBody,
+			Body:          "* " + body,
+			FormattedBody: "<b>*</b> " + formattedBody,
 			MsgType:       event.MsgText,
 			Format:        event.FormatHTML,
 			NewContent: &event.MessageEventContent{
