@@ -463,26 +463,34 @@ func (b *Bslack) uploadFile(msg *config.Message, channelID string) (string, erro
 		if fi.Comment != "" {
 			initialComment += fmt.Sprintf(" with comment: %s", fi.Comment)
 		}
-		res, err := b.sc.UploadFile(slack.FileUploadParameters{
+		res, err := b.sc.UploadFileV2(slack.UploadFileV2Parameters{
 			Reader:          bytes.NewReader(*fi.Data),
 			Filename:        fi.Name,
-			Channels:        []string{channelID},
+			FileSize:        len(*fi.Data),
+			Channel:         channelID,
 			InitialComment:  initialComment,
 			ThreadTimestamp: msg.ParentID,
 		})
 		if err != nil {
-			b.Log.Errorf("uploadfile %#v", err)
+			b.Log.Errorf("UploadFileV2 error %#v", err)
 			return "", err
 		}
 		if res.ID != "" {
+			// UploadFileV2 doesn't return the full slack.File info like the previous UploadFile, so query it separately
+			sfi, _, _, err := b.sc.GetFileInfo(res.ID, 0, 1)
+			if err != nil {
+				b.Log.Errorf("GetFileInfo uploaded error %#v", err)
+				return "", err
+			}
+
 			b.Log.Debugf("Adding file ID %s to cache with timestamp %s", res.ID, ts.String())
 			b.cache.Add("file"+res.ID, ts)
 
 			// search for message id by uploaded file in private/public channels, get thread timestamp from uploaded file
-			if v, ok := res.Shares.Private[channelID]; ok && len(v) > 0 {
+			if v, ok := sfi.Shares.Private[channelID]; ok && len(v) > 0 {
 				messageID = v[0].Ts
 			}
-			if v, ok := res.Shares.Public[channelID]; ok && len(v) > 0 {
+			if v, ok := sfi.Shares.Public[channelID]; ok && len(v) > 0 {
 				messageID = v[0].Ts
 			}
 		}
