@@ -50,6 +50,8 @@
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
   - attachments of mixed types in the same message will be uploaded as documents
+- slack
+  - file uploading now use the new upload steps described in the slack docs via `UploadFileV2`, replacing the deprecated and now disabled `file.upload` based method (via `UploadFile`) ([#129](https://github.com/matterbridge-org/matterbridge/pull/129))
 
 ## Upstream
 
