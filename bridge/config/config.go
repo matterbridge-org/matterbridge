@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	EventJoinLeave         = "join_leave"
+	EventJoinLeave         = "join_leave" // left for backwards compatibility
+	EventJoin              = "join"
+	EventLeave             = "leave"
 	EventTopicChange       = "topic_change"
 	EventFailure           = "failure"
 	EventFileFailureSize   = "file_failure_size"
