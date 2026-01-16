@@ -50,6 +50,9 @@
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
   - attachments of mixed types in the same message will be uploaded as documents
+- discord
+  - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
+    longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37))
 
 ## Upstream
 
