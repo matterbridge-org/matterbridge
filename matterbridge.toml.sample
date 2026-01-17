@@ -842,7 +842,10 @@ Server="yourservername"
 AllowMention=["everyone", "roles", "users"]
 
 # ShowEmbeds shows the title, description and URL of embedded messages (sent by other bots)
-ShowEmbeds=false
+ShowEmbeds=true
+
+# Stops the 'embed:' text from being added as the first line in an embed message
+DontMarkEmbeds=true
 
 # UseLocalAvatar specifies source bridges for which an avatar should be 'guessed' when an incoming message has no avatar.
 # This works by comparing the username of the message to an existing Discord user, and using the avatar of the Discord user.
