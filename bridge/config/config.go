@@ -312,6 +312,7 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 
 	cfgtype := detectConfigType(cfgfile)
 	mycfg := newConfigFromString(logger, input, cfgtype)
+	// TODO: log file should probably also be reloaded
 	if mycfg.cv.General.LogFile != "" {
 		logfile, err := os.OpenFile(mycfg.cv.General.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err == nil {
@@ -333,6 +334,20 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
 		logger.Println("Config file changed:", e.Name)
+		// Reload BridgeValues as exposed in the Router
+		// TODO: are we breaking some stuff that should *not* be reloaded here? Should
+		// we only reload General section?
+		//
+		// This is where syntax errors are caught
+		err = viper.ReadInConfig()
+		if err != nil {
+			logger.Errorf("%v", err)
+		}
+
+		err = viper.Unmarshal(&mycfg.cv)
+		if err != nil {
+			logger.Fatalf("This should not happen when reloading config: %v", err)
+		}
 	})
 	return mycfg
 }
