@@ -143,19 +143,18 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 
 	// Post normal message.
 	b.Log.Debugf("=> Sending message %#v", msg)
+	msgID := xid.New().String()
 	if _, err := b.xc.Send(xmpp.Chat{
 		Type:    "groupchat",
 		Remote:  msg.Channel + "@" + b.GetString("Muc"),
 		Text:    msg.Username + msg.Text,
-		ID:      msg.ID,
+		ID:      msgID,
 		ReplyID: replyID,
 		ReplyTo: replyTo,
 	}); err != nil {
 		return "", err
 	}
 	// Generate a dummy ID because to avoid collision with other internal messages
-	// However this does not provide proper Edits/Replies integration on XMPP side.
-	msgID := xid.New().String()
 	return msgID, nil
 }
 
