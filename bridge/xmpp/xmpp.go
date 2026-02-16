@@ -135,10 +135,11 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	// XEP-0461: populate reply fields if this message is a reply.
 	var replyID, replyTo string
 	if msg.ParentValid() {
-		if stanzaID, ok := b.cache.Get(msg.ParentID); ok {
-			replyID = stanzaID.(string)
+		if info, ok := b.cache.Get(msg.ParentID); ok {
+			si := info.(stanzaInfo)
+			replyID = si.stanzaID
+			replyTo = si.from
 		}
-		replyTo = msg.Channel + "@" + b.GetString("Muc") + "/" + b.GetString("Nick")
 	}
 
 	// Post normal message.
@@ -295,6 +296,11 @@ func (b *Bxmpp) xmppKeepAlive() chan bool {
 	return done
 }
 
+type stanzaInfo struct {
+	stanzaID string
+	from     string
+}
+
 func (b *Bxmpp) handleXMPP() error {
 	b.startTime = time.Now()
 
@@ -320,7 +326,7 @@ func (b *Bxmpp) handleXMPP() error {
 
 				// XEP-0461: Cache StanzaID to use for Message Replies
 				if v.StanzaID.ID != "" {
-					b.cache.Add(v.ID, v.StanzaID.ID)
+					b.cache.Add(v.ID, stanzaInfo{stanzaID: v.StanzaID.ID, from: v.Remote})
 				}
 
 				// Skip invalid messages.
