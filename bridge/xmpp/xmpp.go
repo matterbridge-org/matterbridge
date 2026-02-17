@@ -27,6 +27,7 @@ type Bxmpp struct {
 	xc           *xmpp.Client
 	xmppMap      map[string]string
 	connected    bool
+	stanzaIDs    *lru.Cache
 	replyHeaders *lru.Cache
 	sync.RWMutex
 
@@ -35,6 +36,10 @@ type Bxmpp struct {
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
+	stanzaIDs, err := lru.New(5000)
+	if err != nil {
+		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
+	}
 	replyHeaders, err := lru.New(5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
@@ -45,6 +50,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
+		stanzaIDs:          stanzaIDs,
 		replyHeaders:       replyHeaders,
 	}
 }
@@ -319,6 +325,7 @@ func (b *Bxmpp) handleXMPP() error {
 				if v.StanzaID.ID != "" {
 					// Here the stanza-id has been set by the server and can be used to provide replies
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
+					b.stanzaIDs.Add(v.StanzaID.ID, v.ID)
 					b.replyHeaders.Add(v.ID, xmpp.Reply{ID: v.StanzaID.ID, To: v.Remote})
 				}
 
@@ -342,6 +349,28 @@ func (b *Bxmpp) handleXMPP() error {
 					avatar = getAvatar(b.avatarMap, v.Remote, b.General)
 				}
 
+				// If there was a <reply>, map the StanzaID to the local matterbridge message ID
+				// so we can inform the other bridges of this message has a parent
+				var parentID string
+				if v.Reply.ID != `` {
+					if _parentID, ok := b.stanzaIDs.Get(v.Reply.ID); ok {
+						parentID = _parentID.(string)
+					}
+
+					body := v.Text
+					if !b.GetBool("keepquotedreply") {
+						for strings.HasPrefix(body, "> ") {
+							lineIdx := strings.IndexRune(body, '\n')
+							if lineIdx == -1 {
+								body = ""
+							} else {
+								body = body[(lineIdx + 1):]
+							}
+						}
+					}
+					v.Text = body
+				}
+
 				rmsg := config.Message{
 					Username: b.parseNick(v.Remote),
 					Text:     v.Text,
@@ -351,6 +380,7 @@ func (b *Bxmpp) handleXMPP() error {
 					UserID:   v.Remote,
 					ID:       v.ID,
 					Event:    event,
+					ParentID: parentID,
 				}
 
 				// Check if we have an action event.
