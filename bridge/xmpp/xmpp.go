@@ -324,8 +324,9 @@ func (b *Bxmpp) handleXMPP() error {
 			if v.Type == "groupchat" {
 				b.Log.Debugf("== Receiving %#v", v)
 
-				// XEP-0461: Cache StanzaID to use for Message Replies
 				if v.StanzaID.ID != "" {
+					// Here the stanza-id has been set by the server and can be used to provide replies
+					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					b.cache.Add(v.ID, stanzaInfo{stanzaID: v.StanzaID.ID, from: v.Remote})
 				}
 
@@ -356,9 +357,7 @@ func (b *Bxmpp) handleXMPP() error {
 					Account:  b.Account,
 					Avatar:   avatar,
 					UserID:   v.Remote,
-					// Here the stanza-id has been set by the server and can be used to provide replies
-					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
-					ID:    v.StanzaID.ID,
+					ID:    v.ID,
 					Event: event,
 				}
 
