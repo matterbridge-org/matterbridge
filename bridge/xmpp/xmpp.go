@@ -133,10 +133,10 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	}
 
 	// XEP-0461: populate reply fields if this message is a reply.
-	var reply replyInfo
+	var reply xmpp.Reply
 	if msg.ParentValid() {
 		if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
-			reply = _reply.(replyInfo)
+			reply = _reply.(xmpp.Reply)
 		}
 	}
 
@@ -144,12 +144,11 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	b.Log.Debugf("=> Sending message %#v", msg)
 	msgID := xid.New().String()
 	if _, err := b.xc.Send(xmpp.Chat{
-		Type:    "groupchat",
-		Remote:  msg.Channel + "@" + b.GetString("Muc"),
-		Text:    msg.Username + msg.Text,
-		ID:      msgID,
-		ReplyID: reply.ID,
-		ReplyTo: reply.To,
+		Type:   "groupchat",
+		Remote: msg.Channel + "@" + b.GetString("Muc"),
+		Text:   msg.Username + msg.Text,
+		ID:     msgID,
+		Reply:  reply,
 	}); err != nil {
 		return "", err
 	}
@@ -294,11 +293,6 @@ func (b *Bxmpp) xmppKeepAlive() chan bool {
 	return done
 }
 
-type replyInfo struct {
-	ID string
-	To string
-}
-
 func (b *Bxmpp) handleXMPP() error {
 	b.startTime = time.Now()
 
@@ -325,7 +319,7 @@ func (b *Bxmpp) handleXMPP() error {
 				if v.StanzaID.ID != "" {
 					// Here the stanza-id has been set by the server and can be used to provide replies
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
-					b.replyHeaders.Add(v.ID, replyInfo{ID: v.StanzaID.ID, To: v.Remote})
+					b.replyHeaders.Add(v.ID, xmpp.Reply{ID: v.StanzaID.ID, To: v.Remote})
 				}
 
 				// Skip invalid messages.
