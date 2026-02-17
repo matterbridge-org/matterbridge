@@ -355,8 +355,8 @@ func (b *Bxmpp) handleXMPP() error {
 					Account:  b.Account,
 					Avatar:   avatar,
 					UserID:   v.Remote,
-					ID:    v.ID,
-					Event: event,
+					ID:       v.ID,
+					Event:    event,
 				}
 
 				// Check if we have an action event.
