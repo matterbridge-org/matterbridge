@@ -23,11 +23,11 @@ import (
 type Bxmpp struct {
 	*bridge.Config
 
-	startTime time.Time
-	xc        *xmpp.Client
-	xmppMap   map[string]string
-	connected bool
-	cache     *lru.Cache
+	startTime    time.Time
+	xc           *xmpp.Client
+	xmppMap      map[string]string
+	connected    bool
+	replyHeaders *lru.Cache
 	sync.RWMutex
 
 	avatarAvailability map[string]bool
@@ -35,7 +35,7 @@ type Bxmpp struct {
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
-	newCache, err := lru.New(5000)
+	replyHeaders, err := lru.New(5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
 	}
@@ -45,7 +45,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
-		cache:              newCache,
+		replyHeaders:       replyHeaders,
 	}
 }
 
@@ -133,12 +133,10 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	}
 
 	// XEP-0461: populate reply fields if this message is a reply.
-	var replyID, replyTo string
+	var reply replyInfo
 	if msg.ParentValid() {
-		if info, ok := b.cache.Get(msg.ParentID); ok {
-			si := info.(stanzaInfo)
-			replyID = si.stanzaID
-			replyTo = si.from
+		if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
+			reply = _reply.(replyInfo)
 		}
 	}
 
@@ -150,8 +148,8 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 		Remote:  msg.Channel + "@" + b.GetString("Muc"),
 		Text:    msg.Username + msg.Text,
 		ID:      msgID,
-		ReplyID: replyID,
-		ReplyTo: replyTo,
+		ReplyID: reply.ID,
+		ReplyTo: reply.To,
 	}); err != nil {
 		return "", err
 	}
@@ -296,9 +294,9 @@ func (b *Bxmpp) xmppKeepAlive() chan bool {
 	return done
 }
 
-type stanzaInfo struct {
-	stanzaID string
-	from     string
+type replyInfo struct {
+	ID string
+	To string
 }
 
 func (b *Bxmpp) handleXMPP() error {
@@ -327,7 +325,7 @@ func (b *Bxmpp) handleXMPP() error {
 				if v.StanzaID.ID != "" {
 					// Here the stanza-id has been set by the server and can be used to provide replies
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
-					b.cache.Add(v.ID, stanzaInfo{stanzaID: v.StanzaID.ID, from: v.Remote})
+					b.replyHeaders.Add(v.ID, replyInfo{ID: v.StanzaID.ID, To: v.Remote})
 				}
 
 				// Skip invalid messages.
