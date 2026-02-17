@@ -142,6 +142,7 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 
 	// Post normal message.
 	b.Log.Debugf("=> Sending message %#v", msg)
+	// Generate a dummy ID because to avoid collision with other internal messages
 	msgID := xid.New().String()
 	if _, err := b.xc.Send(xmpp.Chat{
 		Type:   "groupchat",
@@ -152,7 +153,6 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	}); err != nil {
 		return "", err
 	}
-	// Generate a dummy ID because to avoid collision with other internal messages
 	return msgID, nil
 }
 
