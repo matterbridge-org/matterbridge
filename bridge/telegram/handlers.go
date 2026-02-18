@@ -238,10 +238,9 @@ func (b *Btelegram) handleRecv(updates <-chan tgbotapi.Update) {
 		// handle username
 		b.handleUsername(&rmsg, message)
 
-		// handle any downloads
-		err := b.handleDownload(&rmsg, message)
-		if err != nil {
-			b.Log.Errorf("download failed: %s", err)
+		// File downloads are handled in the background
+		if b.handleBackgroundDownload(&rmsg, message) {
+			return
 		}
 
 		// handle forwarded messages
@@ -263,6 +262,40 @@ func (b *Btelegram) handleRecv(updates <-chan tgbotapi.Update) {
 			b.Remote <- rmsg
 		}
 	}
+}
+
+// Check if the incoming telegram message contains attachment, and if so start
+// processing it in the background so we don't block the main thread.
+//
+// Returns true if the message is being handle by this method.
+func (b *Btelegram) handleBackgroundDownload(rmsg *config.Message, message *tgbotapi.Message) bool {
+	if message.Sticker != nil || message.Voice != nil || message.Video != nil || message.Audio != nil || message.Document != nil || message.Photo != nil {
+		go func() {
+			err := b.handleDownload(rmsg, message)
+			if err != nil {
+				b.Log.Errorf("download failed: %s", err)
+			}
+
+			// Repeat the end of the handleRecv logic
+			b.handleForwarded(rmsg, message)
+			b.handleQuoting(rmsg, message)
+
+			if rmsg.Text != "" || len(rmsg.Extra) > 0 {
+				if message.From != nil {
+					rmsg.Avatar = helper.GetAvatar(b.avatarMap, strconv.FormatInt(message.From.ID, 10), b.General)
+				}
+
+				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
+				b.Log.Debugf("<= Message is %#v", rmsg)
+
+				b.Remote <- *rmsg
+			}
+		}()
+
+		return true
+	}
+
+	return false
 }
 
 func (b *Btelegram) handleGroupUpdate(update tgbotapi.Update) {
