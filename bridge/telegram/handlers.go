@@ -129,7 +129,9 @@ func (b *Btelegram) handleQuoting(rmsg *config.Message, message *tgbotapi.Messag
 }
 
 // handleUsername handles the correct setting of the username
-func (b *Btelegram) handleUsername(rmsg *config.Message, message *tgbotapi.Message) {
+//
+// This method may block due to downloading the remote avatar.
+func (b *Btelegram) handleUsernameBlocking(rmsg *config.Message, message *tgbotapi.Message) {
 	if message.From != nil {
 		rmsg.UserID = strconv.FormatInt(message.From.ID, 10)
 		if b.GetBool("UseFirstName") {
@@ -148,7 +150,7 @@ func (b *Btelegram) handleUsername(rmsg *config.Message, message *tgbotapi.Messa
 		}
 		// only download avatars if we have a place to upload them (configured mediaserver)
 		if b.General.MediaServerDownload != "" && b.General.MediaDownloadPath != "" {
-			b.handleDownloadAvatar(message.From.ID, rmsg.Channel)
+			b.handleDownloadAvatarBlocking(message.From.ID, rmsg.Channel)
 		}
 	}
 
@@ -172,7 +174,7 @@ func (b *Btelegram) handleUsername(rmsg *config.Message, message *tgbotapi.Messa
 		}
 		// only download avatars if we have a place to upload them (configured mediaserver)
 		if b.General.MediaServerDownload != "" && b.General.MediaDownloadPath != "" {
-			b.handleDownloadAvatar(message.SenderChat.ID, rmsg.Channel)
+			b.handleDownloadAvatarBlocking(message.SenderChat.ID, rmsg.Channel)
 		}
 	}
 
@@ -187,115 +189,92 @@ func (b *Btelegram) handleUsername(rmsg *config.Message, message *tgbotapi.Messa
 	}
 }
 
+// All messages are processed in the background, because attachments
+// need to be processed in the background, but avatars too.
+//
+// We don't want to block the main thread!
 func (b *Btelegram) handleRecv(updates <-chan tgbotapi.Update) {
 	for update := range updates {
 		b.Log.Debugf("== Receiving event: %#v", update.Message)
 
-		if update.Message == nil && update.ChannelPost == nil &&
-			update.EditedMessage == nil && update.EditedChannelPost == nil {
-			b.Log.Info("Received event without messages, skipping.")
-			continue
-		}
-
-		if b.GetInt("debuglevel") == 1 {
-			spew.Dump(update.Message)
-		}
-
-		b.handleGroupUpdate(update)
-
-		var message *tgbotapi.Message
-
-		rmsg := config.Message{Account: b.Account, Extra: make(map[string][]interface{})}
-
-		// handle channels
-		message = b.handleChannels(&rmsg, message, update)
-
-		// handle groups
-		message = b.handleGroups(&rmsg, message, update)
-
-		if message == nil {
-			b.Log.Error("message is nil, this shouldn't happen.")
-			continue
-		}
-
-		// set the ID's from the channel or group message
-		rmsg.ID = strconv.Itoa(message.MessageID)
-		rmsg.Channel = strconv.FormatInt(message.Chat.ID, 10)
-		if message.IsTopicMessage {
-			rmsg.Channel += "/" + strconv.Itoa(message.MessageThreadID)
-		}
-
-		// preserve threading from telegram reply
-		if message.ReplyToMessage != nil &&
-			// Used to check if the message was a reply to the root topic
-			(!message.IsTopicMessage || message.ReplyToMessage.MessageID != message.MessageThreadID) {
-			rmsg.ParentID = strconv.Itoa(message.ReplyToMessage.MessageID)
-		}
-
-		// handle entities (adding URLs)
-		b.handleEntities(&rmsg, message)
-
-		// handle username
-		b.handleUsername(&rmsg, message)
-
-		// File downloads are handled in the background
-		if b.handleBackgroundDownload(&rmsg, message) {
-			return
-		}
-
-		// handle forwarded messages
-		b.handleForwarded(&rmsg, message)
-
-		// quote the previous message
-		b.handleQuoting(&rmsg, message)
-
-		if rmsg.Text != "" || len(rmsg.Extra) > 0 {
-			// Comment the next line out due to avoid removing empty lines in Telegram
-			// rmsg.Text = helper.RemoveEmptyNewLines(rmsg.Text)
-			// channels don't have (always?) user information. see #410
-			if message.From != nil {
-				rmsg.Avatar = helper.GetAvatar(b.avatarMap, strconv.FormatInt(message.From.ID, 10), b.General)
-			}
-
-			b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
-			b.Log.Debugf("<= Message is %#v", rmsg)
-			b.Remote <- rmsg
-		}
+		go b.handleRecvBackground(update)
 	}
 }
 
-// Check if the incoming telegram message contains attachment, and if so start
-// processing it in the background so we don't block the main thread.
-//
-// Returns true if the message is being handle by this method.
-func (b *Btelegram) handleBackgroundDownload(rmsg *config.Message, message *tgbotapi.Message) bool {
-	if message.Sticker != nil || message.Voice != nil || message.Video != nil || message.Audio != nil || message.Document != nil || message.Photo != nil {
-		go func() {
-			err := b.handleDownload(rmsg, message)
-			if err != nil {
-				b.Log.Errorf("download failed: %s", err)
-			}
-
-			// Repeat the end of the handleRecv logic
-			b.handleForwarded(rmsg, message)
-			b.handleQuoting(rmsg, message)
-
-			if rmsg.Text != "" || len(rmsg.Extra) > 0 {
-				if message.From != nil {
-					rmsg.Avatar = helper.GetAvatar(b.avatarMap, strconv.FormatInt(message.From.ID, 10), b.General)
-				}
-
-				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
-				b.Log.Debugf("<= Message is %#v", rmsg)
-
-				b.Remote <- *rmsg
-			}
-		}()
-
-		return true
+func (b *Btelegram) handleRecvBackground(update tgbotapi.Update) {
+	if update.Message == nil && update.ChannelPost == nil &&
+		update.EditedMessage == nil && update.EditedChannelPost == nil {
+		b.Log.Info("Received event without messages, skipping.")
+		return
 	}
 
-	return false
+	if b.GetInt("debuglevel") == 1 {
+		spew.Dump(update.Message)
+	}
+
+	b.handleGroupUpdate(update)
+
+	var message *tgbotapi.Message
+
+	rmsg := config.Message{Account: b.Account, Extra: make(map[string][]any)}
+
+	// handle channels
+	message = b.handleChannels(&rmsg, message, update)
+
+	// handle groups
+	message = b.handleGroups(&rmsg, message, update)
+
+	if message == nil {
+		b.Log.Error("message is nil, this shouldn't happen.")
+		return
+	}
+
+	// set the ID's from the channel or group message
+	rmsg.ID = strconv.Itoa(message.MessageID)
+
+	rmsg.Channel = strconv.FormatInt(message.Chat.ID, 10)
+	if message.IsTopicMessage {
+		rmsg.Channel += "/" + strconv.Itoa(message.MessageThreadID)
+	}
+
+	// preserve threading from telegram reply
+	if message.ReplyToMessage != nil &&
+		// Used to check if the message was a reply to the root topic
+		(!message.IsTopicMessage || message.ReplyToMessage.MessageID != message.MessageThreadID) {
+		rmsg.ParentID = strconv.Itoa(message.ReplyToMessage.MessageID)
+	}
+
+	// handle entities (adding URLs)
+	b.handleEntities(&rmsg, message)
+
+	// handle username
+	b.handleUsernameBlocking(&rmsg, message)
+
+	// File downloads are handled in the background
+	err := b.handleDownloadBlocking(&rmsg, message)
+	if err != nil {
+		b.Log.Errorf("download failed: %s", err)
+	}
+
+	// handle forwarded messages
+	b.handleForwarded(&rmsg, message)
+
+	// quote the previous message
+	b.handleQuoting(&rmsg, message)
+
+	if rmsg.Text != "" || len(rmsg.Extra) > 0 {
+		// Comment the next line out due to avoid removing empty lines in Telegram
+		// rmsg.Text = helper.RemoveEmptyNewLines(rmsg.Text)
+		// channels don't have (always?) user information. see #410
+		if message.From != nil {
+			rmsg.Avatar = helper.GetAvatar(b.avatarMap, strconv.FormatInt(message.From.ID, 10), b.General)
+		}
+
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+
+		b.Remote <- rmsg
+	}
 }
 
 func (b *Btelegram) handleGroupUpdate(update tgbotapi.Update) {
@@ -342,10 +321,10 @@ func (b *Btelegram) handleUserLeave(update tgbotapi.Update) {
 	b.Remote <- rmsg
 }
 
-// handleDownloadAvatar downloads the avatar of userid from channel
+// handleDownloadAvatarBlocking downloads the avatar of userid from channel
 // sends a EVENT_AVATAR_DOWNLOAD message to the gateway if successful.
 // logs an error message if it fails
-func (b *Btelegram) handleDownloadAvatar(userid int64, channel string) {
+func (b *Btelegram) handleDownloadAvatarBlocking(userid int64, channel string) {
 	rmsg := config.Message{
 		Username: "system",
 		Text:     "avatar",
@@ -416,8 +395,8 @@ func (b *Btelegram) maybeConvertWebp(name *string, data *[]byte) {
 	}
 }
 
-// handleDownloadFile handles file download
-func (b *Btelegram) handleDownload(rmsg *config.Message, message *tgbotapi.Message) error {
+// handleDownloadBlockin handles file download
+func (b *Btelegram) handleDownloadBlocking(rmsg *config.Message, message *tgbotapi.Message) error {
 	var url, name, text string
 	switch {
 	case message.Sticker != nil:
