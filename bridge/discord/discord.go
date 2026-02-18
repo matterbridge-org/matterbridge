@@ -287,6 +287,22 @@ func (b *Bdiscord) Send(msg config.Message) (string, error) {
 		return b.handleEventWebhook(&msg, channelID)
 	}
 
+	if msg.ParentID != "" && b.GetString("RemoteNickFormat") == "{NICK}" {
+		// Discord does not allow replies to be created via webhook
+		// - https://github.com/discord/discord-api-docs/issues/2251
+		// - https://github.com/discord/discord-api-docs/discussions/3282
+		// discord.go falls back to using the REST API, which is fine except it
+		// doesn't allow masquerading the displayed username/avatar, so instead
+		// the nickname is placed inline in the message body, as other bridges.
+		// Usually with webhooks you would want RemoteNickFormat="{NICK}",
+		// but this looks bad when inlined, so as a janky workaround,
+		// hardcode the outgoing Discord message as if a _separate_ format string like RemoteNickFormatInline="<{NICK}> ".
+		//
+		// Note that at this point in the code, gateway.go has already applied RemoteNickFormat,
+		// so msg.Username has already been modified once. The only way
+		msg.Username = fmt.Sprintf("<%s> ", msg.Username)
+	}
+
 	return b.handleEventBotUser(&msg, channelID)
 }
 
