@@ -132,60 +132,50 @@ func (b *Btelegram) handleQuoting(rmsg *config.Message, message *tgbotapi.Messag
 //
 // This method may block due to downloading the remote avatar.
 func (b *Btelegram) handleUsernameBlocking(rmsg *config.Message, message *tgbotapi.Message) {
-	if message.From != nil {
-		rmsg.UserID = strconv.FormatInt(message.From.ID, 10)
-		if b.GetBool("UseFirstName") {
-			rmsg.Username = message.From.FirstName
-		}
-		if b.GetBool("UseFullName") {
-			if message.From.FirstName != "" && message.From.LastName != "" {
-				rmsg.Username = message.From.FirstName + " " + message.From.LastName
-			}
-		}
-		if rmsg.Username == "" {
-			rmsg.Username = message.From.UserName
-			if rmsg.Username == "" {
-				rmsg.Username = message.From.FirstName
-			}
-		}
-		// only download avatars if we have a place to upload them (configured mediaserver)
-		if b.General.MediaServerDownload != "" && b.General.MediaDownloadPath != "" {
-			b.handleDownloadAvatarBlocking(message.From.ID, rmsg.Channel)
+	var (
+		firstName, lastName, userName string
+		id                            int64
+	)
+
+	switch {
+	case message.From != nil:
+		firstName = message.From.FirstName
+		lastName = message.From.LastName
+		userName = message.From.UserName
+		id = message.From.ID
+	case message.SenderChat != nil:
+		// TODO: here previous code was checking for rmsg.Username == "Channel_Bot"
+		// and performing what i believe was unnecessary steps. If problems arise,
+		// look at that first.
+		firstName = message.SenderChat.FirstName
+		lastName = message.SenderChat.LastName
+		userName = message.SenderChat.UserName
+		id = message.SenderChat.ID
+	}
+
+	if b.GetBool("UseFirstName") {
+		rmsg.Username = firstName
+	}
+
+	if b.GetBool("UseFullName") && lastName != "" {
+		rmsg.Username = rmsg.Username + " " + lastName
+	}
+
+	if rmsg.Username == "" {
+		if userName != "" {
+			rmsg.Username = userName
+		} else {
+			// if we really didn't find a username, set it to unknown
+			rmsg.Username = unknownUser
 		}
 	}
 
-	if message.SenderChat != nil { //nolint:nestif
-		rmsg.UserID = strconv.FormatInt(message.SenderChat.ID, 10)
-		if b.GetBool("UseFirstName") {
-			rmsg.Username = message.SenderChat.FirstName
-		}
-		if b.GetBool("UseFullName") {
-			if message.SenderChat.FirstName != "" && message.SenderChat.LastName != "" {
-				rmsg.Username = message.SenderChat.FirstName + " " + message.SenderChat.LastName
-			}
-		}
-
-		if rmsg.Username == "" || rmsg.Username == "Channel_Bot" {
-			rmsg.Username = message.SenderChat.UserName
-
-			if rmsg.Username == "" || rmsg.Username == "Channel_Bot" {
-				rmsg.Username = message.SenderChat.FirstName
-			}
-		}
-		// only download avatars if we have a place to upload them (configured mediaserver)
-		if b.General.MediaServerDownload != "" && b.General.MediaDownloadPath != "" {
-			b.handleDownloadAvatarBlocking(message.SenderChat.ID, rmsg.Channel)
-		}
-	}
+	rmsg.UserID = strconv.FormatInt(id, 10)
+	b.handleDownloadAvatarBlocking(id, rmsg.Channel)
 
 	// Fallback on author signature (used in "channel" type of chat)
 	if rmsg.Username == "" && message.AuthorSignature != "" {
 		rmsg.Username = message.AuthorSignature
-	}
-
-	// if we really didn't find a username, set it to unknown
-	if rmsg.Username == "" {
-		rmsg.Username = unknownUser
 	}
 }
 
@@ -407,6 +397,10 @@ func (b *Btelegram) handleDownloadBlocking(rmsg *config.Message, message *tgbota
 		text, name, url = b.getDownloadInfo(message.Video.FileID, "", true)
 	case message.Audio != nil:
 		text, name, url = b.getDownloadInfo(message.Audio.FileID, "", true)
+		// rename .oga to .ogg  https://github.com/42wim/matterbridge/issues/906#issuecomment-741793512
+		if strings.HasSuffix(name, ".oga") {
+			name = strings.Replace(name, ".oga", ".ogg", 1)
+		}
 	case message.Document != nil:
 		_, _, url = b.getDownloadInfo(message.Document.FileID, "", false)
 		name = message.Document.FileName
@@ -427,16 +421,18 @@ func (b *Btelegram) handleDownloadBlocking(rmsg *config.Message, message *tgbota
 		return nil
 	}
 
-	// rename .oga to .ogg  https://github.com/42wim/matterbridge/issues/906#issuecomment-741793512
-	if strings.HasSuffix(name, ".oga") && message.Audio != nil {
-		name = strings.Replace(name, ".oga", ".ogg", 1)
-	}
-
 	err := b.AddAttachmentFromURL(rmsg, name, "", message.Caption, url)
 	if err != nil {
 		return err
 	}
 
+	// Perform file format conversions for interop
+	b.handleDownloadPostProcessBlocking(rmsg)
+
+	return nil
+}
+
+func (b *Btelegram) handleDownloadPostProcessBlocking(rmsg *config.Message) {
 	// TODO: maybe this could be moved to a new helper taking a function/closure
 	// to perform post-download processing.
 	for _, f := range rmsg.Extra["file"] {
@@ -447,14 +443,12 @@ func (b *Btelegram) handleDownloadBlocking(rmsg *config.Message, message *tgbota
 
 		// Now that we have the file bytes, we may have some conversions to do
 		// TODO: I don't think f.SHA is computed already but make sure of it
-		if strings.HasSuffix(name, ".tgs.webp") {
+		if strings.HasSuffix(fi.Name, ".tgs.webp") {
 			b.maybeConvertTgs(&fi.Name, fi.Data)
 		} else if strings.HasSuffix(fi.Name, ".webp") {
 			b.maybeConvertWebp(&fi.Name, fi.Data)
 		}
 	}
-
-	return nil
 }
 
 func (b *Btelegram) getDownloadInfo(id string, suffix string, urlpart bool) (string, string, string) {
