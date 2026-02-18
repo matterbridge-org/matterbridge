@@ -2,8 +2,11 @@ package birc
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +42,55 @@ func (b *Birc) handleCharset(msg *config.Message) error {
 	return nil
 }
 
+func (b *Birc) uploadToCatbox(fi *config.FileInfo) (string, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	if err := writer.WriteField("reqtype", "fileupload"); err != nil {
+		b.Log.Debugf("failed to create multipart reqtype field: %#v", err)
+		return "", err
+	}
+
+	iowriter, err := writer.CreateFormFile("fileToUpload", fi.Name)
+	if err != nil {
+		b.Log.Debugf("failed to create multipart fileToUpload field : %#v", err)
+		return "", err
+	}
+
+	if wbytes, err := iowriter.Write(*fi.Data); err != nil || wbytes != len(*fi.Data) {
+		b.Log.Debugf("failed to create multipart: write failed : %#v", err)
+		return "", err
+	}
+
+	if err := writer.Close(); err != nil {
+		b.Log.Debugf("failed to create multipart: failed to close writer : %#v", err)
+		return "", err
+	}
+
+	cboxApiUrl := b.GetString("CatBoxApiUrl")
+	if len(cboxApiUrl) <= 0 {
+		cboxApiUrl = "https://catbox.moe/user/api.php"
+	}
+	resp, err := http.Post(cboxApiUrl, writer.FormDataContentType(), body)
+	if err != nil {
+		b.Log.Debugf("catbox: failed to upload: %#v", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respbody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		b.Log.Debugf("catbox: failed to read response: %#v", err)
+		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New(string(respbody))
+	} else {
+		return string(respbody), nil
+	}
+}
+
 // handleFiles returns true if we have handled the files, otherwise return false
 func (b *Birc) handleFiles(msg *config.Message) bool {
 	if msg.Extra == nil {
@@ -53,13 +105,27 @@ func (b *Birc) handleFiles(msg *config.Message) bool {
 	for _, f := range msg.Extra["file"] {
 		fi := f.(config.FileInfo)
 		if fi.Comment != "" {
-			msg.Text += fi.Comment + " : "
+			if len(msg.Text) > 0 {
+				msg.Text += " : "
+			}
+			msg.Text += fi.Comment
 		}
 		if fi.URL != "" {
-			msg.Text = fi.URL
-			if fi.Comment != "" {
-				msg.Text = fi.Comment + " : " + fi.URL
+			if fi.Data != nil && b.GetBool("UploadToCatBox") {
+				catboxurl, err := b.uploadToCatbox(&fi)
+				if err == nil {
+					if len(msg.Text) > 0 {
+						msg.Text += " : "
+					}
+					msg.Text += catboxurl
+				} else {
+					b.Log.Debugf("failed to upload to catbox: %s", err)
+				}
 			}
+			if len(msg.Text) > 0 {
+				msg.Text += " : "
+			}
+			msg.Text += fi.URL
 		}
 		b.Local <- config.Message{Text: msg.Text, Username: msg.Username, Channel: msg.Channel, Event: msg.Event}
 	}
