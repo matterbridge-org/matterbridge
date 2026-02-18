@@ -27,6 +27,7 @@
 ## New Features
 
 - general
+  - The original username of a message is carried internally beside the version modified by `RemoteNickFormat` ([#135](https://github.com/matterbridge-org/matterbridge/pull/135)) for bridges that can make use of it.
   - matterbridge output now colors log level for easier log reading ([#25](https://github.com/matterbridge-org/matterbridge/pull/25))
   - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
@@ -41,6 +42,7 @@
   - Can now upload files from bytes in addition to sharing attachement URLs ([#23](https://github.com/matterbridge-org/matterbridge/pull/23/))
   - Can now receive and download OOB attachments from XMPP channels to share with other bridges ([#23](https://github.com/matterbridge-org/matterbridge/pull/23/))
 - discord
+  - Messages that use the username-spoofing webhook API always use the original username instead of applying `RemoteNickFormat`.
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
   - whatsapp
     - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
