@@ -418,29 +418,22 @@ func (b *Btelegram) maybeConvertWebp(name *string, data *[]byte) {
 
 // handleDownloadFile handles file download
 func (b *Btelegram) handleDownload(rmsg *config.Message, message *tgbotapi.Message) error {
-	size := int64(0)
 	var url, name, text string
 	switch {
 	case message.Sticker != nil:
 		text, name, url = b.getDownloadInfo(message.Sticker.FileID, ".webp", true)
-		size = int64(message.Sticker.FileSize)
 	case message.Voice != nil:
 		text, name, url = b.getDownloadInfo(message.Voice.FileID, ".ogg", true)
-		size = message.Voice.FileSize
 	case message.Video != nil:
 		text, name, url = b.getDownloadInfo(message.Video.FileID, "", true)
-		size = message.Video.FileSize
 	case message.Audio != nil:
 		text, name, url = b.getDownloadInfo(message.Audio.FileID, "", true)
-		size = message.Audio.FileSize
 	case message.Document != nil:
 		_, _, url = b.getDownloadInfo(message.Document.FileID, "", false)
-		size = message.Document.FileSize
 		name = message.Document.FileName
 		text = " " + message.Document.FileName + " : " + url
 	case message.Photo != nil:
 		photos := message.Photo
-		size = int64(photos[len(photos)-1].FileSize)
 		text, name, url = b.getDownloadInfo(photos[len(photos)-1].FileID, "", true)
 	}
 
@@ -454,28 +447,34 @@ func (b *Btelegram) handleDownload(rmsg *config.Message, message *tgbotapi.Messa
 		rmsg.Text += text
 		return nil
 	}
-	// if we have a file attached, download it (in memory) and put a pointer to it in msg.Extra
-	err := helper.HandleDownloadSize(b.Log, rmsg, name, int64(size), b.General)
-	if err != nil {
-		return err
-	}
-	data, err := helper.DownloadFile(url)
-	if err != nil {
-		return err
-	}
-
-	if strings.HasSuffix(name, ".tgs.webp") {
-		b.maybeConvertTgs(&name, data)
-	} else if strings.HasSuffix(name, ".webp") {
-		b.maybeConvertWebp(&name, data)
-	}
 
 	// rename .oga to .ogg  https://github.com/42wim/matterbridge/issues/906#issuecomment-741793512
 	if strings.HasSuffix(name, ".oga") && message.Audio != nil {
 		name = strings.Replace(name, ".oga", ".ogg", 1)
 	}
 
-	helper.HandleDownloadData(b.Log, rmsg, name, message.Caption, "", data, b.General)
+	err := b.AddAttachmentFromURL(rmsg, name, "", message.Caption, url)
+	if err != nil {
+		return err
+	}
+
+	// TODO: maybe this could be moved to a new helper taking a function/closure
+	// to perform post-download processing.
+	for _, f := range rmsg.Extra["file"] {
+		fi, ok := f.(config.FileInfo)
+		if !ok {
+			continue
+		}
+
+		// Now that we have the file bytes, we may have some conversions to do
+		// TODO: I don't think f.SHA is computed already but make sure of it
+		if strings.HasSuffix(name, ".tgs.webp") {
+			b.maybeConvertTgs(&fi.Name, fi.Data)
+		} else if strings.HasSuffix(fi.Name, ".webp") {
+			b.maybeConvertWebp(&fi.Name, fi.Data)
+		}
+	}
+
 	return nil
 }
 
