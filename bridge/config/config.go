@@ -213,7 +213,7 @@ type Protocol struct {
 	Team                   string     // mattermost
 	TeamID                 string     // msteams
 	TenantID               string     // msteams
-	Token                  string     // slack, discord, api, matrix
+	Token                  string     // slack, discord, api, matrix, stoat
 	Topic                  string     // zulip
 	URL                    string     // mattermost, slack // DEPRECATED
 	UseAPI                 bool       // mattermost, slack
