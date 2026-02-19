@@ -1,6 +1,10 @@
 package bdiscord
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -165,7 +169,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	// if we have embedded content add it to text
 	if b.GetBool("ShowEmbeds") && m.Message.Embeds != nil {
 		for _, embed := range m.Message.Embeds {
-			rmsg.Text += handleEmbed(embed)
+			rmsg.Text += handleEmbed(embed, b.GetBool("DontMarkEmbeds"))
 		}
 	}
 
@@ -281,31 +285,71 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 	b.Remote <- rmsg
 }
 
-func handleEmbed(embed *discordgo.MessageEmbed) string {
-	var t []string
-	var result string
+//nolint:funlen
+func handleEmbed(embed *discordgo.MessageEmbed, dontMarkEmbeds bool) string {
+	var (
+		t      []string
+		result string
+	)
 
-	t = append(t, embed.Title)
-	t = append(t, embed.Description)
-	t = append(t, embed.URL)
-
-	i := 0
-	for _, e := range t {
-		if e == "" {
-			continue
+	if strings.TrimSpace(embed.Author.Name) != "" {
+		if strings.TrimSpace(embed.Author.URL) != "" {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"[%s](%s)",
+					strings.TrimSpace(embed.Author.Name),
+					strings.TrimSpace(embed.Author.URL),
+				),
+			)
+		} else {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"**%s**",
+					strings.TrimSpace(embed.Author.Name),
+				),
+			)
 		}
-
-		i++
-		if i == 1 {
-			result += " embed: " + e
-			continue
-		}
-
-		result += " - " + e
 	}
 
-	if result != "" {
-		result += "\n"
+	if strings.TrimSpace(embed.Title) != "" {
+		if strings.TrimSpace(embed.URL) != "" {
+			re := regexp.MustCompile(`[\\[\\]]`)
+			t = append(
+				t,
+				fmt.Sprintf(
+					"[%s](%s)",
+					re.ReplaceAllString(strings.TrimSpace(embed.Title), ""),
+					strings.TrimSpace(embed.URL),
+				),
+			)
+		} else {
+			t = append(
+				t,
+				fmt.Sprintf(
+					"**%s**",
+					strings.TrimSpace(embed.Title),
+				),
+			)
+		}
+	}
+
+	if strings.TrimSpace(embed.Description) != "" {
+		t = append(t, strings.TrimSpace(embed.Description))
+	}
+
+	var embedMarker string
+	if dontMarkEmbeds {
+		embedMarker = ""
+	} else {
+		embedMarker = "\nembed:"
+	}
+
+	if len(t) > 0 {
+		result = fmt.Sprintf("%s\n%s\n", embedMarker, strings.Join(t, "\n"))
+	} else {
+		result = ""
 	}
 
 	return result
