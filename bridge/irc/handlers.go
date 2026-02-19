@@ -111,6 +111,7 @@ func (b *Birc) handleFiles(msg *config.Message) bool {
 			msg.Text += fi.Comment
 		}
 		if fi.URL != "" {
+			catboxurl_added := false
 			if fi.Data != nil && b.GetBool("UploadToCatBox") {
 				catboxurl, err := b.uploadToCatbox(&fi)
 				if err == nil {
@@ -118,14 +119,17 @@ func (b *Birc) handleFiles(msg *config.Message) bool {
 						msg.Text += " : "
 					}
 					msg.Text += catboxurl
+					catboxurl_added = true
 				} else {
 					b.Log.Debugf("failed to upload to catbox: %s", err)
 				}
 			}
-			if len(msg.Text) > 0 {
-				msg.Text += " : "
+			if !catboxurl_added {
+				if len(msg.Text) > 0 {
+					msg.Text += " : "
+				}
+				msg.Text += fi.URL
 			}
-			msg.Text += fi.URL
 		}
 		b.Local <- config.Message{Text: msg.Text, Username: msg.Username, Channel: msg.Channel, Event: msg.Event}
 	}
