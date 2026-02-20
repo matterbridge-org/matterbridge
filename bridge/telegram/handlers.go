@@ -129,139 +129,141 @@ func (b *Btelegram) handleQuoting(rmsg *config.Message, message *tgbotapi.Messag
 }
 
 // handleUsername handles the correct setting of the username
-func (b *Btelegram) handleUsername(rmsg *config.Message, message *tgbotapi.Message) {
-	if message.From != nil {
-		rmsg.UserID = strconv.FormatInt(message.From.ID, 10)
-		if b.GetBool("UseFirstName") {
-			rmsg.Username = message.From.FirstName
-		}
-		if b.GetBool("UseFullName") {
-			if message.From.FirstName != "" && message.From.LastName != "" {
-				rmsg.Username = message.From.FirstName + " " + message.From.LastName
-			}
-		}
-		if rmsg.Username == "" {
-			rmsg.Username = message.From.UserName
-			if rmsg.Username == "" {
-				rmsg.Username = message.From.FirstName
-			}
-		}
-		// only download avatars if we have a place to upload them (configured mediaserver)
-		if b.General.MediaServerDownload != "" && b.General.MediaDownloadPath != "" {
-			b.handleDownloadAvatar(message.From.ID, rmsg.Channel)
+//
+// This method may block due to downloading the remote avatar.
+func (b *Btelegram) handleUsernameBlocking(rmsg *config.Message, message *tgbotapi.Message) {
+	var (
+		firstName, lastName, userName string
+		id                            int64
+	)
+
+	switch {
+	case message.From != nil:
+		firstName = message.From.FirstName
+		lastName = message.From.LastName
+		userName = message.From.UserName
+		id = message.From.ID
+	case message.SenderChat != nil:
+		// TODO: here previous code was checking for rmsg.Username == "Channel_Bot"
+		// and performing what i believe was unnecessary steps. If problems arise,
+		// look at that first.
+		firstName = message.SenderChat.FirstName
+		lastName = message.SenderChat.LastName
+		userName = message.SenderChat.UserName
+		id = message.SenderChat.ID
+	}
+
+	if b.GetBool("UseFirstName") {
+		rmsg.Username = firstName
+	}
+
+	if b.GetBool("UseFullName") && lastName != "" {
+		rmsg.Username = rmsg.Username + " " + lastName
+	}
+
+	if rmsg.Username == "" {
+		if userName != "" {
+			rmsg.Username = userName
+		} else {
+			// if we really didn't find a username, set it to unknown
+			rmsg.Username = unknownUser
 		}
 	}
 
-	if message.SenderChat != nil { //nolint:nestif
-		rmsg.UserID = strconv.FormatInt(message.SenderChat.ID, 10)
-		if b.GetBool("UseFirstName") {
-			rmsg.Username = message.SenderChat.FirstName
-		}
-		if b.GetBool("UseFullName") {
-			if message.SenderChat.FirstName != "" && message.SenderChat.LastName != "" {
-				rmsg.Username = message.SenderChat.FirstName + " " + message.SenderChat.LastName
-			}
-		}
-
-		if rmsg.Username == "" || rmsg.Username == "Channel_Bot" {
-			rmsg.Username = message.SenderChat.UserName
-
-			if rmsg.Username == "" || rmsg.Username == "Channel_Bot" {
-				rmsg.Username = message.SenderChat.FirstName
-			}
-		}
-		// only download avatars if we have a place to upload them (configured mediaserver)
-		if b.General.MediaServerDownload != "" && b.General.MediaDownloadPath != "" {
-			b.handleDownloadAvatar(message.SenderChat.ID, rmsg.Channel)
-		}
-	}
+	rmsg.UserID = strconv.FormatInt(id, 10)
+	b.handleDownloadAvatarBlocking(id, rmsg.Channel)
 
 	// Fallback on author signature (used in "channel" type of chat)
 	if rmsg.Username == "" && message.AuthorSignature != "" {
 		rmsg.Username = message.AuthorSignature
 	}
-
-	// if we really didn't find a username, set it to unknown
-	if rmsg.Username == "" {
-		rmsg.Username = unknownUser
-	}
 }
 
+// All messages are processed in the background, because attachments
+// need to be processed in the background, but avatars too.
+//
+// We don't want to block the main thread!
 func (b *Btelegram) handleRecv(updates <-chan tgbotapi.Update) {
 	for update := range updates {
 		b.Log.Debugf("== Receiving event: %#v", update.Message)
 
-		if update.Message == nil && update.ChannelPost == nil &&
-			update.EditedMessage == nil && update.EditedChannelPost == nil {
-			b.Log.Info("Received event without messages, skipping.")
-			continue
+		go b.handleRecvBackground(update)
+	}
+}
+
+func (b *Btelegram) handleRecvBackground(update tgbotapi.Update) {
+	if update.Message == nil && update.ChannelPost == nil &&
+		update.EditedMessage == nil && update.EditedChannelPost == nil {
+		b.Log.Info("Received event without messages, skipping.")
+		return
+	}
+
+	if b.GetInt("debuglevel") == 1 {
+		spew.Dump(update.Message)
+	}
+
+	b.handleGroupUpdate(update)
+
+	var message *tgbotapi.Message
+
+	rmsg := config.Message{Account: b.Account, Extra: make(map[string][]any)}
+
+	// handle channels
+	message = b.handleChannels(&rmsg, message, update)
+
+	// handle groups
+	message = b.handleGroups(&rmsg, message, update)
+
+	if message == nil {
+		b.Log.Error("message is nil, this shouldn't happen.")
+		return
+	}
+
+	// set the ID's from the channel or group message
+	rmsg.ID = strconv.Itoa(message.MessageID)
+
+	rmsg.Channel = strconv.FormatInt(message.Chat.ID, 10)
+	if message.IsTopicMessage {
+		rmsg.Channel += "/" + strconv.Itoa(message.MessageThreadID)
+	}
+
+	// preserve threading from telegram reply
+	if message.ReplyToMessage != nil &&
+		// Used to check if the message was a reply to the root topic
+		(!message.IsTopicMessage || message.ReplyToMessage.MessageID != message.MessageThreadID) {
+		rmsg.ParentID = strconv.Itoa(message.ReplyToMessage.MessageID)
+	}
+
+	// handle entities (adding URLs)
+	b.handleEntities(&rmsg, message)
+
+	// handle username
+	b.handleUsernameBlocking(&rmsg, message)
+
+	// File downloads are handled in the background
+	err := b.handleDownloadBlocking(&rmsg, message)
+	if err != nil {
+		b.Log.Errorf("download failed: %s", err)
+	}
+
+	// handle forwarded messages
+	b.handleForwarded(&rmsg, message)
+
+	// quote the previous message
+	b.handleQuoting(&rmsg, message)
+
+	if rmsg.Text != "" || len(rmsg.Extra) > 0 {
+		// Comment the next line out due to avoid removing empty lines in Telegram
+		// rmsg.Text = helper.RemoveEmptyNewLines(rmsg.Text)
+		// channels don't have (always?) user information. see #410
+		if message.From != nil {
+			rmsg.Avatar = helper.GetAvatar(b.avatarMap, strconv.FormatInt(message.From.ID, 10), b.General)
 		}
 
-		if b.GetInt("debuglevel") == 1 {
-			spew.Dump(update.Message)
-		}
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
 
-		b.handleGroupUpdate(update)
-
-		var message *tgbotapi.Message
-
-		rmsg := config.Message{Account: b.Account, Extra: make(map[string][]interface{})}
-
-		// handle channels
-		message = b.handleChannels(&rmsg, message, update)
-
-		// handle groups
-		message = b.handleGroups(&rmsg, message, update)
-
-		if message == nil {
-			b.Log.Error("message is nil, this shouldn't happen.")
-			continue
-		}
-
-		// set the ID's from the channel or group message
-		rmsg.ID = strconv.Itoa(message.MessageID)
-		rmsg.Channel = strconv.FormatInt(message.Chat.ID, 10)
-		if message.IsTopicMessage {
-			rmsg.Channel += "/" + strconv.Itoa(message.MessageThreadID)
-		}
-
-		// preserve threading from telegram reply
-		if message.ReplyToMessage != nil &&
-			// Used to check if the message was a reply to the root topic
-			(!message.IsTopicMessage || message.ReplyToMessage.MessageID != message.MessageThreadID) {
-			rmsg.ParentID = strconv.Itoa(message.ReplyToMessage.MessageID)
-		}
-
-		// handle entities (adding URLs)
-		b.handleEntities(&rmsg, message)
-
-		// handle username
-		b.handleUsername(&rmsg, message)
-
-		// handle any downloads
-		err := b.handleDownload(&rmsg, message)
-		if err != nil {
-			b.Log.Errorf("download failed: %s", err)
-		}
-
-		// handle forwarded messages
-		b.handleForwarded(&rmsg, message)
-
-		// quote the previous message
-		b.handleQuoting(&rmsg, message)
-
-		if rmsg.Text != "" || len(rmsg.Extra) > 0 {
-			// Comment the next line out due to avoid removing empty lines in Telegram
-			// rmsg.Text = helper.RemoveEmptyNewLines(rmsg.Text)
-			// channels don't have (always?) user information. see #410
-			if message.From != nil {
-				rmsg.Avatar = helper.GetAvatar(b.avatarMap, strconv.FormatInt(message.From.ID, 10), b.General)
-			}
-
-			b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
-			b.Log.Debugf("<= Message is %#v", rmsg)
-			b.Remote <- rmsg
-		}
+		b.Remote <- rmsg
 	}
 }
 
@@ -309,10 +311,10 @@ func (b *Btelegram) handleUserLeave(update tgbotapi.Update) {
 	b.Remote <- rmsg
 }
 
-// handleDownloadAvatar downloads the avatar of userid from channel
+// handleDownloadAvatarBlocking downloads the avatar of userid from channel
 // sends a EVENT_AVATAR_DOWNLOAD message to the gateway if successful.
 // logs an error message if it fails
-func (b *Btelegram) handleDownloadAvatar(userid int64, channel string) {
+func (b *Btelegram) handleDownloadAvatarBlocking(userid int64, channel string) {
 	rmsg := config.Message{
 		Username: "system",
 		Text:     "avatar",
@@ -383,31 +385,28 @@ func (b *Btelegram) maybeConvertWebp(name *string, data *[]byte) {
 	}
 }
 
-// handleDownloadFile handles file download
-func (b *Btelegram) handleDownload(rmsg *config.Message, message *tgbotapi.Message) error {
-	size := int64(0)
+// handleDownloadBlockin handles file download
+func (b *Btelegram) handleDownloadBlocking(rmsg *config.Message, message *tgbotapi.Message) error {
 	var url, name, text string
 	switch {
 	case message.Sticker != nil:
 		text, name, url = b.getDownloadInfo(message.Sticker.FileID, ".webp", true)
-		size = int64(message.Sticker.FileSize)
 	case message.Voice != nil:
 		text, name, url = b.getDownloadInfo(message.Voice.FileID, ".ogg", true)
-		size = message.Voice.FileSize
 	case message.Video != nil:
 		text, name, url = b.getDownloadInfo(message.Video.FileID, "", true)
-		size = message.Video.FileSize
 	case message.Audio != nil:
 		text, name, url = b.getDownloadInfo(message.Audio.FileID, "", true)
-		size = message.Audio.FileSize
+		// rename .oga to .ogg  https://github.com/42wim/matterbridge/issues/906#issuecomment-741793512
+		if strings.HasSuffix(name, ".oga") {
+			name = strings.Replace(name, ".oga", ".ogg", 1)
+		}
 	case message.Document != nil:
 		_, _, url = b.getDownloadInfo(message.Document.FileID, "", false)
-		size = message.Document.FileSize
 		name = message.Document.FileName
 		text = " " + message.Document.FileName + " : " + url
 	case message.Photo != nil:
 		photos := message.Photo
-		size = int64(photos[len(photos)-1].FileSize)
 		text, name, url = b.getDownloadInfo(photos[len(photos)-1].FileID, "", true)
 	}
 
@@ -421,29 +420,35 @@ func (b *Btelegram) handleDownload(rmsg *config.Message, message *tgbotapi.Messa
 		rmsg.Text += text
 		return nil
 	}
-	// if we have a file attached, download it (in memory) and put a pointer to it in msg.Extra
-	err := helper.HandleDownloadSize(b.Log, rmsg, name, int64(size), b.General)
-	if err != nil {
-		return err
-	}
-	data, err := helper.DownloadFile(url)
+
+	err := b.AddAttachmentFromURL(rmsg, name, "", message.Caption, url)
 	if err != nil {
 		return err
 	}
 
-	if strings.HasSuffix(name, ".tgs.webp") {
-		b.maybeConvertTgs(&name, data)
-	} else if strings.HasSuffix(name, ".webp") {
-		b.maybeConvertWebp(&name, data)
-	}
+	// Perform file format conversions for interop
+	b.handleDownloadPostProcessBlocking(rmsg)
 
-	// rename .oga to .ogg  https://github.com/42wim/matterbridge/issues/906#issuecomment-741793512
-	if strings.HasSuffix(name, ".oga") && message.Audio != nil {
-		name = strings.Replace(name, ".oga", ".ogg", 1)
-	}
-
-	helper.HandleDownloadData(b.Log, rmsg, name, message.Caption, "", data, b.General)
 	return nil
+}
+
+func (b *Btelegram) handleDownloadPostProcessBlocking(rmsg *config.Message) {
+	// TODO: maybe this could be moved to a new helper taking a function/closure
+	// to perform post-download processing.
+	for _, f := range rmsg.Extra["file"] {
+		fi, ok := f.(config.FileInfo)
+		if !ok {
+			continue
+		}
+
+		// Now that we have the file bytes, we may have some conversions to do
+		// TODO: I don't think f.SHA is computed already but make sure of it
+		if strings.HasSuffix(fi.Name, ".tgs.webp") {
+			b.maybeConvertTgs(&fi.Name, fi.Data)
+		} else if strings.HasSuffix(fi.Name, ".webp") {
+			b.maybeConvertWebp(&fi.Name, fi.Data)
+		}
+	}
 }
 
 func (b *Btelegram) getDownloadInfo(id string, suffix string, urlpart bool) (string, string, string) {
