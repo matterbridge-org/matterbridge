@@ -65,11 +65,11 @@ Commits up-to `20988f6446c6ad3ea416044712e634d3ed85ee53` remain available under 
 
 ### Chat with us
 
-Questions or want to test on your favorite platform? Join us on:
+Questions or want to see the bridge in action? Join us on:
 
 - federated networks: [Jabber/XMPP][mb-xmpp], [Matrix][mb-matrix]
-- non-free centralized networks: [Discord][mb-discord], [Keybase][mb-keybase], [Slack][mb-slack], [Telegram][mb-telegram], [Twitch][mb-twitch]
-- self-hostable centralized networks: [IRC][mb-irc], [Mattermost][mb-mattermost], [Rocket.Chat][mb-rocketchat], [Zulip][mb-zulip]
+- non-free centralized networks: [Discord][mb-discord]
+- self-hostable centralized networks: [IRC][mb-irc], [Libera.chat][mb-legacy]
 
 ## Related projects
 
@@ -86,18 +86,8 @@ Matterbridge wouldn't exist without amazing libraries, without [@42wim](https://
 
 <!-- Links -->
 
-[mb-discord]: https://discord.gg/AkKPtrQ
-[mb-gitter]: https://gitter.im/42wim/matterbridge
-[mb-irc]: https://web.libera.chat/#matterbridge
-[mb-keybase]: https://keybase.io/team/matterbridge
-[mb-matrix]: https://riot.im/app/#/room/#matterbridge:matrix.org
-[mb-mattermost]: https://framateam.org/signup_user_complete/?id=tfqm33ggop8x3qgu4boeieta6e
-[mb-msteams]: https://teams.microsoft.com/join/hj92x75gd3y7
-[mb-rocketchat]: https://open.rocket.chat/channel/matterbridge
-[mb-slack]: https://join.slack.com/t/matterbridgechat/shared_invite/zt-2ourq2h2-7YvyYBq2WFGC~~zEzA68_Q
-[mb-telegram]: https://t.me/Matterbridge
-[mb-twitch]: https://www.twitch.tv/matterbridge
-[mb-whatsapp]: https://www.whatsapp.com/
-[mb-xmpp]: xmpp:matterbridge@conference.jabber.de?join
-[mb-zulip]: https://matterbridge.zulipchat.com/register/
-
+[mb-discord]: https://discord.gg/c9Ht6UTnQU
+[mb-irc]: ircs://irc.f-hub.org:6697/#matterbridge
+[mb-legacy]: https://web.libera.chat/#matterbridge
+[mb-matrix]: https://matrix.to/#/#matterbridge:matrix.f-hub.org
+[mb-xmpp]: xmpp:matterbridge@chat.f-hub.org?join
