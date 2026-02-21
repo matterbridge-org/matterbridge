@@ -19,6 +19,16 @@ import (
 	"github.com/xmppo/go-xmpp"
 )
 
+// UploadBufferEntry is data stored between requesting an upload,
+// and actually performing the upload.
+type UploadBufferEntry struct {
+	FileInfo    *config.FileInfo // Data received from other bridges
+	Mime        string           // Mimetype for the file upload
+	Description string           // Raw comment without authorship
+	Text        string           // Computed comment (including authorship) for the upload
+	To          string           // Room to send the upload announcement once completed
+}
+
 type Bxmpp struct {
 	*bridge.Config
 
@@ -30,6 +40,24 @@ type Bxmpp struct {
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
+
+	// The account's HTTP [upload component](https://xmpp.org/extensions/xep-0363.html#disco)
+	// is discovered in steps commented HTTP_UPLOAD_DISCO.
+	httpUploadComponent string
+	// The max attachment size is discovered in the last step of HTTP_UPLOAD_DISCO.
+	httpUploadMaxSize int64
+	// Files are stored in this buffer so we can perform the uploads asynchronously
+	// without blocking the main thread:
+	//
+	// - request an upload slot and store the file in the buffer (HTTP_UPLOAD_SLOT step 1)
+	// - (matterbridge processes other messages)
+	// - receive the upload slot and perform the HTTP upload (HTTP_UPLOAD_SLOT step 2)
+	// - (matterbridge processes other messages)
+	// - receive upload confirmation and post the OOB URL (HTTP_UPLOAD_SLOT step 3)
+	//
+	// Note that in most cases, remote bridges will provide an attachment URL, no file
+	// will actually be uploaded on XMPP side, and this buffer will be untouched.
+	httpUploadBuffer map[string]*UploadBufferEntry
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -38,6 +66,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
+		httpUploadBuffer:   make(map[string]*UploadBufferEntry),
 	}
 }
 
@@ -92,6 +121,8 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	// Upload a file (in XMPP case send the upload URL because XMPP has no native upload support).
 	var err error
 	if msg.Extra != nil {
+		// HandleExtra will produce error messages to be printed in the chat
+		// when the attachments are too big.
 		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
 			b.Log.Debugf("=> Sending attachement message %#v", rmsg)
 			if b.GetString("WebhookURL") != "" {
@@ -109,7 +140,8 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 			}
 		}
 		if len(msg.Extra["file"]) > 0 {
-			return "", b.handleUploadFile(&msg)
+			b.handleUploadFile(&msg)
+			return "", nil
 		}
 	}
 
@@ -331,6 +363,7 @@ func (b *Bxmpp) handleXMPP() error {
 					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
 					ID:    v.StanzaID.ID,
 					Event: event,
+					Extra: make(map[string][]any),
 				}
 
 				// Check if we have an action event.
@@ -340,6 +373,9 @@ func (b *Bxmpp) handleXMPP() error {
 					rmsg.Event = config.EventUserAction
 				}
 
+				if b.handleDownloadFile(&rmsg, &v) {
+					continue
+				}
 				b.Log.Debugf("<= Sending message from %s on %s to gateway", rmsg.Username, b.Account)
 				b.Log.Debugf("<= Message is %#v", rmsg)
 				b.Remote <- rmsg
@@ -350,6 +386,72 @@ func (b *Bxmpp) handleXMPP() error {
 			b.Log.Debugf("Avatar for %s is now available", v.From)
 		case xmpp.Presence:
 			// Do nothing.
+		case xmpp.DiscoItems:
+			// Received a list of items, most likely from trying to find the HTTP upload server
+			// Send a disco info query to all items to find out which is which
+			//
+			// HTTP_UPLOAD_DISCO step 2
+			for _, item := range v.Items {
+				_, err := b.xc.DiscoverInfo(item.Jid)
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to disco info from %s", item.Jid)
+				}
+			}
+		case xmpp.DiscoResult:
+			// Received disco info about a specific item, most likely from trying
+			// to find the HTTP upload server.
+			for _, identity := range v.Identities {
+				if identity.Type != "file" || identity.Category != "store" {
+					// Filter out disco info about everything else.
+					continue
+				}
+
+				// HTTP_UPLOAD_DISCO step 3
+				foundSize := b.extractMaxSizeFromX(&v.X)
+
+				b.Log.Debugf("Found HTTP file upload component %s (maximum size: %d)", v.From, foundSize)
+				b.Lock()
+				b.httpUploadComponent = v.From
+				b.httpUploadMaxSize = foundSize
+				b.Unlock()
+			}
+		case xmpp.Slot:
+			// HTTP_UPLOAD_SLOT step 2
+			b.Log.Debugf("Received upload slot ID %s", v.ID)
+			b.Lock()
+			entry, ok := b.httpUploadBuffer[v.ID]
+			b.Unlock()
+
+			if !ok {
+				b.Log.Warnf("Received upload slot ID %s doesn't match a known file", v.ID)
+				continue
+			}
+
+			b.Log.Debugf("Preparing to upload file %s to %s", entry.FileInfo.Name, v.Put.Url)
+
+			go func() {
+				headers := make(map[string]string)
+				headers["Content-Type"] = entry.Mime
+
+				for _, h := range v.Put.Headers {
+					switch h.Name {
+					case "Authorization", "Cookie", "Expires":
+						b.Log.Debugf("Setting header %s to %s", h.Name, h.Value)
+						headers[h.Name] = h.Value
+					default:
+						b.Log.Warnf("Unknown header from HTTP upload component: %s: %s", h.Name, h.Value)
+					}
+				}
+
+				err := b.HttpUpload(http.MethodPut, v.Put.Url, headers, entry.FileInfo.Data, []int{http.StatusOK, http.StatusCreated})
+				if err != nil {
+					b.Log.WithError(err).Warnf("Failed to upload file %s", entry.FileInfo.Name)
+				}
+
+				// Actually perform the chat announcement
+				// HTTP_UPLOAD_SLOT step 3
+				b.announceUploadedFile(entry.To, entry.Text, entry.Description, v.Get.Url)
+			}()
 		}
 	}
 }
@@ -359,44 +461,6 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 		return strings.ReplaceAll(text, "/me ", ""), true
 	}
 	return text, false
-}
-
-// handleUploadFile handles native upload of files
-func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
-	var urlDesc string
-
-	for _, file := range msg.Extra["file"] {
-		fileInfo := file.(config.FileInfo)
-		if fileInfo.Comment != "" {
-			msg.Text += fileInfo.Comment + ": "
-		}
-		if fileInfo.URL != "" {
-			msg.Text = fileInfo.URL
-			if fileInfo.Comment != "" {
-				msg.Text = fileInfo.Comment + ": " + fileInfo.URL
-				urlDesc = fileInfo.Comment
-			}
-		}
-		if _, err := b.xc.Send(xmpp.Chat{
-			Type:   "groupchat",
-			Remote: msg.Channel + "@" + b.GetString("Muc"),
-			Text:   msg.Username + msg.Text,
-		}); err != nil {
-			return err
-		}
-
-		if fileInfo.URL != "" {
-			if _, err := b.xc.SendOOB(xmpp.Chat{
-				Type:    "groupchat",
-				Remote:  msg.Channel + "@" + b.GetString("Muc"),
-				Ooburl:  fileInfo.URL,
-				Oobdesc: urlDesc,
-			}); err != nil {
-				b.Log.WithError(err).Warn("Failed to send share URL.")
-			}
-		}
-	}
-	return nil
 }
 
 func (b *Bxmpp) parseNick(remote string) string {
@@ -447,7 +511,16 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 func (b *Bxmpp) setConnected(state bool) {
 	b.Lock()
 	b.connected = state
-	defer b.Unlock()
+	b.Unlock()
+
+	// We are now (re)connected, send a disco query to find out HTTP upload server
+	// Ignore any errors encountered
+	//
+	// HTTP_UPLOAD_DISCO step 1
+	_, err := b.xc.DiscoverServerItems()
+	if err != nil {
+		b.Log.WithError(err).Warn("Failed to discover server items")
+	}
 }
 
 func (b *Bxmpp) Connected() bool {
