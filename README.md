@@ -69,7 +69,7 @@ Questions or want to see the bridge in action? Join us on:
 
 - federated networks: [Jabber/XMPP][mb-xmpp], [Matrix][mb-matrix]
 - non-free centralized networks: [Discord][mb-discord]
-- self-hostable centralized networks: [IRC][mb-irc], [Libera.chat][mb-legacy]
+- self-hostable centralized networks: #matterbridge on `irc.f-hub.org:6697` or [Libera.chat][mb-irc]
 
 ## Related projects
 
@@ -87,7 +87,6 @@ Matterbridge wouldn't exist without amazing libraries, without [@42wim](https://
 <!-- Links -->
 
 [mb-discord]: https://discord.gg/c9Ht6UTnQU
-[mb-irc]: ircs://irc.f-hub.org:6697/#matterbridge
-[mb-legacy]: https://web.libera.chat/#matterbridge
+[mb-irc]: https://web.libera.chat/#matterbridge
 [mb-matrix]: https://matrix.to/#/#matterbridge:matrix.f-hub.org
 [mb-xmpp]: xmpp:matterbridge@chat.f-hub.org?join
