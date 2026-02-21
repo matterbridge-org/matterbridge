@@ -126,7 +126,12 @@ func (b *Bdiscord) webhookSend(msg *config.Message, channelID string) (string, e
 
 func (b *Bdiscord) handleEventWebhook(msg *config.Message, channelID string) (string, error) {
 	// skip events
-	if msg.Event != "" && msg.Event != config.EventUserAction && msg.Event != config.EventJoinLeave && msg.Event != config.EventTopicChange {
+	if msg.Event != "" &&
+		msg.Event != config.EventUserAction &&
+		msg.Event != config.EventJoinLeave &&
+		msg.Event != config.EventJoin &&
+		msg.Event != config.EventLeave &&
+		msg.Event != config.EventTopicChange {
 		return "", nil
 	}
 

@@ -316,7 +316,9 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	}
 
 	// Use notices to send join/leave events
-	if msg.Event == config.EventJoinLeave {
+	if msg.Event == config.EventJoinLeave ||
+		msg.Event == config.EventJoin ||
+		msg.Event == config.EventLeave {
 		content := event.MessageEventContent{
 			MsgType:       event.MsgNotice,
 			Body:          body,
@@ -581,9 +583,44 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 	// Update the displayname on join messages, according to https://matrix.org/docs/spec/client_server/r0.6.1#events-on-change-of-profile-information
 	content := ev.Content.AsMember()
 
+	b.RLock()
+	channel, ok := b.RoomMap[ev.RoomID]
+	b.RUnlock()
+
+	if !ok {
+		b.Log.Debugf("Unknown room %s", ev.RoomID)
+		return
+	}
+
 	if content.Membership == event.MembershipJoin {
 		if content.Displayname != "" {
-			b.cacheDisplayName(ev.Sender, ev.Content.AsMember().Displayname)
+			b.cacheDisplayName(ev.Sender, content.Displayname)
+		}
+
+		b.Log.Debugf("<= Sending JOIN event from %s to gateway", b.Account)
+
+		b.Remote <- config.Message{
+			Username: b.getDisplayName(ctx, ev.Sender),
+			Channel:  channel,
+			Text:     "joins",
+			Account:  b.Account,
+			UserID:   ev.Sender.String(),
+			ID:       ev.ID.String(),
+			Avatar:   b.getAvatarURL(ctx, ev.Sender),
+			Event:    config.EventJoin,
+		}
+	} else {
+		b.Log.Debugf("<= Sending LEAVE event from %s to gateway", b.Account)
+
+		b.Remote <- config.Message{
+			Username: b.getDisplayName(ctx, ev.Sender),
+			Channel:  channel,
+			Text:     "parts",
+			Account:  b.Account,
+			UserID:   ev.Sender.String(),
+			ID:       ev.ID.String(),
+			Avatar:   b.getAvatarURL(ctx, ev.Sender),
+			Event:    config.EventLeave,
 		}
 	}
 }
