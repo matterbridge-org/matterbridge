@@ -47,7 +47,7 @@ TODO: is this only for outgoing messages?
 
 ## QuoteDisable
 
-Disable quoted/reply messages
+Disable quotes in reply messages. Disable if your destination bridges understand native replies.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
 - Format: *boolean*
@@ -63,7 +63,7 @@ Format quoted/reply messages
 - Setting: **OPTIONAL**, **RELOADABLE**
 - Format: *string*
 - Default: `"{MESSAGE} (re @{QUOTENICK}: {QUOTEMESSAGE})"`
-- Example: 
+- Example:
   ```toml
   QuoteFormat="{@{QUOTENICK}, {MESSAGE}}"
   ```

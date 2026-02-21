@@ -132,3 +132,39 @@ Example:
   ```toml
   AutoWebhooks=true
   ```
+
+## QuoteDisable
+
+Disable quotes in reply messages. Disable if your destination bridges understand native replies.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  QuoteDisable=true
+  ```
+
+## QuoteFormat
+
+Format quoted/reply messages
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *string*
+- Default: `"{MESSAGE} (re @{QUOTENICK}: {QUOTEMESSAGE})"`
+- Example:
+  ```toml
+  QuoteFormat="{@{QUOTENICK}, {MESSAGE}}"
+  ```
+
+## QuoteLengthLimit
+
+Limits {QUOTEMESSAGE} into integer characters specified in this.
+
+TODO: does this cut graphemes or bytes?
+
+- Setting: **OPTIONAL**
+- Format: *int*
+- Example:
+  ```toml
+  QuoteLengthLimit=46
+  ```
