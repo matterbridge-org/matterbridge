@@ -352,35 +352,39 @@ func (b *Bxmpp) handleXMPP() error {
 				// If there was a <reply>, map the StanzaID to the local matterbridge message ID
 				// so we can inform the other bridges of this message has a parent
 				var parentID string
+				var parentText string
 				if v.Reply.ID != `` {
 					if _parentID, ok := b.stanzaIDs.Get(v.Reply.ID); ok {
 						parentID = _parentID.(string)
 					}
-
 					body := v.Text
-					if !b.GetBool("keepquotedreply") {
-						for strings.HasPrefix(body, "> ") {
-							lineIdx := strings.IndexRune(body, '\n')
-							if lineIdx == -1 {
-								body = ""
-							} else {
-								body = body[(lineIdx + 1):]
-							}
+					// Capture quoted lines into parentText so destination bridges can decide
+					// how they should be displayed.
+					for strings.HasPrefix(body, "> ") {
+						lineIdx := strings.IndexRune(body, '\n')
+						if lineIdx == -1 {
+							parentText += body[2:]
+							body = ""
+						} else {
+							parentText += body[2:lineIdx] + "\n"
+							body = body[(lineIdx + 1):]
 						}
 					}
+					parentText = strings.TrimRight(parentText, "\n")
 					v.Text = body
 				}
 
 				rmsg := config.Message{
-					Username: b.parseNick(v.Remote),
-					Text:     v.Text,
-					Channel:  b.parseChannel(v.Remote),
-					Account:  b.Account,
-					Avatar:   avatar,
-					UserID:   v.Remote,
-					ID:       v.ID,
-					Event:    event,
-					ParentID: parentID,
+					Username:   b.parseNick(v.Remote),
+					Text:       v.Text,
+					Channel:    b.parseChannel(v.Remote),
+					Account:    b.Account,
+					Avatar:     avatar,
+					UserID:     v.Remote,
+					ID:         v.ID,
+					Event:      event,
+					ParentID:   parentID,
+					ParentText: parentText,
 				}
 
 				// Check if we have an action event.
