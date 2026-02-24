@@ -1,8 +1,12 @@
-# Whatsappmulti
+# Whatsapp
 
 - Status: ???
 - Maintainers: ???
 - Features: ???
+
+> [!INFO]
+> 
+> As of 2026, this is the new default whatsapp bridge implementation, based on the [whatsmeow](https://github.com/tulir/whatsmeow) library. This backend was previously known as `whatsappmulti`, but has been renamed `whatsapp`. You do not need to change your settings: they will still use the `whatsapp` config key.
 
 ## Configuration
 
@@ -12,7 +16,7 @@
 **Basic configuration example:**
 
 ```toml
-[whatsappmulti.mywhatsapp]
+[whatsapp.mywhatsapp]
 RemoteNickFormat="[{PROTOCOL}] @{NICK}: "
 # Get a disposable SIM card
 Number="+48111222333"
