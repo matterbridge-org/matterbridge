@@ -11,7 +11,6 @@
   - steam protocol has changed profoundly
   - keybase has been removed because we don't have a maintainer for it. See
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
-  - whatsapp backend has been deprecated in favor of whatsappmulti. See [issue #32](https://github.com/matterbridge-org/matterbridge/issues/32)
 - matrix: Change to mautrix.go for the matrix backend. See ([pr #79](https://github.com/matterbridge-org/matterbridge/pull/79)/[issue #60](https://github.com/matterbridge-org/matterbridge/issues/60)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
@@ -38,6 +37,8 @@
   - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, `NoPlain`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
 - discord
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
+  - whatsapp
+    - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
 
 ## Bugfixes
 
