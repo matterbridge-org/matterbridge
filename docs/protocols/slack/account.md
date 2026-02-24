@@ -1,62 +1,92 @@
 # A Matterbridge integration for your Slack Workspace
 
-### Contents
+> [!IMPORTANT]
+> the bot based setup is the only supported method of integration,
+> any other methods that was previously listed here is deprecated and no longer supported,
+> may just straight up not working, and will be removed in the future.
 
-[Bot-based Setup](#bot-based-setup)<br/>
-<strike>[Legacy Setup](#legacy-setup)</strike><br/>
-[Issues](#issues)
+## Bot-based Setup
 
----
-
-# Bot-based Setup
 Slack's model for bot users and other third-party integrations revolves around Slack Apps. They have been around for a while and are the only and default way of integrating services like Matterbridge going forward.
 
 Slack Docs: [Bot user tokens](https://api.slack.com/docs/token-types#bot)
 
-## Create the **classic** Slack App
-> **It's important that you create a "Slack App (Classic)". Don't use the "Create New App" button, and don't opt in to the "granular permissions" feature.**
+You will be creating **two** tokens, both are required to configure a Slack bridge:
+
+- a _Bot User OAuth Token_ Bot token, with prefix `xoxb-`
+- an App Token, with prefix `xapp-`
+
+### Create the Slack App
 
 1. Navigate to Slack's ["Your Apps" page](https://api.slack.com/apps) and log into an account that has administrative permissions over the Slack Workspace (server) that you want to sync with Matterbridge.
 
-   <img alt="Slack's 'Your Apps' page" width=780 src="https://user-images.githubusercontent.com/22248748/119397026-9f1b7500-bca3-11eb-98e6-b3ea925333de.png" />
+   <img alt="Create New App" width="1059" height="315" alt="image" src="https://github.com/user-attachments/assets/37f6a034-2734-4f40-a678-4204782e7c56" />
 
-2. Use [_**THIS LINK**_](https://api.slack.com/apps?new_classic_app=1) to create a "Slack App (Classic)". Choose any name for your app and select the desired workspace, and then submit. :warning: _**USE THE LINK AND DON'T CLICK THE "Create New App" BUTTON**_.
+2. Click the "Create New App" button, select "From scratch", Choose any name for your app and select the desired workspace, and then submit.
 
-   <img alt="Create a 'Slack App (Classic)'" width=780 src="https://user-images.githubusercontent.com/22248748/119397031-9f1b7500-bca3-11eb-9eaa-cc2418adb9db.png" />
+   <img alt="Create New App dialogs" width="1116" height="551" alt="image" src="https://github.com/user-attachments/assets/a94ee7ee-1cb4-4fb3-99bb-46a628a2cea8" />
 
-3. Navigate to the "App Home" page via the menu on the left. Click "Add Legacy Bot User", fill in the bot's details, and submit.
+### Enable socket mode and Creating App Token
 
-   <img alt="Add Legacy Bot User" width=780 src="https://user-images.githubusercontent.com/22248748/119397034-9fb40b80-bca3-11eb-8187-df62925c24f1.png" />
+The bridge connects to Slack using socket mode Events API, but they have to be enabled first.
 
-## Grant scopes and install the Slack App
+Navigate to the "Socket Mode" page via the menu on the left. Toggle on "Connect using Socket Mode" and and follow the dialog to generate a new App Token with `connections:write`, then submit.
 
-You'll need to give your new Slack App (Classic), and thus the bot, the right permissions on your Slack Workspace.
+<img alt="Toggle for enable Socket mode" width="706" height="252" alt="image" src="https://github.com/user-attachments/assets/d0408fe6-aef9-4144-a177-b735e292c836" />
 
-1. Click "OAuth & Permissions" in the menu on the left, and scroll down to the "Scopes" section. Don't click the prominent "Update Scopes" button. Instead, click "Add an OAuth Scope".
+Note down the App Token (with prefix `xapp-`) which you will use in Matterbridge configuration.
 
-   <img alt="Add an OAuth Scope" width=780 src="https://user-images.githubusercontent.com/22248748/119397023-9dea4800-bca3-11eb-9957-c780e96f0960.png" />
+### Grant bot token scopes and install the Slack App
 
-2. Add the following permission scopes to your app:
-   * Modify your public channels (`channels:write`)
-   * Send messages as \<App name\> (`chat:write:bot`)
-   * Send messages as user (`chat:write:user`)
-   * Access user’s profile and workspace profile fields (`users.profile:read`)
+You'll need to give your new Slack App, and thus the bot, the right permissions on your Slack Workspace.
 
-   <img alt="App with scopes" width=780 src="https://user-images.githubusercontent.com/22248748/119397039-a17dcf00-bca3-11eb-9bf4-25cd24f96aaf.png" />
+2. Click "OAuth & Permissions" in the menu on the left, and scroll down to the "Scopes" section. click "Add an OAuth Scope" under "Bot Token Scopes" section.
 
-3. Scroll to the top of the same "OAuth & Permissions" page and click on the "Install to Workspace" (or "Reinstall to Workspace") button:
+   <img alt="Add OAuth Scopes for Bot Token" width="587" height="372" alt="image" src="https://github.com/user-attachments/assets/b4aa1bd4-df56-4e35-8654-4b8d518d5324" />
 
-   <img alt="Install to Workspace" width=780 src="https://user-images.githubusercontent.com/22248748/119397036-a04ca200-bca3-11eb-99a8-545d74effde0.png" />
+3. Add the following scopes:
+   - `calls:read`
+   - `channels:history`
+   - `channels:read`
+   - `chat:write.customize`
+   - `chat:write`
+   - `dnd:read`
+   - `files:read`
+   - `files:write`
+   - `groups:history`
+   - `groups:read`
+   - `im:history`
+   - `im:write`
+   - `mpim:history`
+   - `mpim:read`
+   - `mpim:write`
+   - `pins:write`
+   - `reactions:read`
+   - `reactions:write`
+   - `remote_files:read`
+   - `remote_files:share`
+   - `remote_files:write`
+   - `team:read`
+   - `users.profile:read`
+   - `users:read.email`
+   - `users:read`
+   - `users:write`
 
-Confirm that the authorizations you just added are OK:
+   <img alt="Bot Token scopes" width="589" height="606" alt="image" src="https://github.com/user-attachments/assets/c51062d1-ea01-4770-bdf1-d78c4ae3ee3e" />
 
-   <img alt="Confirm install" width=780 src="https://user-images.githubusercontent.com/22248748/119397035-a04ca200-bca3-11eb-9cf2-edac292fa06c.png" />
+4. Scroll to the top of the same "OAuth & Permissions" page and click on the "Install to Workspace" (or "Reinstall to Workspace") button:
 
-4. Once the App has been installed, the top of the `OAuth & Permissions` page will show two tokens: a "User OAuth Token" starting with `xoxp-...` and a "Bot User OAuth Token" starting with `xoxb-...`. You will need to use the second in your Matterbridge configuration:
+   <img alt="(re)Install the App" width="971" height="745" alt="image" src="https://github.com/user-attachments/assets/6fd5ea2f-f608-4e4f-a02b-a2fbd0d9fb98" />
 
-   <img alt="Bot User OAuth Token" width=780 src="https://user-images.githubusercontent.com/22248748/119397029-9f1b7500-bca3-11eb-9faa-0978a0b280e8.png" />
+   Confirm that the authorizations you just added are OK:
 
-## Invite the bot to channels synced with Matterbridge
+   <img alt="App install authorization" width="879" height="733" alt="image" src="https://github.com/user-attachments/assets/4ee40be3-2c32-401c-93cd-d7aeb1759f09" />
+
+5. Once the App has been installed, the top of the "OAuth & Permissions" page will show a "Bot User OAuth Token" Bot token with prefix `xoxb-`. You will use this in your Matterbridge configuration together with the App Token above:
+
+   <img alt="Bot User OAuth Token" width="692" height="343" alt="image" src="https://github.com/user-attachments/assets/5089acb5-6b1b-4a4e-b3ae-87d8bffecf2e" />
+
+### Invite the bot to channels synced with Matterbridge
 
 The only thing that remains now is to set up the newly created bot on the Slack Workspace itself.
 
@@ -64,42 +94,9 @@ The only thing that remains now is to set up the newly created bot on the Slack 
 
    <img width="527" alt="Invite the bot user to a channel" src="https://user-images.githubusercontent.com/22248748/119407127-c9742f00-bcb1-11eb-870d-7e38335f58df.png">
 
-2. Repeat the invite process for each channel that Matterbridge needs to sync. :warning: Also, don't forget to do this in the future when you want to sync more channels.
+2. Repeat the invite process for each channel that Matterbridge needs to sync.
+   :warning: Also, don't forget to do this in the future when you want to sync more channels.
 
 Now you are all set to go. Just configure and start your Matterbridge instance and see the messages flowing.
 
    <img width="487" alt="Hello from Zulip!" src="https://user-images.githubusercontent.com/22248748/119406733-320edc00-bcb1-11eb-9e20-28ecd0b98d5d.png">
-
-
-# Legacy setup
-
-Update: 2020-04-03 - this setup is not working anymore. (See https://github.com/42wim/matterbridge/issues/964#issuecomment-607629250)
-
-🛑 This setup is not recommended and will disappear in future versions of Matterbridge. Please use it only if you are absolutely sure that you can not use the normal setup. Legacy tokens are, as their name indicates, a legacy feature and Slack can in the future **deprecate them at short notice** as they have a weak security model and **give access to a wide-range of privileged actions**. Always store your token securely!
-
-Slack Docs: [Legacy tokens](https://api.slack.com/docs/token-types#legacy)
-
-***
-
-In order to use this setup your channel configuration should use the `slack-legacy` setup instead of `slack`:
-```toml
-[slack-legacy]
-[slack-legacy.myslack]
-Token="xoxp-123456789-mytoken"
-```
-
-Steps to follow:
-1. First create a dedicated user (a new account specifically for the bot) in Slack.
-
-2. Next log in as this user and go to [the legacy tokens page](https://api.slack.com/custom-integrations/legacy-tokens) and click "Create token" for your team and your new user.
-   ![Create token screen](https://i.snag.gy/vpsSM4.jpg)
-   The token will look something like ```xoxp-123456789-LowerAndUPpercase```.
-
-3. Use the obtained token in your configuration file for the channel setup as in the example above.
-
-# Issues
-
-If you get the message: `ERROR slack: Connection failed "not_allowed_token_type" &errors.errorString{s:"not_allowed_token_type"}`
-
-For more information look at https://github.com/slackapi/node-slack-sdk/issues/921#issuecomment-570662540 and https://github.com/nlopes/slack/issues/654 and our issue https://github.com/42wim/matterbridge/issues/964
-

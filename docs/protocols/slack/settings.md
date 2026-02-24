@@ -56,13 +56,28 @@ Only works syncing topic changes from slack bridge for now
 
 ## Token
 
-Token to connect with the Slack API
+Token to connect with the Slack API to perform actions via its Web API.
 
-- Setting: **REQUIRED** (when not using webhooks)
+- Setting: **REQUIRED** for bot-based setup, for both classic and modern Slack app.
 - Format: *string*
 - Example:
   ```toml
-  Token="yourslacktoken"
+  Token="xoxb-*****"
+  ```
+
+## AppToken
+
+App Token to connect with the Slack API using socket mode Events API to receive messages to bridge.
+
+For a bot token belonging to a _classic_ Slack apps, this **MUST** be unset or set to empty value.
+For modern socket mode Events API based setup, this **MUST** be set to the app token
+with the `connections:write` scope associated to it.
+
+- Setting: **REQUIRED** (see above remarks)
+- Format: *string*
+- Example:
+  ```toml
+  AppToken="xapp-*****"
   ```
 
 ### IconURL
