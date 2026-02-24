@@ -512,7 +512,6 @@ StripNick=false
 ShowTopicChange=false
 
 ###################################################################
-<<<<<<< HEAD
 #
 # Keybase
 # You should have a separate bridge account on Keybase
@@ -659,12 +658,18 @@ PreserveThreading=false
 #In this example we use [slack.hobby]
 #REQUIRED
 [slack.hobby]
-#Token to connect with the Slack API
-#You'll have to use a test/api-token using a dedicated user and not a bot token.
-#See https://github.com/42wim/matterbridge/issues/75 for more info.
-#Use https://api.slack.com/custom-integrations/legacy-tokens
-#REQUIRED (when not using webhooks)
-Token="yourslacktoken"
+# Token to connect with the Slack API
+# This should be a bot token associated with the Slack app for the bridge
+# See the matterbridge slack docs for how to obtain this token:
+# https://github.com/matterbridge-org/matterbridge/blob/master/docs/protocols/slack/account.md
+# REQUIRED for both socket mode (recommended in 2026) and classic app setup
+Token="xoxb-*****"
+
+# Slack App Token
+# Required for socket mode Events API (i.e. modern Slack apps), and will automatically use it when set
+# the token MUST have the `connections:write` scope
+# REQUIRED except when using bot token belonging to a classic Slack apps, then set it to empty value
+AppToken="xapp-*****"
 
 #Extra slack specific debug info, warning this generates a lot of output.
 #OPTIONAL (default false)
