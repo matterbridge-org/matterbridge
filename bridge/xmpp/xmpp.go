@@ -1,12 +1,8 @@
 package bxmpp
 
 import (
-	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +38,10 @@ func New(cfg *bridge.Config) bridge.Bridger {
 }
 
 func (b *Bxmpp) Connect() error {
+	if b.GetString("WebhookURL") != "" {
+		b.Log.Fatalf("Slack-compatible WebhookURL has been deprecated. See docs/protocols/xmpp/settings.md")
+	}
+
 	b.Log.Infof("Connecting %s", b.GetString("Server"))
 	if err := b.createXMPP(); err != nil {
 		b.Log.Debugf("%#v", err)
@@ -94,15 +94,11 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	if msg.Extra != nil {
 		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
 			b.Log.Debugf("=> Sending attachement message %#v", rmsg)
-			if b.GetString("WebhookURL") != "" {
-				err = b.postSlackCompatibleWebhook(msg)
-			} else {
-				_, err = b.xc.Send(xmpp.Chat{
-					Type:   "groupchat",
-					Remote: rmsg.Channel + "@" + b.GetString("Muc"),
-					Text:   rmsg.Username + rmsg.Text,
-				})
-			}
+			_, err = b.xc.Send(xmpp.Chat{
+				Type:   "groupchat",
+				Remote: rmsg.Channel + "@" + b.GetString("Muc"),
+				Text:   rmsg.Username + rmsg.Text,
+			})
 
 			if err != nil {
 				b.Log.WithError(err).Error("Unable to send message with share URL.")
@@ -111,17 +107,6 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 		if len(msg.Extra["file"]) > 0 {
 			return "", b.handleUploadFile(&msg)
 		}
-	}
-
-	if b.GetString("WebhookURL") != "" {
-		b.Log.Debugf("Sending message using Webhook")
-		err := b.postSlackCompatibleWebhook(msg)
-		if err != nil {
-			b.Log.Errorf("Failed to send message using webhook: %s", err)
-			return "", err
-		}
-
-		return "", nil
 	}
 
 	// Post normal message.
@@ -138,30 +123,6 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	// However this does not provide proper Edits/Replies integration on XMPP side.
 	msgID := xid.New().String()
 	return msgID, nil
-}
-
-func (b *Bxmpp) postSlackCompatibleWebhook(msg config.Message) error {
-	type XMPPWebhook struct {
-		Username string `json:"username"`
-		Text     string `json:"text"`
-	}
-	webhookBody, err := json.Marshal(XMPPWebhook{
-		Username: msg.Username,
-		Text:     msg.Text,
-	})
-	if err != nil {
-		b.Log.Errorf("Failed to marshal webhook: %s", err)
-		return err
-	}
-
-	resp, err := http.Post(b.GetString("WebhookURL")+"/"+url.QueryEscape(msg.Channel), "application/json", bytes.NewReader(webhookBody))
-	if err != nil {
-		b.Log.Errorf("Failed to POST webhook: %s", err)
-		return err
-	}
-
-	resp.Body.Close()
-	return nil
 }
 
 func (b *Bxmpp) createXMPP() error {

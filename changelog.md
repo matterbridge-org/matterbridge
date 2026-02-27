@@ -14,13 +14,15 @@
 - matrix: Change to mautrix.go for the matrix backend. See ([pr #79](https://github.com/matterbridge-org/matterbridge/pull/79)/[issue #60](https://github.com/matterbridge-org/matterbridge/issues/60)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
+- xmpp: `WebhookURL` for slack-compatible webhooks has been removed (see XMPP docs) ; you can
+  open an issue if you'd like to use it again and can document the setup
 - Go required version is now v1.24
 - `MediaServerUpload` has been deprecated ([#30](https://github.com/matterbridge-org/matterbridge/issues/30)),
   because we don't know how to make it work and were improving those parts of the codebase.
   If you were successfully using it, your feedback is welcome and we may reintroduce it.
-  - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
-    If you are using this setting please help us understand the usecase by commenting
-    on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
+- irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
+  If you are using this setting please help us understand the usecase by commenting
+  on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
 
 ## New Features
 
