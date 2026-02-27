@@ -8,6 +8,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/gateway/samechannel"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,6 +19,7 @@ type Router struct {
 	BridgeMap        map[string]bridge.Factory
 	Gateways         map[string]*Gateway
 	Message          chan config.Message
+	MessageSentAck   chan config.MessageSent
 	MattermostPlugin chan config.Message
 
 	logger *logrus.Entry
@@ -32,12 +34,22 @@ func NewRouter(rootLogger *logrus.Logger, cfg config.Config, bridgeMap map[strin
 		Config:           cfg,
 		BridgeMap:        bridgeMap,
 		Message:          make(chan config.Message),
+		MessageSentAck:   make(chan config.MessageSent),
 		MattermostPlugin: make(chan config.Message),
 		Gateways:         make(map[string]*Gateway),
 		logger:           logger,
 	}
 	sgw := samechannel.New(cfg)
 	gwconfigs := append(sgw.GetConfig(), cfg.BridgeValues().Gateway...)
+
+	// Start listening for sent message acknowledgements
+	go func() {
+		for {
+			ack := <-r.MessageSentAck
+			// TODO: actually save it in the right place
+			logger.Warnf("Message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
+		}
+	}()
 
 	for idx := range gwconfigs {
 		entry := &gwconfigs[idx]
@@ -136,6 +148,12 @@ func (r *Router) getBridge(account string) *bridge.Bridge {
 func (r *Router) handleReceive() {
 	for msg := range r.Message {
 		msg := msg // scopelint
+
+		// We add an internal UUID which will allow destination protocols
+		// to send back their own ID(s) corresponding to the message go the
+		// gateway in an asynchronous manner.
+		msg.InternalID = xid.New()
+
 		r.handleEventGetChannelMembers(&msg)
 		r.handleEventFailure(&msg)
 		r.handleEventRejoinChannels(&msg)

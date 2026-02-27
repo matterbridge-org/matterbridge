@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -34,20 +35,38 @@ const (
 
 const ParentIDNotFound = "msg-parent-not-found"
 
+// MessageSent is an acknowledgement received from a remote
+// network that a message has been successfully sent, along
+// with a protocol-dependent unique ID.
+type MessageSent struct {
+	InternalID xid.ID
+	ExternalID MessageSentID
+}
+
+// TODO: to avoid circular import we define a new type
+// but that's not really what we want to do ...
+type MessageSentID struct {
+	Protocol string
+	// TODO: do we need the chan here to disambiguate?
+	// ChannelID string
+	ID string
+}
+
 type Message struct {
-	Text      string    `json:"text"`
-	Channel   string    `json:"channel"`
-	Username  string    `json:"username"`
-	UserID    string    `json:"userid"` // userid on the bridge
-	Avatar    string    `json:"avatar"`
-	Account   string    `json:"account"`
-	Event     string    `json:"event"`
-	Protocol  string    `json:"protocol"`
-	Gateway   string    `json:"gateway"`
-	ParentID  string    `json:"parent_id"`
-	Timestamp time.Time `json:"timestamp"`
-	ID        string    `json:"id"`
-	Extra     map[string][]interface{}
+	Text       string    `json:"text"`
+	Channel    string    `json:"channel"`
+	Username   string    `json:"username"`
+	UserID     string    `json:"userid"` // userid on the bridge
+	Avatar     string    `json:"avatar"`
+	Account    string    `json:"account"`
+	Event      string    `json:"event"`
+	Protocol   string    `json:"protocol"`
+	Gateway    string    `json:"gateway"`
+	ParentID   string    `json:"parent_id"`
+	Timestamp  time.Time `json:"timestamp"`
+	ID         string    `json:"id"`
+	InternalID xid.ID
+	Extra      map[string][]interface{}
 }
 
 func (m Message) ParentNotFound() bool {

@@ -26,6 +26,7 @@ type Gateway struct {
 	Channels       map[string]*config.ChannelInfo
 	ChannelOptions map[string]config.ChannelOptions
 	Message        chan config.Message
+	MessageSentAck chan config.MessageSent
 	Name           string
 	Messages       *lru.Cache
 
@@ -47,13 +48,14 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 
 	cache, _ := lru.New(5000)
 	gw := &Gateway{
-		Channels: make(map[string]*config.ChannelInfo),
-		Message:  r.Message,
-		Router:   r,
-		Bridges:  make(map[string]*bridge.Bridge),
-		Config:   r.Config,
-		Messages: cache,
-		logger:   logger,
+		Channels:       make(map[string]*config.ChannelInfo),
+		Message:        r.Message,
+		MessageSentAck: r.MessageSentAck,
+		Router:         r,
+		Bridges:        make(map[string]*bridge.Bridge),
+		Config:         r.Config,
+		Messages:       cache,
+		logger:         logger,
 	}
 	if err := gw.AddConfig(cfg); err != nil {
 		logger.Errorf("Failed to add configuration to gateway: %#v", err)
@@ -454,18 +456,18 @@ func (gw *Gateway) SendMessage(
 	// Only send the avatar download event to ourselves.
 	if msg.Event == config.EventAvatarDownload {
 		if channel.ID != getChannelID(rmsg) {
-			return "", nil
+			return
 		}
 	} else {
 		// do not send to ourself for any other event
 		if channel.ID == getChannelID(rmsg) {
-			return "", nil
+			return
 		}
 	}
 
 	// Only send irc notices to irc
 	if msg.Event == config.EventNoticeIRC && dest.Protocol != "irc" {
-		return "", nil
+		return
 	}
 
 	// Too noisy to log like other events
@@ -506,7 +508,7 @@ func (gw *Gateway) SendMessage(
 
 	if drop {
 		gw.logger.Debugf("=> Tengo dropping %#v from %s (%s) to %s (%s)", msg, msg.Account, rmsg.Channel, dest.Account, channel.Name)
-		return "", nil
+		return
 	}
 
 	if debugSendMessage != "" {
@@ -518,22 +520,14 @@ func (gw *Gateway) SendMessage(
 		gw.Router.MattermostPlugin <- msg
 	}
 
-	defer func(t time.Time) {
-		gw.logger.Debugf("=> Send from %s (%s) to %s (%s) took %s", msg.Account, rmsg.Channel, dest.Account, channel.Name, time.Since(t))
-	}(time.Now())
+	// Send the message in the background
+	go func() {
+		defer func(t time.Time) {
+			gw.logger.Debugf("=> Send from %s (%s) to %s (%s) took %s", msg.Account, rmsg.Channel, dest.Account, channel.Name, time.Since(t))
+		}(time.Now())
 
-	mID, err := dest.Send(msg, MsgIdChannel)
-	if err != nil {
-		return mID, err
-	}
-
-	// append the message ID (mID) from this bridge (dest) to our brMsgIDs slice
-	if mID != "" {
-		gw.logger.Debugf("mID %s: %s", dest.Account, mID)
-		return mID, nil
-		// brMsgIDs = append(brMsgIDs, &BrMsgID{dest, dest.Protocol + " " + mID, channel.ID})
-	}
-	return "", nil
+		dest.Send(msg)
+	}()
 }
 
 func (gw *Gateway) validGatewayDest(msg *config.Message) bool {
