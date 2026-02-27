@@ -26,6 +26,11 @@ type Bxmpp struct {
 
 	avatarAvailability map[string]bool
 	avatarMap          map[string]string
+
+	// Mapping of sent origin-id to internal matterbridge ID of source msg
+	// An internal ID may correspond to several XMPP origin-id because
+	// of split message (eg. multiple file upload)
+	messageMap map[string]xid.ID
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -34,6 +39,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
+		messageMap:         make(map[string]xid.ID),
 	}
 }
 
@@ -94,10 +100,15 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	if msg.Extra != nil {
 		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
 			b.Log.Debugf("=> Sending attachement message %#v", rmsg)
+
+			originId := xid.New().String()
+			b.messageMap[originId] = msg.InternalID
+
 			_, err = b.xc.Send(xmpp.Chat{
-				Type:   "groupchat",
-				Remote: rmsg.Channel + "@" + b.GetString("Muc"),
-				Text:   rmsg.Username + rmsg.Text,
+				Type:     "groupchat",
+				Remote:   rmsg.Channel + "@" + b.GetString("Muc"),
+				Text:     rmsg.Username + rmsg.Text,
+				OriginID: originId,
 			})
 
 			if err != nil {
@@ -105,24 +116,27 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 			}
 		}
 		if len(msg.Extra["file"]) > 0 {
+			// TODO: log
 			return "", b.handleUploadFile(&msg)
 		}
 	}
 
+	originId := xid.New().String()
+	b.messageMap[originId] = msg.InternalID
+
 	// Post normal message.
 	b.Log.Debugf("=> Sending message %#v", msg)
 	if _, err := b.xc.Send(xmpp.Chat{
-		Type:   "groupchat",
-		Remote: msg.Channel + "@" + b.GetString("Muc"),
-		Text:   msg.Username + msg.Text,
+		Type:     "groupchat",
+		Remote:   msg.Channel + "@" + b.GetString("Muc"),
+		Text:     msg.Username + msg.Text,
+		OriginID: originId,
 	}); err != nil {
+		// TODO: log
 		return "", err
 	}
 
-	// Generate a dummy ID because to avoid collision with other internal messages
-	// However this does not provide proper Edits/Replies integration on XMPP side.
-	msgID := xid.New().String()
-	return msgID, nil
+	return "", nil
 }
 
 func (b *Bxmpp) createXMPP() error {
@@ -338,20 +352,29 @@ func (b *Bxmpp) handleUploadFile(msg *config.Message) error {
 				urlDesc = fileInfo.Comment
 			}
 		}
+
+		originId := xid.New().String()
+		b.messageMap[originId] = msg.InternalID
+
 		if _, err := b.xc.Send(xmpp.Chat{
-			Type:   "groupchat",
-			Remote: msg.Channel + "@" + b.GetString("Muc"),
-			Text:   msg.Username + msg.Text,
+			Type:     "groupchat",
+			Remote:   msg.Channel + "@" + b.GetString("Muc"),
+			Text:     msg.Username + msg.Text,
+			OriginID: originId,
 		}); err != nil {
 			return err
 		}
 
+		originId = xid.New().String()
+
+		b.messageMap[originId] = msg.InternalID
 		if fileInfo.URL != "" {
 			if _, err := b.xc.SendOOB(xmpp.Chat{
-				Type:    "groupchat",
-				Remote:  msg.Channel + "@" + b.GetString("Muc"),
-				Ooburl:  fileInfo.URL,
-				Oobdesc: urlDesc,
+				Type:     "groupchat",
+				Remote:   msg.Channel + "@" + b.GetString("Muc"),
+				Ooburl:   fileInfo.URL,
+				Oobdesc:  urlDesc,
+				OriginID: originId,
 			}); err != nil {
 				b.Log.WithError(err).Warn("Failed to send share URL.")
 			}
@@ -383,6 +406,12 @@ func (b *Bxmpp) parseChannel(remote string) string {
 func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 	// skip messages from ourselves
 	if b.parseNick(message.Remote) == b.GetString("Nick") {
+		// We received our own message, we will further ignore it,
+		// but first send back the ID it was assigned.
+		if message.OriginID != "" {
+			internal := b.messageMap[message.OriginID]
+			b.AckSentMessage(internal, message.OriginID, b.parseChannel(message.Remote))
+		}
 		return true
 	}
 

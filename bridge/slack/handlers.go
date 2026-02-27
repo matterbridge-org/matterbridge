@@ -231,7 +231,7 @@ func (b *Bslack) handleMessageEvent(ev *slack.MessageEvent) (*config.Message, er
 }
 
 func (b *Bslack) handleFileDeletedEvent(ev *slack.FileDeletedEvent) (*config.Message, error) {
-	if rawChannel, ok := b.cache.Get(cfileDownloadChannel + ev.FileID); ok {
+	if rawChannel, ok := b.cacheChan.Get(cfileDownloadChannel + ev.FileID); ok {
 		channel, err := b.channels.getChannelByID(rawChannel.(string))
 		if err != nil {
 			return nil, err
@@ -320,7 +320,7 @@ func (b *Bslack) handleAttachments(ev *slack.MessageEvent, rmsg *config.Message)
 	// If we have files attached, download them (in memory) and put a pointer to it in msg.Extra.
 	for i := range ev.Files {
 		// keep reference in cache on which channel we added this file
-		b.cache.Add(cfileDownloadChannel+ev.Files[i].ID, ev.Channel)
+		b.cacheChan.Add(cfileDownloadChannel+ev.Files[i].ID, ev.Channel)
 		if err := b.handleDownloadFile(rmsg, &ev.Files[i], false); err != nil {
 			b.Log.Errorf("Could not download incoming file: %#v", err)
 		}
@@ -406,9 +406,9 @@ func (b *Bslack) handleGetChannelMembers(rmsg *config.Message) bool {
 // (the assumption is that such name collisions will not occur within the given
 // timeframes).
 func (b *Bslack) fileCached(file *slack.File) bool {
-	if ts, ok := b.cache.Get("file" + file.ID); ok && time.Since(ts.(time.Time)) < time.Minute {
+	if ts, ok := b.cacheTs.Get("file" + file.ID); ok && time.Since(ts) < time.Minute {
 		return true
-	} else if ts, ok = b.cache.Get("filename" + file.Name); ok && time.Since(ts.(time.Time)) < 10*time.Second {
+	} else if ts, ok = b.cacheTs.Get("filename" + file.Name); ok && time.Since(ts) < 10*time.Second {
 		return true
 	}
 	return false

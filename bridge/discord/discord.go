@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/discord/transmitter"
@@ -39,11 +39,11 @@ type Bdiscord struct {
 	// Webhook specific logic
 	useAutoWebhooks bool
 	transmitter     *transmitter.Transmitter
-	cache           *lru.Cache
+	cache           *lru.Cache[string, string]
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
-	newCache, err := lru.New(5000)
+	newCache, err := lru.New[string, string](5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
 	}
@@ -305,7 +305,7 @@ func (b *Bdiscord) handleEventBotUser(msg *config.Message, channelID string) (st
 		}
 
 		if fi, ok := b.cache.Get(cFileUpload + msg.ID); ok {
-			err := b.c.ChannelMessageDelete(channelID, fi.(string)) // nolint:forcetypeassert
+			err := b.c.ChannelMessageDelete(channelID, fi)
 			b.cache.Remove(cFileUpload + msg.ID)
 			return "", err
 		}

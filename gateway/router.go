@@ -19,7 +19,6 @@ type Router struct {
 	BridgeMap        map[string]bridge.Factory
 	Gateways         map[string]*Gateway
 	Message          chan config.Message
-	MessageSentAck   chan config.MessageSent
 	MattermostPlugin chan config.Message
 
 	logger *logrus.Entry
@@ -34,22 +33,12 @@ func NewRouter(rootLogger *logrus.Logger, cfg config.Config, bridgeMap map[strin
 		Config:           cfg,
 		BridgeMap:        bridgeMap,
 		Message:          make(chan config.Message),
-		MessageSentAck:   make(chan config.MessageSent),
 		MattermostPlugin: make(chan config.Message),
 		Gateways:         make(map[string]*Gateway),
 		logger:           logger,
 	}
 	sgw := samechannel.New(cfg)
 	gwconfigs := append(sgw.GetConfig(), cfg.BridgeValues().Gateway...)
-
-	// Start listening for sent message acknowledgements
-	go func() {
-		for {
-			ack := <-r.MessageSentAck
-			// TODO: actually save it in the right place
-			logger.Warnf("Message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
-		}
-	}()
 
 	for idx := range gwconfigs {
 		entry := &gwconfigs[idx]
@@ -164,7 +153,6 @@ func (r *Router) handleReceive() {
 		filesHandled := false
 		for _, gw := range r.Gateways {
 			// record all the message ID's of the different bridges
-			var msgIDs []*BrMsgID
 			if gw.ignoreMessage(&msg) {
 				continue
 			}
@@ -175,20 +163,7 @@ func (r *Router) handleReceive() {
 				filesHandled = true
 			}
 			for _, br := range gw.Bridges {
-				msgIDs = append(msgIDs, gw.handleMessage(&msg, br)...)
-			}
-
-			if msg.ID != "" {
-				_, exists := gw.Messages.Get(msg.Protocol + " " + msg.ID)
-
-				// Only add the message ID if it doesn't already exist
-				//
-				// For some bridges we always add/update the message ID.
-				// This is necessary as msgIDs will change if a bridge returns
-				// a different ID in response to edits.
-				if !exists {
-					gw.Messages.Add(msg.Protocol+" "+msg.ID, msgIDs)
-				}
+				gw.handleMessage(&msg, br)
 			}
 		}
 	}

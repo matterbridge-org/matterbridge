@@ -9,7 +9,7 @@ import (
 
 	"github.com/d5/tengo/v2"
 	"github.com/d5/tengo/v2/stdlib"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/kyokomi/emoji/v2"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -26,9 +26,8 @@ type Gateway struct {
 	Channels       map[string]*config.ChannelInfo
 	ChannelOptions map[string]config.ChannelOptions
 	Message        chan config.Message
-	MessageSentAck chan config.MessageSent
 	Name           string
-	Messages       *lru.Cache
+	Messages       *lru.Cache[string, []*BrMsgID]
 
 	logger *logrus.Entry
 }
@@ -46,16 +45,15 @@ const apiProtocol = "api"
 func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 	logger := rootLogger.WithFields(logrus.Fields{"prefix": "gateway"})
 
-	cache, _ := lru.New(5000)
+	cache, _ := lru.New[string, []*BrMsgID](5000)
 	gw := &Gateway{
-		Channels:       make(map[string]*config.ChannelInfo),
-		Message:        r.Message,
-		MessageSentAck: r.MessageSentAck,
-		Router:         r,
-		Bridges:        make(map[string]*bridge.Bridge),
-		Config:         r.Config,
-		Messages:       cache,
-		logger:         logger,
+		Channels: make(map[string]*config.ChannelInfo),
+		Message:  r.Message,
+		Router:   r,
+		Bridges:  make(map[string]*bridge.Bridge),
+		Config:   r.Config,
+		Messages: cache,
+		logger:   logger,
 	}
 	if err := gw.AddConfig(cfg); err != nil {
 		logger.Errorf("Failed to add configuration to gateway: %#v", err)
@@ -72,11 +70,10 @@ func (gw *Gateway) FindCanonicalMsgID(protocol string, mID string) string {
 
 	// If not keyed, iterate through cache for downstream, and infer upstream.
 	for _, mid := range gw.Messages.Keys() {
-		v, _ := gw.Messages.Peek(mid)
-		ids := v.([]*BrMsgID)
+		ids, _ := gw.Messages.Peek(mid)
 		for _, downstreamMsgObj := range ids {
 			if ID == downstreamMsgObj.ID {
-				return mid.(string)
+				return mid
 			}
 		}
 	}
@@ -104,9 +101,45 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 
 		br.HttpClient = http_client
 
+		// The channel to receive message IDs is shared with the
+		// bridges, but is not kept in the gateway.
+		messageAck := make(chan bridge.MessageSent, 100)
+		// Start listening for sent message acknowledgements
+		go func() {
+			for ack := range messageAck {
+				gw.logger.Warnf("Message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
+				// TODO 2026: this was a comment in the previous ID handling. Not
+				// sure what to do about ID changing on edit????
+				//
+				// Only add the message ID if it doesn't already exist
+				//
+				// For some bridges we always add/update the message ID.
+				// This is necessary as msgIDs will change if a bridge returns
+				// a different ID in response to edits.
+				values, exists := gw.Messages.Get(ack.ExternalID.Protocol + " " + ack.InternalID.String())
+
+				var brMsgIDs []*BrMsgID
+				if exists {
+					// We want to append, not overwrite
+					brMsgIDs = values
+				}
+
+				brMsgIDs = append(brMsgIDs, &BrMsgID{ack.DestBridge, ack.ExternalID.Protocol + " " + ack.ExternalID.ID, ack.ExternalID.ChannelID})
+				gw.Messages.Add(ack.ExternalID.Protocol+" "+ack.InternalID.String(), brMsgIDs)
+
+				// Just for testing that we added everything correctly
+				// TODO: remove this useless debug log
+				values, _ = gw.Messages.Get(ack.ExternalID.Protocol + " " + ack.InternalID.String())
+				for _, id := range values {
+					gw.logger.Warnf("  | %s -> %s (%s)", ack.InternalID.String(), id.ID, id.ChannelID)
+				}
+			}
+		}()
+
 		brconfig := &bridge.Config{
-			Remote: gw.Message,
-			Bridge: br,
+			Remote:         gw.Message,
+			MessageSentAck: messageAck,
+			Bridge:         br,
 		}
 		// add the actual bridger for this protocol to this bridge using the bridgeMap
 		if _, ok := gw.Router.BridgeMap[br.Protocol]; !ok {
@@ -275,8 +308,7 @@ func (gw *Gateway) getDestChannel(msg *config.Message, dest bridge.Bridge) []con
 }
 
 func (gw *Gateway) getDestMsgID(msgID string, dest *bridge.Bridge, channel *config.ChannelInfo) string {
-	if res, ok := gw.Messages.Get(msgID); ok {
-		IDs := res.([]*BrMsgID)
+	if IDs, ok := gw.Messages.Get(msgID); ok {
 		for _, id := range IDs {
 			// check protocol, bridge name and channelname
 			// for people that reuse the same bridge multiple times. see #342

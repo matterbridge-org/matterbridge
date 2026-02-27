@@ -35,21 +35,10 @@ const (
 
 const ParentIDNotFound = "msg-parent-not-found"
 
-// MessageSent is an acknowledgement received from a remote
-// network that a message has been successfully sent, along
-// with a protocol-dependent unique ID.
-type MessageSent struct {
-	InternalID xid.ID
-	ExternalID MessageSentID
-}
-
-// TODO: to avoid circular import we define a new type
-// but that's not really what we want to do ...
 type MessageSentID struct {
-	Protocol string
-	// TODO: do we need the chan here to disambiguate?
-	// ChannelID string
-	ID string
+	Protocol  string
+	ChannelID string
+	ID        string
 }
 
 type Message struct {
