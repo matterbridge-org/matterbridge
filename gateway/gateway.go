@@ -116,23 +116,21 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 				// For some bridges we always add/update the message ID.
 				// This is necessary as msgIDs will change if a bridge returns
 				// a different ID in response to edits.
-				values, exists := gw.Messages.Get(ack.ExternalID.Protocol + " " + ack.InternalID.String())
 
-				var brMsgIDs []*BrMsgID
-				if exists {
-					// We want to append, not overwrite
-					brMsgIDs = values
+				// brMsgIDs is always initialized in Router.handleReceive(). However,
+				// we may still receive a message we don't know about. Maybe matterbridge
+				// was restarted, or another client is connected on the same account sending
+				// messages, or the remote server is melting down and dinosaurs are walking
+				// the Earth...
+				brMsgIDs, exists := gw.Messages.Get(ack.ExternalID.Protocol + " " + ack.InternalID.String())
+
+				if !exists {
+					gw.logger.Warnf("Unknown message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
+					continue
 				}
 
 				brMsgIDs = append(brMsgIDs, &BrMsgID{ack.DestBridge, ack.ExternalID.Protocol + " " + ack.ExternalID.ID, ack.ExternalID.ChannelID})
 				gw.Messages.Add(ack.ExternalID.Protocol+" "+ack.InternalID.String(), brMsgIDs)
-
-				// Just for testing that we added everything correctly
-				// TODO: remove this useless debug log
-				values, _ = gw.Messages.Get(ack.ExternalID.Protocol + " " + ack.InternalID.String())
-				for _, id := range values {
-					gw.logger.Warnf("  | %s -> %s (%s)", ack.InternalID.String(), id.ID, id.ChannelID)
-				}
 			}
 		}()
 

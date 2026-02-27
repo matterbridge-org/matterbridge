@@ -140,15 +140,16 @@ func (r *Router) handleReceive() {
 
 		// We add an internal UUID which will allow destination protocols
 		// to send back their own ID(s) corresponding to the message go the
-		// gateway in an asynchronous manner.
+		// gateway in an asynchronous manner (for replies/reactions).
 		msg.InternalID = xid.New()
 
 		r.handleEventGetChannelMembers(&msg)
 		r.handleEventFailure(&msg)
 		r.handleEventRejoinChannels(&msg)
 
+		msgBridge := r.getBridge(msg.Account)
 		// Set message protocol based on the account it came from
-		msg.Protocol = r.getBridge(msg.Account).Protocol
+		msg.Protocol = msgBridge.Protocol
 
 		filesHandled := false
 		for _, gw := range r.Gateways {
@@ -162,6 +163,16 @@ func (r *Router) handleReceive() {
 				gw.handleFiles(&msg)
 				filesHandled = true
 			}
+
+			// If the origin bridge brought us a message ID, map it with our
+			// internal ID for replies/reactions.
+			BrMsgIDs := []*BrMsgID{}
+			if msg.ID != "" {
+				BrMsgIDs = append(BrMsgIDs, &BrMsgID{msgBridge, msg.ID, msg.Channel})
+			}
+			// Even if it might be empty, already initialize the mapping
+			gw.Messages.Add(msg.Protocol+" "+msg.InternalID.String(), BrMsgIDs)
+
 			for _, br := range gw.Bridges {
 				gw.handleMessage(&msg, br)
 			}
