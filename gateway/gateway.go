@@ -105,7 +105,7 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 		// Start listening for sent message acknowledgements
 		go func() {
 			for ack := range messageAck {
-				gw.logger.Warnf("Message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
+				gw.logger.Warnf("Message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.DestBridge.Protocol, ack.ExternalID.ID)
 				// TODO 2026: this was a comment in the previous ID handling. Not
 				// sure what to do about ID changing on edit????
 				//
@@ -123,11 +123,11 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 				brMsgIDs, exists := gw.Messages.Get(ack.InternalID)
 
 				if !exists {
-					gw.logger.Warnf("Unknown message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
+					gw.logger.Warnf("Unknown message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.DestBridge.Protocol, ack.ExternalID.ID)
 					continue
 				}
 
-				brMsgIDs = append(brMsgIDs, &BrMsgID{ack.DestBridge, ack.ExternalID.Protocol + " " + ack.ExternalID.ID, ack.ExternalID.ChannelID})
+				brMsgIDs = append(brMsgIDs, &BrMsgID{ack.DestBridge, ack.DestBridge.Protocol + " " + ack.ExternalID.ID, ack.ExternalID.ChannelID})
 				gw.Messages.Add(ack.InternalID, brMsgIDs)
 			}
 		}()

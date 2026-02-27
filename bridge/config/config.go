@@ -36,7 +36,6 @@ const (
 const ParentIDNotFound = "msg-parent-not-found"
 
 type MessageSentID struct {
-	Protocol  string
 	ChannelID string
 	ID        string
 }

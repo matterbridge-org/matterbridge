@@ -424,7 +424,6 @@ func (b *Config) AckSentMessage(internal xid.ID, external string, channel string
 			InternalID: internal,
 			ExternalID: config.MessageSentID{
 				ChannelID: channel,
-				Protocol:  b.Protocol,
 				ID:        external,
 			},
 		}
