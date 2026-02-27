@@ -558,7 +558,8 @@ func (gw *Gateway) SendMessage(
 			gw.logger.Debugf("=> Send from %s (%s) to %s (%s) took %s", msg.Account, rmsg.Channel, dest.Account, channel.Name, time.Since(t))
 		}(time.Now())
 
-		dest.Send(msg)
+		// TODO: remove this when the interface removes the return type
+		_, _ = dest.Send(msg)
 	}()
 }
 
