@@ -136,3 +136,14 @@ only establishing a secure handshake such as [SCRAM](https://en.wikipedia.org/wi
   ```toml
   NoPLAIN=true
   ```
+
+## WebhookURL
+
+> [!WARNING]
+> The `WebhookURL` setting has been removed. It was using a custom prosody
+> module [mod_slack_webhooks](https://modules.prosody.im/mod_slack_webhooks.html) which may
+> or may not still be functional, but is not documented to work with the latest prosody
+> releases.
+> 
+> If you are still successfully using this feature, please open an issue documenting
+> your setup so that we can support it again in the future.
