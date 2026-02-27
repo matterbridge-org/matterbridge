@@ -171,7 +171,7 @@ func (r *Router) handleReceive() {
 				BrMsgIDs = append(BrMsgIDs, &BrMsgID{msgBridge, msg.ID, msg.Channel})
 			}
 			// Even if it might be empty, already initialize the mapping
-			gw.Messages.Add(msg.Protocol+" "+msg.InternalID.String(), BrMsgIDs)
+			gw.Messages.Add(msg.InternalID, BrMsgIDs)
 
 			for _, br := range gw.Bridges {
 				gw.handleMessage(&msg, br)

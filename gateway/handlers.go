@@ -11,6 +11,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/gateway/bridgemap"
+	"github.com/rs/xid"
 )
 
 // handleEventFailure handles failures and reconnects bridges.
@@ -177,7 +178,7 @@ func (gw *Gateway) handleMessage(rmsg *config.Message, dest *bridge.Bridge) []*B
 	}
 
 	// Get the ID of the parent message in thread
-	var canonicalParentMsgID string
+	var canonicalParentMsgID *xid.ID
 	if rmsg.ParentID != "" && dest.GetBool("PreserveThreading") {
 		canonicalParentMsgID = gw.FindCanonicalMsgID(rmsg.Protocol, rmsg.ParentID)
 	}

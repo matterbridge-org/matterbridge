@@ -14,6 +14,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/internal"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,7 +28,7 @@ type Gateway struct {
 	ChannelOptions map[string]config.ChannelOptions
 	Message        chan config.Message
 	Name           string
-	Messages       *lru.Cache[string, []*BrMsgID]
+	Messages       *lru.Cache[xid.ID, []*BrMsgID]
 
 	logger *logrus.Entry
 }
@@ -45,7 +46,7 @@ const apiProtocol = "api"
 func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 	logger := rootLogger.WithFields(logrus.Fields{"prefix": "gateway"})
 
-	cache, _ := lru.New[string, []*BrMsgID](5000)
+	cache, _ := lru.New[xid.ID, []*BrMsgID](5000)
 	gw := &Gateway{
 		Channels: make(map[string]*config.ChannelInfo),
 		Message:  r.Message,
@@ -62,22 +63,19 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 }
 
 // FindCanonicalMsgID returns the ID under which a message was stored in the cache.
-func (gw *Gateway) FindCanonicalMsgID(protocol string, mID string) string {
-	ID := protocol + " " + mID
-	if gw.Messages.Contains(ID) {
-		return ID
-	}
-
-	// If not keyed, iterate through cache for downstream, and infer upstream.
-	for _, mid := range gw.Messages.Keys() {
-		ids, _ := gw.Messages.Peek(mid)
-		for _, downstreamMsgObj := range ids {
-			if ID == downstreamMsgObj.ID {
-				return mid
+func (gw *Gateway) FindCanonicalMsgID(protocol string, externalID string) *xid.ID {
+	// Now that we have internal IDs, mID is never going to be the key
+	for _, internalID := range gw.Messages.Keys() {
+		// TODO: should we check if the mapping exists here? or is this method
+		// only used when we're 100% sure?
+		externalIDs, _ := gw.Messages.Peek(internalID)
+		for _, downstreamMsgObj := range externalIDs {
+			if externalID == downstreamMsgObj.ID {
+				return &internalID
 			}
 		}
 	}
-	return ""
+	return nil
 }
 
 // AddBridge sets up a new bridge on startup.
@@ -122,7 +120,7 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 				// was restarted, or another client is connected on the same account sending
 				// messages, or the remote server is melting down and dinosaurs are walking
 				// the Earth...
-				brMsgIDs, exists := gw.Messages.Get(ack.ExternalID.Protocol + " " + ack.InternalID.String())
+				brMsgIDs, exists := gw.Messages.Get(ack.InternalID)
 
 				if !exists {
 					gw.logger.Warnf("Unknown message %s has been acked by %s as ID: %s", ack.InternalID.String(), ack.ExternalID.Protocol, ack.ExternalID.ID)
@@ -130,7 +128,7 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 				}
 
 				brMsgIDs = append(brMsgIDs, &BrMsgID{ack.DestBridge, ack.ExternalID.Protocol + " " + ack.ExternalID.ID, ack.ExternalID.ChannelID})
-				gw.Messages.Add(ack.ExternalID.Protocol+" "+ack.InternalID.String(), brMsgIDs)
+				gw.Messages.Add(ack.InternalID, brMsgIDs)
 			}
 		}()
 
@@ -305,13 +303,12 @@ func (gw *Gateway) getDestChannel(msg *config.Message, dest bridge.Bridge) []con
 	return channels
 }
 
-func (gw *Gateway) getDestMsgID(msgID string, dest *bridge.Bridge, channel *config.ChannelInfo) string {
+func (gw *Gateway) getDestMsgID(msgID xid.ID, dest *bridge.Bridge, channel *config.ChannelInfo) string {
 	if IDs, ok := gw.Messages.Get(msgID); ok {
 		for _, id := range IDs {
 			// check protocol, bridge name and channelname
-			// for people that reuse the same bridge multiple times. see #342
 			if dest.Protocol == id.br.Protocol && dest.Name == id.br.Name && channel.ID == id.ChannelID {
-				return strings.Replace(id.ID, dest.Protocol+" ", "", 1)
+				return id.ID
 			}
 		}
 	}
@@ -480,7 +477,7 @@ func (gw *Gateway) SendMessage(
 	rmsg *config.Message,
 	dest *bridge.Bridge,
 	channel *config.ChannelInfo,
-	canonicalParentMsgID string,
+	canonicalParentMsgID *xid.ID,
 ) {
 	msg := *rmsg
 	// Only send the avatar download event to ourselves.
@@ -512,7 +509,7 @@ func (gw *Gateway) SendMessage(
 
 	// exclude file delete event as the msg ID here is the native file ID that needs to be deleted
 	if msg.Event != config.EventFileDelete {
-		msg.ID = gw.getDestMsgID(rmsg.Protocol+" "+rmsg.ID, dest, channel)
+		msg.ID = gw.getDestMsgID(rmsg.InternalID, dest, channel)
 	}
 
 	// for api we need originchannel as channel
@@ -520,9 +517,9 @@ func (gw *Gateway) SendMessage(
 		msg.Channel = rmsg.Channel
 	}
 
-	msg.ParentID = gw.getDestMsgID(canonicalParentMsgID, dest, channel)
-	if msg.ParentID == "" {
-		msg.ParentID = strings.Replace(canonicalParentMsgID, dest.Protocol+" ", "", 1)
+	// TODO: ParentID should be typed too
+	if canonicalParentMsgID != nil {
+		msg.ParentID = gw.getDestMsgID(*canonicalParentMsgID, dest, channel)
 	}
 
 	// if the parentID is still empty and we have a parentID set in the original message
