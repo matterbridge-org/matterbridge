@@ -449,7 +449,7 @@ func (gw *Gateway) SendMessage(
 	dest *bridge.Bridge,
 	channel *config.ChannelInfo,
 	canonicalParentMsgID string,
-) (string, error) {
+) {
 	msg := *rmsg
 	// Only send the avatar download event to ourselves.
 	if msg.Event == config.EventAvatarDownload {
@@ -522,7 +522,7 @@ func (gw *Gateway) SendMessage(
 		gw.logger.Debugf("=> Send from %s (%s) to %s (%s) took %s", msg.Account, rmsg.Channel, dest.Account, channel.Name, time.Since(t))
 	}(time.Now())
 
-	mID, err := dest.Send(msg)
+	mID, err := dest.Send(msg, MsgIdChannel)
 	if err != nil {
 		return mID, err
 	}
