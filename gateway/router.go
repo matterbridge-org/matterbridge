@@ -8,6 +8,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/gateway/samechannel"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -136,17 +137,23 @@ func (r *Router) getBridge(account string) *bridge.Bridge {
 func (r *Router) handleReceive() {
 	for msg := range r.Message {
 		msg := msg // scopelint
+
+		// We add an internal UUID which will allow destination protocols
+		// to send back their own ID(s) corresponding to the message go the
+		// gateway in an asynchronous manner (for replies/reactions).
+		msg.InternalID = xid.New()
+
 		r.handleEventGetChannelMembers(&msg)
 		r.handleEventFailure(&msg)
 		r.handleEventRejoinChannels(&msg)
 
+		msgBridge := r.getBridge(msg.Account)
 		// Set message protocol based on the account it came from
-		msg.Protocol = r.getBridge(msg.Account).Protocol
+		msg.Protocol = msgBridge.Protocol
 
 		filesHandled := false
 		for _, gw := range r.Gateways {
 			// record all the message ID's of the different bridges
-			var msgIDs []*BrMsgID
 			if gw.ignoreMessage(&msg) {
 				continue
 			}
@@ -156,21 +163,18 @@ func (r *Router) handleReceive() {
 				gw.handleFiles(&msg)
 				filesHandled = true
 			}
-			for _, br := range gw.Bridges {
-				msgIDs = append(msgIDs, gw.handleMessage(&msg, br)...)
-			}
 
+			// If the origin bridge brought us a message ID, map it with our
+			// internal ID for replies/reactions.
+			BrMsgIDs := []*BrMsgID{}
 			if msg.ID != "" {
-				_, exists := gw.Messages.Get(msg.Protocol + " " + msg.ID)
+				BrMsgIDs = append(BrMsgIDs, &BrMsgID{msgBridge, msg.ID, msg.Channel})
+			}
+			// Even if it might be empty, already initialize the mapping
+			gw.Messages.Add(msg.InternalID, BrMsgIDs)
 
-				// Only add the message ID if it doesn't already exist
-				//
-				// For some bridges we always add/update the message ID.
-				// This is necessary as msgIDs will change if a bridge returns
-				// a different ID in response to edits.
-				if !exists {
-					gw.Messages.Add(msg.Protocol+" "+msg.ID, msgIDs)
-				}
+			for _, br := range gw.Bridges {
+				gw.handleMessage(&msg, br)
 			}
 		}
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -34,20 +35,26 @@ const (
 
 const ParentIDNotFound = "msg-parent-not-found"
 
+type MessageSentID struct {
+	ChannelID string
+	ID        string
+}
+
 type Message struct {
-	Text      string    `json:"text"`
-	Channel   string    `json:"channel"`
-	Username  string    `json:"username"`
-	UserID    string    `json:"userid"` // userid on the bridge
-	Avatar    string    `json:"avatar"`
-	Account   string    `json:"account"`
-	Event     string    `json:"event"`
-	Protocol  string    `json:"protocol"`
-	Gateway   string    `json:"gateway"`
-	ParentID  string    `json:"parent_id"`
-	Timestamp time.Time `json:"timestamp"`
-	ID        string    `json:"id"`
-	Extra     map[string][]interface{}
+	Text       string    `json:"text"`
+	Channel    string    `json:"channel"`
+	Username   string    `json:"username"`
+	UserID     string    `json:"userid"` // userid on the bridge
+	Avatar     string    `json:"avatar"`
+	Account    string    `json:"account"`
+	Event      string    `json:"event"`
+	Protocol   string    `json:"protocol"`
+	Gateway    string    `json:"gateway"`
+	ParentID   string    `json:"parent_id"`
+	Timestamp  time.Time `json:"timestamp"`
+	ID         string    `json:"id"`
+	InternalID xid.ID
+	Extra      map[string][]interface{}
 }
 
 func (m Message) ParentNotFound() bool {

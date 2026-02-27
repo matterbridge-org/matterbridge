@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
@@ -22,7 +22,7 @@ type Brocketchat struct {
 	rh    *rockethook.Client
 	c     *realtime.Client
 	r     *rest.Client
-	cache *lru.Cache
+	cache *lru.Cache[string, bool]
 	*bridge.Config
 	messageChan chan models.Message
 	channelMap  map[string]string
@@ -37,7 +37,7 @@ const (
 )
 
 func New(cfg *bridge.Config) bridge.Bridger {
-	newCache, err := lru.New(100)
+	newCache, err := lru.New[string, bool](100)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache for rocketchat bridge: %v", err)
 	}

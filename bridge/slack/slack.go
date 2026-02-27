@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
@@ -26,7 +26,10 @@ type Bslack struct {
 	rtm *slack.RTM
 	si  *slack.Info
 
-	cache        *lru.Cache
+	// File timestamps
+	cacheTs *lru.Cache[string, time.Time]
+	// Channels
+	cacheChan    *lru.Cache[string, any]
 	uuid         string
 	useChannelID bool
 
@@ -81,14 +84,20 @@ func New(cfg *bridge.Config) bridge.Bridger {
 }
 
 func newBridge(cfg *bridge.Config) *Bslack {
-	newCache, err := lru.New(5000)
+	newCache, err := lru.New[string, time.Time](5000)
+	if err != nil {
+		cfg.Log.Fatalf("Could not create LRU cache for Slack bridge: %v", err)
+	}
+
+	newCache2, err := lru.New[string, any](5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache for Slack bridge: %v", err)
 	}
 	b := &Bslack{
-		Config: cfg,
-		uuid:   xid.New().String(),
-		cache:  newCache,
+		Config:    cfg,
+		uuid:      xid.New().String(),
+		cacheTs:   newCache,
+		cacheChan: newCache2,
 	}
 	return b
 }
@@ -458,7 +467,7 @@ func (b *Bslack) uploadFile(msg *config.Message, channelID string) (string, erro
 		// we can't match on the file ID yet, so we have to match on the filename too.
 		ts := time.Now()
 		b.Log.Debugf("Adding file %s to cache at %s with timestamp", fi.Name, ts.String())
-		b.cache.Add("filename"+fi.Name, ts)
+		b.cacheTs.Add("filename"+fi.Name, ts)
 		initialComment := fmt.Sprintf("File from %s", msg.Username)
 		if fi.Comment != "" {
 			initialComment += fmt.Sprintf(" with comment: %s", fi.Comment)
@@ -484,7 +493,7 @@ func (b *Bslack) uploadFile(msg *config.Message, channelID string) (string, erro
 			}
 
 			b.Log.Debugf("Adding file ID %s to cache with timestamp %s", res.ID, ts.String())
-			b.cache.Add("file"+res.ID, ts)
+			b.cacheTs.Add("file"+res.ID, ts)
 
 			// search for message id by uploaded file in private/public channels, get thread timestamp from uploaded file
 			if v, ok := sfi.Shares.Private[channelID]; ok && len(v) > 0 {
