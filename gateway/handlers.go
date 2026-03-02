@@ -4,7 +4,6 @@ import (
 	"crypto/sha1" //nolint:gosec
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -65,7 +64,7 @@ func (r *Router) handleEventRejoinChannels(msg *config.Message) {
 // handleFiles uploads or places all files on the given msg to the MediaServer and
 // adds the new URL of the file on the MediaServer onto the given msg.
 func (gw *Gateway) handleFiles(msg *config.Message) {
-	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
+	reg := regexp.MustCompile("[^a-zA-Z0-9\\.]+")
 
 	// If we don't have a attachfield or we don't have a mediaserver configured return
 	if msg.Extra == nil || gw.BridgeValues().General.MediaDownloadPath == "" {
@@ -77,13 +76,65 @@ func (gw *Gateway) handleFiles(msg *config.Message) {
 		return
 	}
 
+	// Here we will store the information about attachments that
+	// we want to keep after sanitation.
+	sanitizedFiles := []interface{}{}
+
+	for _, f := range msg.Extra["file"] {
+		fi := f.(config.FileInfo)
+
+		// Sanitation: every sequence of non-alphanumreic chars is replaced by a single `_`
+		// in the filename, including the extension. We allow `.` to keep the extension.
+		fi.Name = reg.ReplaceAllString(fi.Name, "_")
+
+		// Sanitation: limit filename to 50 characters. It looks like 255 bytes is a common
+		// accepted value: https://en.wikipedia.org/wiki/Comparison_of_file_systems#Limits
+		// However, we do not wish to produce too long filenames which will be badly displayed
+		// in remote clients.
+		charLimit := 50
+
+		// First, filter out any path that's longer than 254 bytes and consider it malicious.
+		if len(fi.Name) > 254 {
+			gw.logger.Infof("Filename >=255B received from %s on channel %s (%s), dropping the attachment %s...", msg.Username, msg.Channel, msg.Gateway, fi.Name[0:49])
+			continue
+		}
+
+		if len(fi.Name) > charLimit {
+			gw.logger.Warn("filename too long")
+			// We want to limit the size of the first part (before the extension), not of
+			// the extension. Also, we want to make sure we don't end up removing a part
+			// of the extension, so we don't use `filepath.Ext` which could incite us
+			// to sanitize `TOOLONG.tar.xz` into `OK.xz`, omitting crucial information.
+			removeN := len(fi.Name) - charLimit
+			parts := strings.Split(fi.Name, ".")
+			if len(parts[0]) > removeN {
+				// We can successfully remove N characters from the first part of the path
+				parts[0] = parts[0][0 : len(parts[0])-removeN]
+				fi.Name = strings.Join(parts, ".")
+			} else {
+				// Maybe the filename is malicious, maybe it is not.
+				// If the part after the last dot (extension) is itself too long,
+				// we just give up. We check for 48 chars because we want one char
+				// before the extension.
+				if len(parts[len(parts)-1]) > (charLimit - 2) {
+					gw.logger.Infof("Too long filename received from %s on channel %s (%s), dropping the attachment %s...", msg.Username, msg.Channel, msg.Gateway, fi.Name[0:charLimit])
+					continue
+				} else {
+					// We still have a chance. Remove chars from the start of path until
+					// it's short enough.
+					fi.Name = strings.Join(parts, ".")
+					fi.Name = fi.Name[:charLimit]
+				}
+			}
+
+			gw.logger.Debugf("Sanitized too long filename to %s", fi.Name)
+		}
+
+	}
+
+	msg.Extra["file"] = sanitizedFiles
 	for i, f := range msg.Extra["file"] {
 		fi := f.(config.FileInfo)
-		ext := filepath.Ext(fi.Name)
-		fi.Name = fi.Name[0 : len(fi.Name)-len(ext)]
-		fi.Name = reg.ReplaceAllString(fi.Name, "_")
-		fi.Name += ext
-
 		sha1sum := fmt.Sprintf("%x", sha1.Sum(*fi.Data))[:8] //nolint:gosec
 
 		// Use MediaServerPath. Place the file on the current filesystem.
@@ -99,10 +150,9 @@ func (gw *Gateway) handleFiles(msg *config.Message) {
 		gw.logger.Debugf("mediaserver download URL = %s", durl)
 
 		// We uploaded/placed the file successfully. Add the SHA and URL.
-		extra := msg.Extra["file"][i].(config.FileInfo)
-		extra.URL = durl
-		extra.SHA = sha1sum
-		msg.Extra["file"][i] = extra
+		fi.URL = durl
+		fi.SHA = sha1sum
+		msg.Extra["file"][i] = fi
 	}
 }
 
