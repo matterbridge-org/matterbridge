@@ -757,7 +757,6 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 		ok                        bool
 		url, name, msgtype, mtype string
 		info                      map[string]interface{}
-		size                      float64
 	)
 
 	rmsg.Extra = make(map[string][]interface{})
@@ -772,10 +771,6 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 
 	if info, ok = content.Raw["info"].(map[string]any); !ok {
 		return fmt.Errorf("info isn't a %T", info)
-	}
-
-	if size, ok = info["size"].(float64); !ok {
-		return fmt.Errorf("size isn't a %T", size)
 	}
 
 	if name, ok = content.Raw["body"].(string); !ok {
