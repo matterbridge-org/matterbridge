@@ -12,6 +12,8 @@ import (
 	"github.com/matterbridge-org/matterbridge/gateway/bridgemap"
 )
 
+var REGEX_EXCLUDE_FILENAME_CHARS = regexp.MustCompile("[^a-zA-Z0-9\\.]+")
+
 // handleEventFailure handles failures and reconnects bridges.
 func (r *Router) handleEventFailure(msg *config.Message) {
 	if msg.Event != config.EventFailure {
@@ -64,8 +66,6 @@ func (r *Router) handleEventRejoinChannels(msg *config.Message) {
 // handleFiles uploads or places all files on the given msg to the MediaServer and
 // adds the new URL of the file on the MediaServer onto the given msg.
 func (gw *Gateway) handleFiles(msg *config.Message) {
-	reg := regexp.MustCompile("[^a-zA-Z0-9\\.]+")
-
 	// If we don't have a attachfield or we don't have a mediaserver configured return
 	if msg.Extra == nil || gw.BridgeValues().General.MediaDownloadPath == "" {
 		return
@@ -85,7 +85,7 @@ func (gw *Gateway) handleFiles(msg *config.Message) {
 
 		// Sanitation: every sequence of non-alphanumreic chars is replaced by a single `_`
 		// in the filename, including the extension. We allow `.` to keep the extension.
-		fi.Name = reg.ReplaceAllString(fi.Name, "_")
+		fi.Name = REGEX_EXCLUDE_FILENAME_CHARS.ReplaceAllString(fi.Name, "_")
 
 		// Sanitation: limit filename to 50 characters. It looks like 255 bytes is a common
 		// accepted value: https://en.wikipedia.org/wiki/Comparison_of_file_systems#Limits
