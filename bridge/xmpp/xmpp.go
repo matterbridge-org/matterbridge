@@ -291,6 +291,12 @@ func (b *Bxmpp) handleXMPP() error {
 
 		switch v := m.(type) {
 		case xmpp.Chat:
+			if v.Type == "error" {
+				b.Log.Warn("Received error message from the server")
+				b.Log.Warnf("%#v", v)
+				continue
+			}
+
 			if v.Type == "groupchat" {
 				b.Log.Debugf("== Receiving %#v", v)
 

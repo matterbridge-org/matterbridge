@@ -37,6 +37,7 @@
   - Supports attachments
 - xmpp
   - New and revised advanced authentication settings `UseDirectTLS`, `NoStartTls`, `NoPlain`, and `Mechanism` ([#77](https://github.com/matterbridge-org/matterbridge/pull/77))
+  - Log message type='error' as warnings for easier debugging ([#173](https://github.com/matterbridge-org/matterbridge/pull/173))
 - discord
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
   - whatsapp
