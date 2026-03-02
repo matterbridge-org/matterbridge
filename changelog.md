@@ -71,8 +71,9 @@
 
 ## Upstream
 
-- xmpp: go-xmpp updated to xmppo/go-xmpp v0.3.1
-- whatsappmulti: whatsmeow updated to v20251116104239 ([#13](https://github.com/matterbridge-org/matterbridge/pull/13), thanks @alvindimas05)
+- discord: discordgo updated to v0.29.0
+- xmpp: go-xmpp updated to xmppo/go-xmpp v0.3.2
+- whatsappmulti: whatsmeow updated to commit 7b33f62 (2026-02-11)
 
 ## Minor changes
 
