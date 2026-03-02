@@ -49,6 +49,7 @@
     the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+  - attachment body is treated as attachment caption and will no longer produce bogus text messages on other bridges
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
