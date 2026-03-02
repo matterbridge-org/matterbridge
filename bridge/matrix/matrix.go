@@ -776,6 +776,8 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	if name, ok = content.Raw["body"].(string); !ok {
 		return fmt.Errorf("name isn't a %T", name)
 	}
+	// The attachment caption is the raw, unadultered message body
+	caption := name
 
 	if msgtype, ok = content.Raw["msgtype"].(string); !ok {
 		return fmt.Errorf("msgtype isn't a %T", msgtype)
@@ -798,8 +800,13 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 		}
 	}
 
+	// Now that we have performed sanity checks and edited the filename,
+	// remove the message "body" (which was parsed into the filename) so
+	// we don't have duplicates later on.
+	rmsg.Text = ""
+
 	// TODO: add attachment ID?
-	err := b.AddAttachmentFromProtectedURL(rmsg, name, "", "", url)
+	err := b.AddAttachmentFromProtectedURL(rmsg, name, "", caption, url)
 	if err != nil {
 		return err
 	}
