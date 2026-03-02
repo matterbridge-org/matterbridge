@@ -787,17 +787,30 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 		return fmt.Errorf("mtype isn't a %T", mtype)
 	}
 
-	// check if we have an image uploaded without extension
-	if !strings.Contains(name, ".") {
-		if msgtype == "m.image" {
-			mext, _ := mime.ExtensionsByType(mtype)
-			if len(mext) > 0 {
-				name += mext[0]
-			}
-		} else {
-			// just a default .png extension if we don't have mime info
-			name += ".png"
+	b.Log.Debugf("Processing attachment %s with mimetype %s", name, mtype)
+
+	// If the mime library can't guess an appropriate extension for that
+	// content-type, we're not going to deal with that content because other
+	// bridges will have problems too.
+	mext, err := mime.ExtensionsByType(mtype)
+	if err != nil {
+		return err
+	}
+
+	// Make sure file has an extension matching the mimetype.
+	foundExt := false
+
+	for _, ext := range mext {
+		if strings.HasSuffix(name, ext) {
+			foundExt = true
+			break
 		}
+	}
+
+	if !foundExt {
+		// No extension was found, set the first matching extension
+		// according to the mime library.
+		name += mext[0]
 	}
 
 	// Now that we have performed sanity checks and edited the filename,
@@ -806,7 +819,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	rmsg.Text = ""
 
 	// TODO: add attachment ID?
-	err := b.AddAttachmentFromProtectedURL(rmsg, name, "", caption, url)
+	err = b.AddAttachmentFromProtectedURL(rmsg, name, "", caption, url)
 	if err != nil {
 		return err
 	}
