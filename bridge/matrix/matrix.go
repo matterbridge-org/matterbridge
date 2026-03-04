@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
@@ -792,24 +793,40 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	// If the mime library can't guess an appropriate extension for that
 	// content-type, we're not going to deal with that content because other
 	// bridges will have problems too.
-	mext, err := mime.ExtensionsByType(mtype)
-	if err != nil {
-		return err
-	}
+	//
+	// TODO: This needs further discussion as it is a breaking change that broke
+	// user workflows, see https://github.com/matterbridge-org/matterbridge/issues/178
+	//
+	// mext, err := mime.ExtensionsByType(mtype)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// Make sure file has an extension matching the mimetype.
-	foundExt := false
+	//
+	// foundExt := false
 
-	for _, ext := range mext {
-		if strings.HasSuffix(name, ext) {
-			foundExt = true
-			break
+	// for _, ext := range mext {
+	// 	if strings.HasSuffix(name, ext) {
+	// 		foundExt = true
+	// 		break
+	// 	}
+	// }
+
+	// if !foundExt {
+	// 	// No extension was found, set the first matching extension
+	// 	// according to the mime library.
+	// 	name += mext[0]
+	// }
+
+	// Until consensus emerges, we simply add an extension matching the mimetype
+	// if no extension at all was provided.
+	if path.Ext(name) == "" {
+		mext, err := mime.ExtensionsByType(mtype)
+		if err != nil {
+			return err
 		}
-	}
 
-	if !foundExt {
-		// No extension was found, set the first matching extension
-		// according to the mime library.
 		name += mext[0]
 	}
 
@@ -819,7 +836,7 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	rmsg.Text = ""
 
 	// TODO: add attachment ID?
-	err = b.AddAttachmentFromProtectedURL(rmsg, name, "", caption, url)
+	err := b.AddAttachmentFromProtectedURL(rmsg, name, "", caption, url)
 	if err != nil {
 		return err
 	}
