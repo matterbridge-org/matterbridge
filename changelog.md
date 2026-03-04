@@ -55,7 +55,6 @@
   - attachment body is treated as attachment caption and will no longer produce bogus text messages on other bridges ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - attachment filenames without extension how have an extension added according to mimetype, even when they're not images ;
     when they are images, it's no longer assumed that they are PNG ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
-  - attachments with an unknown mimetype are discarded to avoid producing more errors further down ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
