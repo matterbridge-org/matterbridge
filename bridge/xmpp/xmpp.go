@@ -157,10 +157,11 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	}
 
 	// XEP-0461: populate reply fields if this message is a reply.
-	var reply xmpp.Reply
+	var reply *xmpp.Reply
 	if msg.ParentValid() {
 		if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
-			reply = _reply.(xmpp.Reply)
+			_reply := _reply.(xmpp.Reply)
+			reply = &_reply
 		}
 	}
 
@@ -353,7 +354,7 @@ func (b *Bxmpp) handleXMPP() error {
 				// so we can inform the other bridges of this message has a parent
 				var parentID string
 				var parentText string
-				if v.Reply.ID != `` {
+				if v.Reply != nil {
 					if _parentID, ok := b.stanzaIDs.Get(v.Reply.ID); ok {
 						parentID = _parentID.(string)
 					}
