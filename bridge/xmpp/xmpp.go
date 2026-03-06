@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jpillora/backoff"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -34,8 +34,8 @@ type Bxmpp struct {
 	xc           *xmpp.Client
 	xmppMap      map[string]string
 	connected    bool
-	stanzaIDs    *lru.Cache
-	replyHeaders *lru.Cache
+	stanzaIDs    *lru.Cache[string, string]
+	replyHeaders *lru.Cache[string, xmpp.Reply]
 	sync.RWMutex
 
 	avatarAvailability map[string]bool
@@ -61,11 +61,11 @@ type Bxmpp struct {
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
-	stanzaIDs, err := lru.New(5000)
+	stanzaIDs, err := lru.New[string, string](5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
 	}
-	replyHeaders, err := lru.New(5000)
+	replyHeaders, err := lru.New[string, xmpp.Reply](5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
 	}
@@ -160,7 +160,6 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	var reply *xmpp.Reply
 	if msg.ParentValid() {
 		if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
-			_reply := _reply.(xmpp.Reply)
 			reply = &_reply
 		}
 	}
@@ -356,7 +355,7 @@ func (b *Bxmpp) handleXMPP() error {
 				var parentText string
 				if v.Reply != nil {
 					if _parentID, ok := b.stanzaIDs.Get(v.Reply.ID); ok {
-						parentID = _parentID.(string)
+						parentID = _parentID
 					}
 					body := v.Text
 					// Capture quoted lines into parentText so destination bridges can decide
