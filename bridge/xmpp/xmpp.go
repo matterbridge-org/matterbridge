@@ -170,11 +170,11 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	// Generate a dummy ID because to avoid collision with other internal messages
 	msgID := xid.New().String()
 	if _, err := b.xc.Send(xmpp.Chat{
-		Type:   "groupchat",
-		Remote: msg.Channel + "@" + b.GetString("Muc"),
-		Text:   msg.Username + msg.Text,
-		ID:     msgID,
-		Reply:  reply,
+		Type:     "groupchat",
+		Remote:   msg.Channel + "@" + b.GetString("Muc"),
+		Text:     msg.Username + msg.Text,
+		OriginID: msgID,
+		Reply:    reply,
 	}); err != nil {
 		return "", err
 	}
