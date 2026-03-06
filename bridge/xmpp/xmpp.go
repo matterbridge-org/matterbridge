@@ -357,21 +357,9 @@ func (b *Bxmpp) handleXMPP() error {
 					if _parentID, ok := b.stanzaIDs.Get(v.Reply.ID); ok {
 						parentID = _parentID
 					}
-					body := v.Text
-					// Capture quoted lines into parentText so destination bridges can decide
-					// how they should be displayed.
-					for strings.HasPrefix(body, "> ") {
-						lineIdx := strings.IndexRune(body, '\n')
-						if lineIdx == -1 {
-							parentText += body[2:]
-							body = ""
-						} else {
-							parentText += body[2:lineIdx] + "\n"
-							body = body[(lineIdx + 1):]
-						}
-					}
-					parentText = strings.TrimRight(parentText, "\n")
-					v.Text = body
+
+					// TODO: ignore XMPP quote and rely on a cross-bridge message cache (see https://github.com/matterbridge-org/matterbridge/issues/142)
+					parentText = v.Reply.Quote
 				}
 
 				rmsg := config.Message{

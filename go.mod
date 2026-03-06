@@ -56,6 +56,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Benau/go_rlottie v0.0.0-20210807002906-98c1b2421989 // indirect
+	github.com/Figure1/go-intervals v0.0.0-20180124190743-0109751545d5 // indirect
 	github.com/Jeffail/gabs v1.4.0 // indirect
 	github.com/apex/log v1.9.0 // indirect
 	github.com/av-elier/go-decimal-to-rational v0.0.0-20191127152832-89e6aad02ecf // indirect
@@ -158,4 +159,4 @@ require (
 
 go 1.25.0
 
-replace github.com/xmppo/go-xmpp => github.com/sh4sh/go-xmpp v0.0.0-20260306045944-c36945baa3d9
+replace github.com/xmppo/go-xmpp => github.com/sh4sh/go-xmpp v0.0.0-20260306054259-9e62a00d8f50
