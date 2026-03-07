@@ -57,6 +57,7 @@
     when they are images, it's no longer assumed that they are PNG ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - attachments with an unknown mimetype are discarded to avoid producing more errors further down ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+  - video attachments advertise their size properly ([#188](https://github.com/matterbridge-org/matterbridge/pull/188)
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 - telegram
