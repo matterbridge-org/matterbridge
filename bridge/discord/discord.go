@@ -226,6 +226,7 @@ func (b *Bdiscord) Connect() error {
 	b.c.AddHandler(b.messageCreate)
 	b.c.AddHandler(b.messageTyping)
 	b.c.AddHandler(b.messageUpdate)
+	b.c.AddHandler(b.messageReaction)
 	b.c.AddHandler(b.messageDelete)
 	b.c.AddHandler(b.messageDeleteBulk)
 	b.c.AddHandler(b.memberAdd)
@@ -278,7 +279,7 @@ func (b *Bdiscord) Send(msg config.Message) (string, error) {
 
 	// Use webhook to send the message
 	useWebhooks := b.shouldMessageUseWebhooks(&msg)
-	if useWebhooks && msg.Event != config.EventMsgDelete && msg.ParentID == "" {
+	if useWebhooks && msg.Event != config.EventReaction && msg.Event != config.EventMsgDelete && msg.ParentID == "" {
 		return b.handleEventWebhook(&msg, channelID)
 	}
 
@@ -288,6 +289,22 @@ func (b *Bdiscord) Send(msg config.Message) (string, error) {
 // handleEventDirect handles events via the bot user
 func (b *Bdiscord) handleEventBotUser(msg *config.Message, channelID string) (string, error) {
 	b.Log.Debugf("Broadcasting using token (API)")
+
+	if msg.Event == config.EventReaction {
+		// this is a reaction, not a message
+		b.Log.Debugf("Sending reactions: %#v", msg.Reactions)
+		for _, reaction := range msg.Reactions {
+			// TODO: should we verify that reaction is, in fact, a single emoji?
+			// Also: Discord has server-private emojis named like "hello:1234567654321"; can these be bridged in some generic way?
+			b.Log.Debugf("MessageReactionAdd(%#v, %#v, %#v)", channelID, msg.ParentID, reaction)
+			err := b.c.MessageReactionAdd(channelID, msg.ParentID, reaction)
+			if err != nil {
+				return "", err
+			}
+		}
+		// reactions don't get an ID string
+		return "", nil
+	}
 
 	// Delete message
 	if msg.Event == config.EventMsgDelete {

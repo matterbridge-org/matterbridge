@@ -34,8 +34,8 @@ type Bxmpp struct {
 	xc           *xmpp.Client
 	xmppMap      map[string]string
 	connected    bool
-	stanzaIDs    *lru.Cache[string, string]
-	replyHeaders *lru.Cache[string, xmpp.Reply]
+	stanzaIDs    *lru.Cache[string, string]     // stanzaID -> ID
+	replyHeaders *lru.Cache[string, xmpp.Reply] // ID -> Reply{stanzaID, to}
 	sync.RWMutex
 
 	avatarAvailability map[string]bool
@@ -158,9 +158,27 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 
 	// XEP-0461: populate reply fields if this message is a reply.
 	var reply *xmpp.Reply
+	var reactions *xmpp.Reactions
 	if msg.ParentValid() {
-		if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
-			reply = &_reply
+		// either a Reaction or a Reply
+		//
+		if msg.Event == config.EventReaction {
+			b.Log.Debugf("relaying a Reaction; the reactions are %#v", msg.Reactions)
+			if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
+				reactions = &xmpp.Reactions{
+					ID:        _reply.ID,
+					Reactions: msg.Reactions,
+				}
+			}
+
+			// XXX TODO: XEP-0444 says an update requires a *full* update for all reactions from a given user.
+			// since the bridge is the source of ALL reactions for all users on the other side,
+			// it needs to track what has been sent and *resend all of them*
+			// also it's going to lose past reactions messages...
+		} else {
+			if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
+				reply = &_reply
+			}
 		}
 	}
 
@@ -169,11 +187,12 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 	// Generate a dummy ID because to avoid collision with other internal messages
 	msgID := xid.New().String()
 	if _, err := b.xc.Send(xmpp.Chat{
-		Type:     "groupchat",
-		Remote:   msg.Channel + "@" + b.GetString("Muc"),
-		Text:     msg.Username + msg.Text,
-		OriginID: msgID,
-		Reply:    reply,
+		Type:      "groupchat",
+		Remote:    msg.Channel + "@" + b.GetString("Muc"),
+		Text:      msg.Username + msg.Text,
+		OriginID:  msgID,
+		Reply:     reply,
+		Reactions: reactions,
 	}); err != nil {
 		return "", err
 	}
@@ -362,6 +381,17 @@ func (b *Bxmpp) handleXMPP() error {
 					parentText = v.Reply.Quote
 				}
 
+				// If there was a <reactions> // ....
+				var reactions []string
+				if v.Reactions != nil {
+					if _parentID, ok := b.stanzaIDs.Get(v.Reactions.ID); ok {
+						parentID = _parentID
+						b.Log.Debugf("Got reactions: %#v", v.Reactions)
+						reactions = append(reactions, v.Reactions.Reactions...) // XXX is the append() necessary?
+						event = config.EventReaction
+					}
+				}
+
 				rmsg := config.Message{
 					Username:   b.parseNick(v.Remote),
 					Text:       v.Text,
@@ -373,6 +403,7 @@ func (b *Bxmpp) handleXMPP() error {
 					Event:      event,
 					ParentID:   parentID,
 					ParentText: parentText,
+					Reactions:  reactions,
 				}
 
 				// Check if we have an action event.
@@ -499,7 +530,7 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 	}
 
 	// skip empty messages
-	if message.Text == "" {
+	if message.Text == "" && message.Reactions == nil {
 		return true
 	}
 

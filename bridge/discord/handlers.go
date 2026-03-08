@@ -8,6 +8,34 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 )
 
+func (b *Bdiscord) messageReaction(s *discordgo.Session, m *discordgo.MessageReactionAdd) { //nolint:unparam
+	b.Log.Debugf("Got a Discord Reaction:i %#v", m)
+	b.Log.Debugf("emoji = %#v", m.Emoji)
+
+	if m.GuildID != b.guildID {
+		b.Log.Debugf("Ignoring messageDelete because it originates from a different guild")
+		return
+	}
+
+	var reaction string
+	if m.Emoji.ID != "" {
+		// Discord has server-private emojis named with an ID
+		// Bridged these with a generic, neutral emoji.
+		// XXX chosing the neutralest of emojis might be .. hard.
+		reaction = "⬛"
+	} else {
+		reaction = m.Emoji.Name
+	}
+
+	// TODO: we need to bridge m.Emoji.User.Username or m.UserID
+	rmsg := config.Message{Account: b.Account, Event: config.EventReaction, ParentID: m.MessageID, Reactions: []string{reaction}}
+	rmsg.Channel = b.getChannelName(m.ChannelID)
+
+	b.Log.Debugf("<= Sending reaction from %s to gateway", b.Account)
+	b.Log.Debugf("<= Message is %#v", rmsg)
+	b.Remote <- rmsg
+}
+
 func (b *Bdiscord) messageDelete(s *discordgo.Session, m *discordgo.MessageDelete) { //nolint:unparam
 	if m.GuildID != b.guildID {
 		b.Log.Debugf("Ignoring messageDelete because it originates from a different guild")

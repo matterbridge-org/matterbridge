@@ -30,6 +30,7 @@ const (
 	EventUserTyping        = "user_typing"
 	EventGetChannelMembers = "get_channel_members"
 	EventNoticeIRC         = "notice_irc"
+	EventReaction          = "reaction"
 )
 
 const ParentIDNotFound = "msg-parent-not-found"
@@ -46,6 +47,7 @@ type Message struct {
 	Gateway    string    `json:"gateway"`
 	ParentID   string    `json:"parent_id"`
 	ParentText string    `json:"parent_text"`
+	Reactions  []string  `json:"reactions"`
 	Timestamp  time.Time `json:"timestamp"`
 	ID         string    `json:"id"`
 	Extra      map[string][]interface{}

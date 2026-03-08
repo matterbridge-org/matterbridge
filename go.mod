@@ -159,4 +159,4 @@ require (
 
 go 1.25.0
 
-replace github.com/xmppo/go-xmpp => github.com/sh4sh/go-xmpp v0.0.0-20260306054259-9e62a00d8f50
+replace github.com/xmppo/go-xmpp => github.com/sh4sh/go-xmpp v0.0.0-20260308194659-485ad27aa55a
