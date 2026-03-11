@@ -41,6 +41,10 @@
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
   - whatsapp
     - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
+- slack
+  - added support for using socket mode Events API to receive messages for bridging instead of RTM.
+    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).  
+    note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
 
 ## Bugfixes
 
