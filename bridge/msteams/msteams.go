@@ -630,6 +630,12 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
                 // know the file didn't arrive (instead of posting to Teams).
                 b.Log.Warnf("cannot send file %s (%s) to Teams: type not supported by hostedContents and no MediaServerUpload configured",
                         fi.Name, mimeTypeForFile(fi.Name))
+                // Return a fake ID so the gateway caches it as a BrMsgID for this
+                // message.  The notification references it as ParentID — the gateway
+                // then resolves it back to the original source post ID via the
+                // downstream search in FindCanonicalMsgID + the protocol-strip fallback
+                // in getDestMsgID.
+                fakeID := fmt.Sprintf("unsupported-%d", time.Now().UnixNano())
                 go func() {
                         b.Remote <- config.Message{
                                 Text: fmt.Sprintf("⚠️ Datei **%s** (%s) konnte nicht zu Teams übertragen werden"+
@@ -637,11 +643,12 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
                                         fi.Name, mimeTypeForFile(fi.Name)),
                                 Channel:  msg.Channel,
                                 Account:  b.Account,
-                                Username: "system",
+                                Username: "matterbridge",
+                                ParentID: fakeID,
                                 Extra:    make(map[string][]interface{}),
                         }
                 }()
-                return "", nil
+                return fakeID, nil
         }
 
         content := &msgraph.ItemBody{
