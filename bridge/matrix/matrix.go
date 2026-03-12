@@ -384,48 +384,13 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		return resp.EventID.String(), err
 	}
 
-	// Send a plain text message if html is disabled
-	if b.GetBool("HTMLDisable") {
-		var (
-			resp *mautrix.RespSendEvent
-			err  error
-		)
-
-		err = b.retry(func() error {
-			resp, err = b.mc.SendText(context.TODO(), roomID, body)
-
-			return err
-		})
-		if err != nil {
-			return "", err
-		}
-
-		return resp.EventID.String(), err
-	}
-
-	// Post normal message with HTML support (eg riot.im)
-	var (
-		resp *mautrix.RespSendEvent
-		err  error
-	)
-
-	err = b.retry(func() error {
-		content := event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Body:          body,
-			FormattedBody: formattedBody,
-			Format:        event.FormatHTML,
-		}
-
-		resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
-
-		return err
-	})
+	// Send a normal message
+	msgID, err := b.sendNormalMessage(roomID, body, formattedBody)
 	if err != nil {
 		return "", err
 	}
 
-	return resp.EventID.String(), err
+	return msgID, nil
 }
 
 func (b *Bmatrix) NewHttpRequest(method, uri string, body io.Reader) (*http.Request, error) {
@@ -845,6 +810,21 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 
 // handleUploadFiles handles native upload of files.
 func (b *Bmatrix) handleUploadFiles(msg *config.Message, roomID id.RoomID) (string, error) {
+	if msg.Text != "" {
+		username := newMatrixUsername(msg.Username)
+		b.Log.Debugf("Sending text message alongside attachment from %s", username.plain)
+		body := username.plain + msg.Text
+		formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+
+		// TODO: message ID
+		_, err := b.sendNormalMessage(roomID, body, formattedBody)
+		if err != nil {
+			// Assume if there was an error sending a simple text message,
+			// sending the attachments will not be possible.
+			return "", err
+		}
+	}
+
 	for _, f := range msg.Extra["file"] {
 		if fi, ok := f.(config.FileInfo); ok {
 			b.handleUploadFile(msg, roomID, &fi)
@@ -970,4 +950,57 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		}
 	}
 	b.Log.Debugf("result: %#v", res)
+}
+
+func (b *Bmatrix) sendNormalMessage(roomID id.RoomID, body string, formattedBody string) (string, error) {
+	if b.GetBool("HTMLDisable") {
+		// Send a plain text message if html is disabled
+		return b.sendNormalMessagePlaintext(roomID, body)
+	} else {
+		// Post normal message with HTML support (eg riot.im)
+		return b.sendNormalMessageHTML(roomID, body, formattedBody)
+	}
+}
+
+func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string) (string, error) {
+	var (
+		resp *mautrix.RespSendEvent
+		err  error
+	)
+
+	err = b.retry(func() error {
+		resp, err = b.mc.SendText(context.TODO(), roomID, body)
+
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return resp.EventID.String(), err
+}
+
+func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formattedBody string) (string, error) {
+	var (
+		resp *mautrix.RespSendEvent
+		err  error
+	)
+
+	err = b.retry(func() error {
+		content := event.MessageEventContent{
+			MsgType:       event.MsgText,
+			Body:          body,
+			FormattedBody: formattedBody,
+			Format:        event.FormatHTML,
+		}
+
+		resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
+
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return resp.EventID.String(), err
 }

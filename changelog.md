@@ -57,6 +57,7 @@
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - attachment body is treated as attachment caption and will no longer produce bogus text messages on other bridges ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
+  - on the other end, sending an attachment to matrix now announces the message body if there was any ([#185](https://github.com/matterbridge-org/matterbridge/pulls/185))
   - attachment filenames without extension how have an extension added according to mimetype, even when they're not images ;
     when they are images, it's no longer assumed that they are PNG ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
