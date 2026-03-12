@@ -194,7 +194,7 @@ func (r *Router) handleReceive() {
 						}
 					}
 					if len(entries) > 0 {
-						gw.persistentCacheAdd(cacheKey, entries)
+						gw.persistentCacheAdd(cacheKey, entries, msg.Account)
 					}
 				}
 			}
@@ -270,7 +270,7 @@ func (r *Router) handleHistoricalMapping(msg *config.Message) {
 				BridgeName: localBridge.Name,
 				ID:         localKey,
 				ChannelID:  localChannelID,
-			}})
+			}}, sourceBridge.Account)
 		}
 
 		// Store: localKey → points to source bridge (e.g., "msteams TEAMS456" → mattermost entry)
@@ -280,7 +280,7 @@ func (r *Router) handleHistoricalMapping(msg *config.Message) {
 				BridgeName: sourceBridge.Name,
 				ID:         sourceKey,
 				ChannelID:  sourceChannelID,
-			}})
+			}}, msg.Account)
 		}
 	}
 }

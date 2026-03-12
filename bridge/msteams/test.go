@@ -286,19 +286,23 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 	postReply(rootID, "⚠️ Please manually check GIF file transmission from Teams to Mattermost — this test cannot upload files to your SharePoint.", nil)
 	time.Sleep(time.Second)
 
-	// Step 14: Multi-image (2x PNG in one message)
+	// Step 14: File upload — SharePoint needed, cannot be automated.
+	postReply(rootID, "⚠️ Please manually check file (PDF, etc.) transmission from Teams to Mattermost — this test cannot upload files to your SharePoint.", nil)
+	time.Sleep(time.Second)
+
+	// Step 15: Multi-image (2x PNG in one message)
 	postReplyWithImages(rootID, "Image test: multi-image (2x PNG)", []testImage{
 		{name: "demo1.png", contentType: "image/png", data: testdata.DemoPNG},
 		{name: "demo2.png", contentType: "image/png", data: testdata.DemoPNG},
 	})
 	time.Sleep(time.Second)
 
-	// Step 15: Delete the marked message
+	// Step 16: Delete the marked message
 	if deleteID != "" {
 		deleteReply(rootID, deleteID)
 	}
 
-	// Step 16: Test finished
+	// Step 17: Test finished
 	postReply(rootID, "✅ Test finished", nil)
 
 	b.Log.Info("test: test sequence completed")

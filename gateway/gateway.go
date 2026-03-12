@@ -154,14 +154,11 @@ func (gw *Gateway) hasPersistentCache() bool {
 	return len(gw.BridgeCaches) > 0
 }
 
-// persistentCacheAdd writes an entry to all unique persistent caches.
-func (gw *Gateway) persistentCacheAdd(key string, entries []PersistentMsgEntry) {
-	seen := make(map[*PersistentMsgCache]bool)
-	for _, cache := range gw.BridgeCaches {
-		if cache != nil && !seen[cache] {
-			cache.Add(key, entries)
-			seen[cache] = true
-		}
+// persistentCacheAdd writes an entry to the persistent cache of the given
+// source bridge account. Lookups (Get/FindDownstream) still search all caches.
+func (gw *Gateway) persistentCacheAdd(key string, entries []PersistentMsgEntry, sourceAccount string) {
+	if cache, ok := gw.BridgeCaches[sourceAccount]; ok && cache != nil {
+		cache.Add(key, entries)
 	}
 }
 
