@@ -476,6 +476,14 @@ func (gw *Gateway) SendMessage(
 
 	msg.Channel = channel.Name
 	msg.Avatar = gw.modifyAvatar(rmsg, dest)
+
+	// Store original nick before RemoteNickFormat expansion, so bridges
+	// that need HTML-aware formatting can access it.
+	if msg.Extra == nil {
+		msg.Extra = make(map[string][]interface{})
+	}
+	msg.Extra["nick"] = []interface{}{rmsg.Username}
+
 	msg.Username = gw.modifyUsername(rmsg, dest)
 
 	// exclude file delete event as the msg ID here is the native file ID that needs to be deleted

@@ -18,6 +18,9 @@ import (
         "github.com/matterbridge-org/matterbridge/bridge"
         "github.com/matterbridge-org/matterbridge/bridge/config"
         "github.com/davecgh/go-spew/spew"
+        "github.com/gomarkdown/markdown"
+        mdhtml "github.com/gomarkdown/markdown/html"
+        "github.com/gomarkdown/markdown/parser"
         "github.com/mattn/godown"
         msgraph "github.com/yaegashi/msgraph.go/beta"
         "github.com/yaegashi/msgraph.go/msauth"
@@ -151,13 +154,14 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
         }
 
         ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(msg.Channel)).Messages().Request()
-        text := formatMessageText(msg.Username, msg.Text)
-        htmlText, isHTML := mdToTeamsHTML(text)
-        content := &msgraph.ItemBody{Content: &text}
-        if isHTML {
-                htmlType := msgraph.BodyTypeVHTML
-                content = &msgraph.ItemBody{Content: &htmlText, ContentType: &htmlType}
-        }
+
+        // Apply emoji mapping for any platform-specific shortcodes.
+        msg.Text = mapEmojis(msg.Text)
+
+        // Convert markdown to Teams HTML and prepend formatted username.
+        htmlText := b.formatMessageHTML(msg, mdToTeamsHTML(msg.Text))
+        htmlType := msgraph.BodyTypeVHTML
+        content := &msgraph.ItemBody{Content: &htmlText, ContentType: &htmlType}
         rmsg := &msgraph.ChatMessage{Body: content}
 
         res, err := ct.Add(b.ctx, rmsg)
@@ -168,74 +172,74 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
         return *res.ID, nil
 }
 
-// formatMessageText combines the username prefix with the message text.
-// If the text starts with a block element (quote, code fence, list),
-// the username is placed on its own line to avoid formatting corruption.
-func formatMessageText(username, text string) string {
-        if username == "" {
-                return text
-        }
-        trimmed := strings.TrimSpace(text)
-        if strings.HasPrefix(trimmed, ">") ||
-                strings.HasPrefix(trimmed, "```") ||
-                strings.HasPrefix(trimmed, "    ") {
-                return username + "\n" + trimmed
-        }
-        return username + text
+// mdToTeamsHTML converts markdown text to Teams-compatible HTML.
+// Handles bold, italic, strikethrough, headings, links, blockquotes,
+// code fences, and line breaks using the gomarkdown library.
+// Code fences are post-processed to use Teams-native <codeblock> tags.
+func mdToTeamsHTML(text string) string {
+        extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode | parser.Strikethrough
+        p := parser.NewWithExtensions(extensions)
+        renderer := mdhtml.NewRenderer(mdhtml.RendererOptions{Flags: 0})
+        result := string(markdown.ToHTML([]byte(text), p, renderer))
+
+        // Post-process: convert gomarkdown's <pre><code class="language-X"> to Teams <codeblock class="X"><code>.
+        preCodeLangRE := regexp.MustCompile(`<pre><code class="language-(\w+)">`)
+        result = preCodeLangRE.ReplaceAllString(result, `<codeblock class="$1"><code>`)
+        result = strings.ReplaceAll(result, "</code></pre>", "</code></codeblock>")
+        result = strings.ReplaceAll(result, "<pre><code>", "<codeblock><code>")
+
+        return strings.TrimSpace(result)
 }
 
-// mdToTeamsHTML converts a message that may contain markdown code fences
-// into Teams-compatible HTML so that code blocks render correctly.
-// If the text has no code fences, it returns the text with newlines
-// converted to <br> and sets needsHTML=true only when conversion happened.
-func mdToTeamsHTML(text string) (string, bool) {
-        if !strings.Contains(text, "```") {
-                return text, false
+// htmlEscape escapes HTML special characters in a string.
+func htmlEscape(s string) string {
+        s = strings.ReplaceAll(s, "&", "&amp;")
+        s = strings.ReplaceAll(s, "<", "&lt;")
+        s = strings.ReplaceAll(s, ">", "&gt;")
+        s = strings.ReplaceAll(s, "\"", "&quot;")
+        return s
+}
+
+// extractBridgeName returns the bridge name part from an account string like "mattermost.mybot".
+func extractBridgeName(account string) string {
+        parts := strings.SplitN(account, ".", 2)
+        if len(parts) > 1 {
+                return parts[1]
+        }
+        return account
+}
+
+// formatMessageHTML builds an HTML username prefix from the RemoteNickFormat template.
+// It replaces {NICK} with <b>nick</b>, \n with <br>, and expands other placeholders.
+func (b *Bmsteams) formatMessageHTML(msg config.Message, bodyHTML string) string {
+        template := b.GetString("RemoteNickFormat")
+        if template == "" {
+                return bodyHTML
         }
 
-        codeFenceRE := regexp.MustCompile("(?s)```(\\w*)\\n(.*?)\\n?```")
-
-        // Convert code fences to Teams-native HTML format for syntax highlighting.
-        // Teams uses <codeblock class="language-X"><code>...</code></codeblock> internally.
-        result := codeFenceRE.ReplaceAllStringFunc(text, func(match string) string {
-                parts := codeFenceRE.FindStringSubmatch(match)
-                if len(parts) < 3 {
-                        return match
-                }
-                lang := parts[1]
-                code := parts[2]
-                // Escape HTML entities in code content.
-                code = strings.ReplaceAll(code, "&", "&amp;")
-                code = strings.ReplaceAll(code, "<", "&lt;")
-                code = strings.ReplaceAll(code, ">", "&gt;")
-                // Convert newlines to <br> inside code for Teams rendering.
-                code = strings.ReplaceAll(code, "\n", "<br>")
-                if lang != "" {
-                        return `<codeblock class="` + lang + `"><code>` + code + "</code></codeblock>"
-                }
-                return "<codeblock><code>" + code + "</code></codeblock>"
-        })
-
-        // Convert remaining newlines to <br> for non-code text.
-        // Split by codeblock/pre blocks to avoid adding <br> inside code.
-        codeSplitRE := regexp.MustCompile(`(?s)(<codeblock[^>]*>.*?</codeblock>)`)
-        textParts := codeSplitRE.Split(result, -1)
-        codeParts := codeSplitRE.FindAllString(result, -1)
-
-        var final strings.Builder
-        for i, part := range textParts {
-                // Escape HTML in non-code parts and convert newlines.
-                part = strings.ReplaceAll(part, "&", "&amp;")
-                part = strings.ReplaceAll(part, "<", "&lt;")
-                part = strings.ReplaceAll(part, ">", "&gt;")
-                part = strings.ReplaceAll(part, "\n", "<br>")
-                final.WriteString(part)
-                if i < len(codeParts) {
-                        final.WriteString(codeParts[i])
+        // Extract original nick from Extra (set by gateway).
+        originalNick := ""
+        if nicks, ok := msg.Extra["nick"]; ok && len(nicks) > 0 {
+                if n, ok := nicks[0].(string); ok {
+                        originalNick = n
                 }
         }
+        if originalNick == "" {
+                originalNick = strings.TrimSpace(msg.Username)
+        }
 
-        return final.String(), true
+        // HTML-aware expansion.
+        result := template
+        result = strings.ReplaceAll(result, "{NICK}", "<b>"+htmlEscape(originalNick)+"</b>")
+        result = strings.ReplaceAll(result, "{NOPINGNICK}", "<b>"+htmlEscape(originalNick)+"</b>")
+        result = strings.ReplaceAll(result, "{PROTOCOL}", htmlEscape(msg.Protocol))
+        result = strings.ReplaceAll(result, "{BRIDGE}", htmlEscape(extractBridgeName(msg.Account)))
+        result = strings.ReplaceAll(result, "{GATEWAY}", htmlEscape(msg.Gateway))
+        result = strings.ReplaceAll(result, "{USERID}", htmlEscape(msg.UserID))
+        result = strings.ReplaceAll(result, "{CHANNEL}", htmlEscape(msg.Channel))
+        result = strings.ReplaceAll(result, "\n", "<br>")
+
+        return result + bodyHTML
 }
 
 // getAccessToken returns a fresh access token from the token source.
@@ -251,7 +255,9 @@ func (b *Bmsteams) getAccessToken() (string, error) {
 // The Teams Graph API only allows the original sender to update via delegated perms,
 // so this may fail if matterbridge is not authenticated as the message author.
 func (b *Bmsteams) updateMessage(msg config.Message) (string, error) {
-        text := formatMessageText(msg.Username, msg.Text)
+        // Apply emoji mapping and convert markdown to Teams HTML.
+        msg.Text = mapEmojis(msg.Text)
+        htmlText := b.formatMessageHTML(msg, mdToTeamsHTML(msg.Text))
 
         type patchBody struct {
                 Body struct {
@@ -261,8 +267,8 @@ func (b *Bmsteams) updateMessage(msg config.Message) (string, error) {
         }
 
         var patch patchBody
-        patch.Body.ContentType = "text"
-        patch.Body.Content = text
+        patch.Body.ContentType = "html"
+        patch.Body.Content = htmlText
 
         jsonData, err := json.Marshal(patch)
         if err != nil {
@@ -424,20 +430,22 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo) err
                 }
         }
 
+        usernameHTML := b.formatMessageHTML(msg, "")
+
         switch {
         case fileURL != "" && isImage:
                 bodyText = fmt.Sprintf(
-                        `%s<br><img src="%s" alt="%s" style="max-width:600px"/>`,
-                        msg.Username, fileURL, fi.Name,
+                        `%s<img src="%s" alt="%s" style="max-width:600px"/>`,
+                        usernameHTML, fileURL, fi.Name,
                 )
         case fileURL != "":
                 bodyText = fmt.Sprintf(
                         `%s&#128206; <a href="%s">%s</a>`,
-                        msg.Username, fileURL, fi.Name,
+                        usernameHTML, fileURL, fi.Name,
                 )
         default:
                 b.Log.Debugf("cannot embed file %s in Teams: configure MediaServerUpload to enable image transfer", fi.Name)
-                notice := fmt.Sprintf("%s[Datei: %s — konfiguriere MediaServerUpload für Dateiübertragung]", msg.Username, fi.Name)
+                notice := fmt.Sprintf("%s[Datei: %s — konfiguriere MediaServerUpload für Dateiübertragung]", usernameHTML, fi.Name)
                 ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(msg.Channel)).Messages().Request()
                 htmlType := msgraph.BodyTypeVHTML
                 content := &msgraph.ItemBody{Content: &notice, ContentType: &htmlType}
@@ -467,13 +475,13 @@ func (b *Bmsteams) sendReply(msg config.Message) (string, error) {
         b.Log.Debugf("sendReply: ParentID=%s Channel=%s", msg.ParentID, channelID)
         ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(channelID).Messages().ID(msg.ParentID).Replies().Request()
 
-        text := formatMessageText(msg.Username, msg.Text)
-        htmlText, isHTML := mdToTeamsHTML(text)
-        content := &msgraph.ItemBody{Content: &text}
-        if isHTML {
-                htmlType := msgraph.BodyTypeVHTML
-                content = &msgraph.ItemBody{Content: &htmlText, ContentType: &htmlType}
-        }
+        // Apply emoji mapping for any platform-specific shortcodes.
+        msg.Text = mapEmojis(msg.Text)
+
+        // Convert markdown to Teams HTML and prepend formatted username.
+        htmlText := b.formatMessageHTML(msg, mdToTeamsHTML(msg.Text))
+        htmlType := msgraph.BodyTypeVHTML
+        content := &msgraph.ItemBody{Content: &htmlText, ContentType: &htmlType}
         rmsg := &msgraph.ChatMessage{Body: content}
 
         res, err := ct.Add(b.ctx, rmsg)
@@ -815,6 +823,10 @@ func (b *Bmsteams) convertToMD(text string) string {
                 replacement := "\n```" + lang + "\n" + code + "\n```\n"
                 text = codeblockRE.ReplaceAllLiteralString(text, replacement)
         }
+
+        // Convert strikethrough HTML tags to markdown before godown (godown may not handle these).
+        strikeRE := regexp.MustCompile(`(?is)<(s|del|strike)>(.*?)</(s|del|strike)>`)
+        text = strikeRE.ReplaceAllString(text, "~~$2~~")
 
         // Strip empty paragraphs that Teams inserts around code blocks.
         emptyParaRE := regexp.MustCompile(`(?i)<p[^>]*>\s*(&nbsp;|\s)*</p>`)
