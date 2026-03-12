@@ -1,7 +1,7 @@
 # Slack
 
 - Status: ???
-- Maintainers: ???
+- Maintainers: @asdfzdfj
 - Features: ???
 
 ## Configuration
