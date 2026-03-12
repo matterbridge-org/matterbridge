@@ -630,15 +630,17 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
                 // know the file didn't arrive (instead of posting to Teams).
                 b.Log.Warnf("cannot send file %s (%s) to Teams: type not supported by hostedContents and no MediaServerUpload configured",
                         fi.Name, mimeTypeForFile(fi.Name))
-                b.Remote <- config.Message{
-                        Text: fmt.Sprintf("⚠️ Datei **%s** (%s) konnte nicht zu Teams übertragen werden"+
-                                " — Format wird nicht unterstützt, kein MediaServer konfiguriert.",
-                                fi.Name, mimeTypeForFile(fi.Name)),
-                        Channel:  msg.Channel,
-                        Account:  b.Account,
-                        Username: "system",
-                        Extra:    make(map[string][]interface{}),
-                }
+                go func() {
+                        b.Remote <- config.Message{
+                                Text: fmt.Sprintf("⚠️ Datei **%s** (%s) konnte nicht zu Teams übertragen werden"+
+                                        " — Format wird nicht unterstützt, kein MediaServer konfiguriert.",
+                                        fi.Name, mimeTypeForFile(fi.Name)),
+                                Channel:  msg.Channel,
+                                Account:  b.Account,
+                                Username: "system",
+                                Extra:    make(map[string][]interface{}),
+                        }
+                }()
                 return "", nil
         }
 
