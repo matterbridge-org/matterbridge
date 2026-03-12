@@ -20,14 +20,15 @@ import (
 type Gateway struct {
 	config.Config
 
-	Router         *Router
-	MyConfig       *config.Gateway
-	Bridges        map[string]*bridge.Bridge
-	Channels       map[string]*config.ChannelInfo
-	ChannelOptions map[string]config.ChannelOptions
-	Message        chan config.Message
-	Name           string
-	Messages       *lru.Cache
+	Router          *Router
+	MyConfig        *config.Gateway
+	Bridges         map[string]*bridge.Bridge
+	Channels        map[string]*config.ChannelInfo
+	ChannelOptions  map[string]config.ChannelOptions
+	Message         chan config.Message
+	Name            string
+	Messages        *lru.Cache
+	PersistentCache *PersistentMsgCache
 
 	logger *logrus.Entry
 }
@@ -58,6 +59,12 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 	if err := gw.AddConfig(cfg); err != nil {
 		logger.Errorf("Failed to add configuration to gateway: %#v", err)
 	}
+
+	// Initialize persistent message ID cache if configured.
+	if cachePath := gw.BridgeValues().General.MessageCacheFile; cachePath != "" {
+		gw.PersistentCache = NewPersistentMsgCache(cachePath, logger)
+	}
+
 	return gw
 }
 
@@ -78,7 +85,53 @@ func (gw *Gateway) FindCanonicalMsgID(protocol string, mID string) string {
 			}
 		}
 	}
+
+	// Fallback to persistent cache if LRU missed.
+	if gw.PersistentCache != nil {
+		// Check if ID is a direct key in persistent cache.
+		if entries, ok := gw.PersistentCache.Get(ID); ok {
+			gw.restoreToCacheFindCanonical(ID, entries)
+			return ID
+		}
+		// Check if ID is a downstream value.
+		if canonical := gw.PersistentCache.FindDownstream(ID); canonical != "" {
+			if entries, ok := gw.PersistentCache.Get(canonical); ok {
+				gw.restoreToCacheFindCanonical(canonical, entries)
+			}
+			return canonical
+		}
+	}
+
 	return ""
+}
+
+// restoreToCacheFindCanonical restores persistent cache entries into the LRU cache.
+func (gw *Gateway) restoreToCacheFindCanonical(key string, entries []PersistentMsgEntry) {
+	var brMsgIDs []*BrMsgID
+	for _, entry := range entries {
+		br := gw.findBridge(entry.Protocol, entry.BridgeName)
+		if br == nil {
+			continue
+		}
+		brMsgIDs = append(brMsgIDs, &BrMsgID{
+			br:        br,
+			ID:        entry.ID,
+			ChannelID: entry.ChannelID,
+		})
+	}
+	if len(brMsgIDs) > 0 {
+		gw.Messages.Add(key, brMsgIDs)
+	}
+}
+
+// findBridge looks up a bridge by protocol and name across the gateway.
+func (gw *Gateway) findBridge(protocol, name string) *bridge.Bridge {
+	for _, br := range gw.Bridges {
+		if br.Protocol == protocol && br.Name == name {
+			return br
+		}
+	}
+	return nil
 }
 
 // AddBridge sets up a new bridge on startup.
@@ -283,6 +336,23 @@ func (gw *Gateway) getDestMsgID(msgID string, dest *bridge.Bridge, channel *conf
 			}
 		}
 	}
+
+	// Fallback to persistent cache if LRU missed.
+	if gw.PersistentCache != nil {
+		if entries, ok := gw.PersistentCache.Get(msgID); ok {
+			// Restore to LRU and retry.
+			gw.restoreToCacheFindCanonical(msgID, entries)
+			if res, ok := gw.Messages.Get(msgID); ok {
+				IDs := res.([]*BrMsgID)
+				for _, id := range IDs {
+					if dest.Protocol == id.br.Protocol && dest.Name == id.br.Name && channel.ID == id.ChannelID {
+						return strings.Replace(id.ID, dest.Protocol+" ", "", 1)
+					}
+				}
+			}
+		}
+	}
+
 	return ""
 }
 
@@ -483,6 +553,11 @@ func (gw *Gateway) SendMessage(
 		msg.Extra = make(map[string][]interface{})
 	}
 	msg.Extra["nick"] = []interface{}{rmsg.Username}
+
+	// Pass source message ID so bridges can embed it for historical cache population.
+	if rmsg.ID != "" {
+		msg.Extra["source_msgid"] = []interface{}{rmsg.Protocol + ":" + rmsg.ID}
+	}
 
 	msg.Username = gw.modifyUsername(rmsg, dest)
 

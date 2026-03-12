@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matterbridge-org/matterbridge/testdata"
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
@@ -89,14 +90,56 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	time.Sleep(time.Second)
 
 	// Step 10: Unordered list
-	post("- Item eins\n- Item zwei\n- Item drei", rootID)
+	post("- Item one\n- Item two\n- Item three", rootID)
 	time.Sleep(time.Second)
 
 	// Step 11: Ordered list
-	post("1. Erster Punkt\n2. Zweiter Punkt\n3. Dritter Punkt", rootID)
+	post("1. First point\n2. Second point\n3. Third point", rootID)
 	time.Sleep(time.Second)
 
-	// Step 12: Delete the marked message
+	// Step 12: Single PNG image
+	if pngID, err := b.mc.UploadFile(testdata.DemoPNG, channelID, "demo.png"); err != nil {
+		b.Log.Errorf("test: upload demo.png failed: %s", err)
+	} else {
+		p := &model.Post{ChannelId: channelID, Message: "Image test: PNG", RootId: rootID, FileIds: model.StringArray{pngID}, Props: testProps}
+		if _, _, err := b.mc.Client.CreatePost(context.TODO(), p); err != nil {
+			b.Log.Errorf("test: CreatePost with PNG failed: %s", err)
+		}
+	}
+	time.Sleep(time.Second)
+
+	// Step 13: Single GIF image
+	if gifID, err := b.mc.UploadFile(testdata.DemoGIF, channelID, "demo.gif"); err != nil {
+		b.Log.Errorf("test: upload demo.gif failed: %s", err)
+	} else {
+		p := &model.Post{ChannelId: channelID, Message: "Image test: GIF", RootId: rootID, FileIds: model.StringArray{gifID}, Props: testProps}
+		if _, _, err := b.mc.Client.CreatePost(context.TODO(), p); err != nil {
+			b.Log.Errorf("test: CreatePost with GIF failed: %s", err)
+		}
+	}
+	time.Sleep(time.Second)
+
+	// Step 14: Multi-image (2x PNG in one message)
+	{
+		var fileIDs model.StringArray
+		for _, name := range []string{"demo1.png", "demo2.png"} {
+			id, err := b.mc.UploadFile(testdata.DemoPNG, channelID, name)
+			if err != nil {
+				b.Log.Errorf("test: upload %s failed: %s", name, err)
+				continue
+			}
+			fileIDs = append(fileIDs, id)
+		}
+		if len(fileIDs) > 0 {
+			p := &model.Post{ChannelId: channelID, Message: "Image test: multi-image (2x PNG)", RootId: rootID, FileIds: fileIDs, Props: testProps}
+			if _, _, err := b.mc.Client.CreatePost(context.TODO(), p); err != nil {
+				b.Log.Errorf("test: CreatePost with multi-image failed: %s", err)
+			}
+		}
+	}
+	time.Sleep(time.Second)
+
+	// Step 15: Delete the marked message
 	if deleteID != "" {
 		_, err := b.mc.Client.DeletePost(context.TODO(), deleteID)
 		if err != nil {
@@ -104,7 +147,7 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 		}
 	}
 
-	// Step 13: Test finished
+	// Step 16: Test finished
 	post("✅ Test finished", rootID)
 
 	b.Log.Info("test: test sequence completed")

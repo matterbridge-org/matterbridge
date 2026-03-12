@@ -135,6 +135,20 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
                 return b.updateMessage(msg)
         }
 
+        // Prepend priority indicator emoji for Mattermost important/urgent messages.
+        if msg.Extra != nil {
+                if priorities, ok := msg.Extra["priority"]; ok && len(priorities) > 0 {
+                        if prio, ok := priorities[0].(string); ok {
+                                switch prio {
+                                case "important":
+                                        msg.Text = "❗ " + msg.Text
+                                case "urgent":
+                                        msg.Text = "🚨 " + msg.Text
+                                }
+                        }
+                }
+        }
+
         // Handle file/image attachments.
         if msg.Extra != nil && len(msg.Extra["file"]) > 0 {
                 // Build caption from msg.Text for the first message.
@@ -290,7 +304,16 @@ func (b *Bmsteams) formatMessageHTML(msg config.Message, bodyHTML string) string
         result = strings.ReplaceAll(result, "{CHANNEL}", htmlEscape(msg.Channel))
         result = strings.ReplaceAll(result, "\n", "<br>")
 
-        return result + bodyHTML
+        html := result + bodyHTML
+
+        // Embed source message ID as hidden span for historical cache population.
+        if srcIDs, ok := msg.Extra["source_msgid"]; ok && len(srcIDs) > 0 {
+                if srcID, ok := srcIDs[0].(string); ok {
+                        html += `<span data-mb-src="` + htmlEscape(srcID) + `" style="display:none"></span>`
+                }
+        }
+
+        return html
 }
 
 // getAccessToken returns a fresh access token from the token source.
@@ -467,10 +490,10 @@ func isImageFile(name string) bool {
 }
 
 // isSupportedHostedContentType returns true if the file type can be embedded
-// via the Graph API hostedContents endpoint. Only JPG and PNG are supported.
+// via the Graph API hostedContents endpoint. JPG, PNG, and GIF are supported.
 func isSupportedHostedContentType(name string) bool {
         mime := mimeTypeForFile(name)
-        return mime == "image/jpeg" || mime == "image/png"
+        return mime == "image/jpeg" || mime == "image/png" || mime == "image/gif"
 }
 
 // sendImageHostedContent sends one or more images as a single Teams message using
@@ -638,8 +661,8 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
                 fakeID := fmt.Sprintf("unsupported-%d", time.Now().UnixNano())
                 go func() {
                         b.Remote <- config.Message{
-                                Text: fmt.Sprintf("⚠️ Datei **%s** (%s) konnte nicht zu Teams übertragen werden"+
-                                        " — Format wird nicht unterstützt, kein MediaServer konfiguriert.",
+                                Text: fmt.Sprintf("⚠️ File **%s** (%s) could not be transferred to Teams"+
+                                        " — format not supported, no MediaServer configured.",
                                         fi.Name, mimeTypeForFile(fi.Name)),
                                 Channel:  msg.Channel,
                                 Account:  b.Account,
@@ -744,11 +767,25 @@ func (b *Bmsteams) poll(channelName string) error {
         }
 
         // Seed with existing messages — use newest timestamp to avoid re-delivery.
+        // Also scan for historical source-ID markers for persistent cache population.
+        mbSrcRE := regexp.MustCompile(`data-mb-src="([^"]+)"`)
         for _, msg := range res {
                 if msg.LastModifiedDateTime != nil {
                         msgmap[*msg.ID] = *msg.LastModifiedDateTime
                 } else {
                         msgmap[*msg.ID] = *msg.CreatedDateTime
+                }
+                // Extract source ID marker from message body.
+                if msg.Body != nil && msg.Body.Content != nil {
+                        if matches := mbSrcRE.FindStringSubmatch(*msg.Body.Content); len(matches) == 2 {
+                                b.Remote <- config.Message{
+                                        Event:   config.EventHistoricalMapping,
+                                        Account: b.Account,
+                                        Channel: channelName,
+                                        ID:      *msg.ID,
+                                        Extra:   map[string][]interface{}{"source_msgid": {matches[1]}},
+                                }
+                        }
                 }
         }
 

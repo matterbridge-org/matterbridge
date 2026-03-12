@@ -30,6 +30,7 @@ const (
 	EventUserTyping        = "user_typing"
 	EventGetChannelMembers = "get_channel_members"
 	EventNoticeIRC         = "notice_irc"
+	EventHistoricalMapping = "historical_mapping"
 )
 
 const ParentIDNotFound = "msg-parent-not-found"
@@ -155,6 +156,7 @@ type Protocol struct {
 	MediaServerDownload    string
 	MediaConvertTgs        string     // telegram
 	MediaConvertWebPToPNG  bool       // telegram
+	MessageCacheFile       string     // general, msteams, mattermost: persistent message ID cache file
 	MessageDelay           int        // IRC, time in millisecond to wait between messages
 	MessageFormat          string     // telegram
 	MessageLength          int        // IRC, max length of a message allowed

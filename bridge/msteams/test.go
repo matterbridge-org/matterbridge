@@ -2,6 +2,7 @@ package bmsteams
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matterbridge-org/matterbridge/testdata"
 	msgraph "github.com/yaegashi/msgraph.go/beta"
 )
 
@@ -189,19 +191,116 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 	time.Sleep(time.Second)
 
 	// Step 10: Unordered list
-	postReply(rootID, "<ul><li>Item eins</li><li>Item zwei</li><li>Item drei</li></ul>", &htmlType)
+	postReply(rootID, "<ul><li>Item one</li><li>Item two</li><li>Item three</li></ul>", &htmlType)
 	time.Sleep(time.Second)
 
 	// Step 11: Ordered list
-	postReply(rootID, "<ol><li>Erster Punkt</li><li>Zweiter Punkt</li><li>Dritter Punkt</li></ol>", &htmlType)
+	postReply(rootID, "<ol><li>First point</li><li>Second point</li><li>Third point</li></ol>", &htmlType)
 	time.Sleep(time.Second)
 
-	// Step 12: Delete the marked message
+	type testImage struct {
+		name        string
+		contentType string
+		data        []byte
+	}
+
+	// Helper to post a reply with hostedContents images.
+	postReplyWithImages := func(rootID, caption string, images []testImage) {
+		type hostedContent struct {
+			TempID       string `json:"@microsoft.graph.temporaryId"`
+			ContentBytes string `json:"contentBytes"`
+			ContentType  string `json:"contentType"`
+		}
+		type msgBody struct {
+			ContentType string `json:"contentType"`
+			Content     string `json:"content"`
+		}
+		type graphMessage struct {
+			Body           msgBody          `json:"body"`
+			HostedContents []hostedContent  `json:"hostedContents"`
+		}
+
+		bodyHTML := caption
+		if bodyHTML != "" {
+			bodyHTML += "<br>"
+		}
+		var hosted []hostedContent
+		for i, img := range images {
+			id := fmt.Sprintf("%d", i+1)
+			bodyHTML += fmt.Sprintf(`<img src="../hostedContents/%s/$value" alt="%s" style="max-width:600px"/>`, id, img.name)
+			if i < len(images)-1 {
+				bodyHTML += "<br>"
+			}
+			hosted = append(hosted, hostedContent{
+				TempID:       id,
+				ContentBytes: base64.StdEncoding.EncodeToString(img.data),
+				ContentType:  img.contentType,
+			})
+		}
+
+		payload := graphMessage{
+			Body:           msgBody{ContentType: "html", Content: bodyHTML},
+			HostedContents: hosted,
+		}
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			b.Log.Errorf("test: marshal image payload failed: %s", err)
+			return
+		}
+
+		apiURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages/%s/replies",
+			teamID, channelID, rootID)
+		token, err := b.getAccessToken()
+		if err != nil {
+			b.Log.Errorf("test: getAccessToken failed: %s", err)
+			return
+		}
+		req, err := http.NewRequestWithContext(b.ctx, http.MethodPost, apiURL, bytes.NewReader(jsonData))
+		if err != nil {
+			b.Log.Errorf("test: NewRequest failed: %s", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			b.Log.Errorf("test: image post failed: %s", err)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			b.Log.Errorf("test: image reply failed: %d %s", resp.StatusCode, string(body))
+		}
+		// Do NOT add to sentIDs — let poll() pick it up for relay.
+	}
+
+	// Step 12: Single PNG image
+	postReplyWithImages(rootID, "Image test: PNG", []testImage{
+		{name: "demo.png", contentType: "image/png", data: testdata.DemoPNG},
+	})
+	time.Sleep(time.Second)
+
+	// Step 13: Single GIF image
+	postReplyWithImages(rootID, "Image test: GIF", []testImage{
+		{name: "demo.gif", contentType: "image/gif", data: testdata.DemoGIF},
+	})
+	time.Sleep(time.Second)
+
+	// Step 14: Multi-image (2x PNG in one message)
+	postReplyWithImages(rootID, "Image test: multi-image (2x PNG)", []testImage{
+		{name: "demo1.png", contentType: "image/png", data: testdata.DemoPNG},
+		{name: "demo2.png", contentType: "image/png", data: testdata.DemoPNG},
+	})
+	time.Sleep(time.Second)
+
+	// Step 15: Delete the marked message
 	if deleteID != "" {
 		deleteReply(rootID, deleteID)
 	}
 
-	// Step 13: Test finished
+	// Step 16: Test finished
 	postReply(rootID, "✅ Test finished", nil)
 
 	b.Log.Info("test: test sequence completed")

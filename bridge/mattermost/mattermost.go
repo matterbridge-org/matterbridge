@@ -13,6 +13,7 @@ import (
         "github.com/matterbridge-org/matterbridge/bridge/helper"
         "github.com/matterbridge-org/matterbridge/matterhook"
         "github.com/matterbridge/matterclient"
+        "github.com/mattermost/mattermost/server/public/model"
         "github.com/rs/xid"
 )
 
@@ -122,10 +123,54 @@ func (b *Bmattermost) JoinChannel(channel config.ChannelInfo) error {
                 if id == "" {
                         return fmt.Errorf("Could not find channel ID for channel %s", channel.Name)
                 }
-                return b.mc.JoinChannel(id)
+                if err := b.mc.JoinChannel(id); err != nil {
+                        return err
+                }
         }
 
+        // Scan recent messages for historical source-ID markers in background.
+        go b.scanHistoricalMappings(channel)
+
         return nil
+}
+
+// scanHistoricalMappings scans recent channel messages for matterbridge_srcid
+// props and sends EventHistoricalMapping events to the gateway for persistent
+// cache population.
+func (b *Bmattermost) scanHistoricalMappings(channel config.ChannelInfo) {
+        if b.mc == nil {
+                return
+        }
+        channelID := b.getChannelID(channel.Name)
+        if channelID == "" {
+                return
+        }
+
+        postList, _, err := b.mc.Client.GetPostsForChannel(context.TODO(), channelID, 0, 200, "", false, false)
+        if err != nil {
+                b.Log.Debugf("scanHistoricalMappings: GetPostsForChannel %s: %s", channel.Name, err)
+                return
+        }
+
+        count := 0
+        for _, id := range postList.Order {
+                post := postList.Posts[id]
+                srcID, ok := post.Props["matterbridge_srcid"].(string)
+                if !ok || srcID == "" {
+                        continue
+                }
+                b.Remote <- config.Message{
+                        Event:   config.EventHistoricalMapping,
+                        Account: b.Account,
+                        Channel: channel.Name,
+                        ID:      post.Id,
+                        Extra:   map[string][]interface{}{"source_msgid": {srcID}},
+                }
+                count++
+        }
+        if count > 0 {
+                b.Log.Infof("scanHistoricalMappings: found %d mappings in %s", count, channel.Name)
+        }
 }
 
 // lookupWebhookPostID searches recent channel posts to find the ID of a message
@@ -289,6 +334,22 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
                 return b.mc.EditMessage(msg.ID, msg.Text)
         }
 
-        // Post normal message
-        return b.mc.PostMessage(b.getChannelID(msg.Channel), msg.Text, msg.ParentID)
+        // Post normal message, embedding source ID for cross-bridge cache reconstruction.
+        post := &model.Post{
+                ChannelId: b.getChannelID(msg.Channel),
+                Message:   msg.Text,
+                RootId:    msg.ParentID,
+        }
+        if msg.Extra != nil {
+                if srcIDs, ok := msg.Extra["source_msgid"]; ok && len(srcIDs) > 0 {
+                        if srcID, ok := srcIDs[0].(string); ok {
+                                post.SetProp("matterbridge_srcid", srcID)
+                        }
+                }
+        }
+        created, _, err := b.mc.Client.CreatePost(context.TODO(), post)
+        if err != nil {
+                return "", err
+        }
+        return created.Id, nil
 }

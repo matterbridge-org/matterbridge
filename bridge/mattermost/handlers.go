@@ -130,6 +130,15 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 		// handle mattermost post properties (override username and attachments)
 		b.handleProps(rmsg, message)
 
+		// Extract message priority from Post.Metadata if present.
+		if message.Post.Metadata != nil && message.Post.Metadata.Priority != nil &&
+			message.Post.Metadata.Priority.Priority != nil {
+			prio := *message.Post.Metadata.Priority.Priority
+			if prio != "" && prio != "standard" {
+				rmsg.Extra["priority"] = []interface{}{prio}
+			}
+		}
+
 		// create a text for bridges that don't support native editing
 		if message.Raw.EventType() == model.WebsocketEventPostEdited && !b.GetBool("EditDisable") {
 			rmsg.Text = message.Text + b.GetString("EditSuffix")
@@ -221,6 +230,13 @@ func (b *Bmattermost) handleUploadFile(msg *config.Message) (string, error) {
 	}
 	if msg.Avatar != "" {
 		post.Props["override_icon_url"] = msg.Avatar
+	}
+	if msg.Extra != nil {
+		if srcIDs, ok := msg.Extra["source_msgid"]; ok && len(srcIDs) > 0 {
+			if srcID, ok := srcIDs[0].(string); ok {
+				post.Props["matterbridge_srcid"] = srcID
+			}
+		}
 	}
 	created, _, err := b.mc.Client.CreatePost(context.TODO(), post)
 	if err != nil {
