@@ -343,7 +343,10 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
         if msg.Extra != nil {
                 if srcIDs, ok := msg.Extra["source_msgid"]; ok && len(srcIDs) > 0 {
                         if srcID, ok := srcIDs[0].(string); ok {
-                                post.SetProp("matterbridge_srcid", srcID)
+                                if post.Props == nil {
+                                        post.Props = model.StringInterface{}
+                                }
+                                post.Props["matterbridge_srcid"] = srcID
                         }
                 }
         }
