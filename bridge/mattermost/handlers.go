@@ -2,6 +2,7 @@ package bmattermost
 
 import (
 	"context"
+	"strings"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
@@ -178,19 +179,40 @@ func (b *Bmattermost) handleMatterHook(messages chan *config.Message) {
 
 func (b *Bmattermost) handleUploadFile(msg *config.Message) (string, error) {
 	var err error
-	var res, id string
+	var res string
 	channelID := b.getChannelID(msg.Channel)
 	for _, f := range msg.Extra["file"] {
 		fi := f.(config.FileInfo)
-		id, err = b.mc.UploadFile(*fi.Data, channelID, fi.Name)
-		if err != nil {
-			return "", err
+		fileID, uploadErr := b.mc.UploadFile(*fi.Data, channelID, fi.Name)
+		if uploadErr != nil {
+			return "", uploadErr
 		}
-		msg.Text = fi.Comment
+		text := fi.Comment
 		if b.GetBool("PrefixMessagesWithNick") {
-			msg.Text = msg.Username + msg.Text
+			text = "**" + strings.TrimSpace(msg.Username) + "**\n" + text
 		}
-		res, err = b.mc.PostMessageWithFiles(channelID, msg.Text, msg.ParentID, []string{id})
+
+		// Build a post with webhook-like props so the message appears with the
+		// bridged user's name and avatar instead of the bot's identity.
+		post := &model.Post{
+			ChannelId: channelID,
+			Message:   text,
+			RootId:    msg.ParentID,
+			FileIds:   []string{fileID},
+			Props: model.StringInterface{
+				"from_webhook":           "true",
+				"override_username":      strings.TrimSpace(msg.Username),
+				"matterbridge_" + b.uuid: true,
+			},
+		}
+		if msg.Avatar != "" {
+			post.Props["override_icon_url"] = msg.Avatar
+		}
+		created, _, createErr := b.mc.Client.CreatePost(context.TODO(), post)
+		if createErr != nil {
+			return "", createErr
+		}
+		res = created.Id
 	}
 	return res, err
 }

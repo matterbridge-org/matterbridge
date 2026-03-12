@@ -933,6 +933,13 @@ func (b *Bmsteams) convertToMD(text string) string {
                 text = codeblockRE.ReplaceAllLiteralString(text, replacement)
         }
 
+        // Strip inline <img> tags that reference hostedContents URLs — these are
+        // Teams-internal image URLs that require authentication and would produce
+        // broken markdown like ![image](https://graph.microsoft.com/.../hostedContents/.../$value).
+        // The actual image data is handled separately via handleAttachments().
+        hostedImgRE := regexp.MustCompile(`(?i)<img[^>]*src="[^"]*hostedContents[^"]*"[^>]*/?>`)
+        text = hostedImgRE.ReplaceAllString(text, "")
+
         // Convert strikethrough HTML tags to markdown before godown (godown may not handle these).
         strikeRE := regexp.MustCompile(`(?is)<(s|del|strike)>(.*?)</(s|del|strike)>`)
         text = strikeRE.ReplaceAllString(text, "~~$2~~")

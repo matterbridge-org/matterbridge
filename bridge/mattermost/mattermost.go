@@ -196,6 +196,21 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
                 isDelete := msg.Event == config.EventMsgDelete
 
                 if !isReply && !isEdit && !isDelete {
+                        // Top-level new message with files → upload files via API first,
+                        // then send any remaining text via webhook. Webhooks can't upload
+                        // binary files, so we need the API path for actual file uploads.
+                        if msg.Extra != nil && len(msg.Extra["file"]) > 0 && b.mc != nil {
+                                if _, err := b.handleUploadFile(&msg); err != nil {
+                                        b.Log.Errorf("handleUploadFile failed: %s", err)
+                                }
+                                // If there's no remaining text, we're done.
+                                if strings.TrimSpace(msg.Text) == "" {
+                                        return "", nil
+                                }
+                                // Clear the files so sendWebhook doesn't append URLs again.
+                                delete(msg.Extra, "file")
+                        }
+
                         // Top-level new message → use webhook (username/avatar override).
                         // Remember the original text for post-ID lookup.
                         originalText := msg.Text
