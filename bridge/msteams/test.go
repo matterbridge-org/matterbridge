@@ -188,12 +188,20 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 	postReply(rootID, formattingHTML, &htmlType)
 	time.Sleep(time.Second)
 
-	// Step 10: Delete the marked message
+	// Step 10: Unordered list
+	postReply(rootID, "<ul><li>Item eins</li><li>Item zwei</li><li>Item drei</li></ul>", &htmlType)
+	time.Sleep(time.Second)
+
+	// Step 11: Ordered list
+	postReply(rootID, "<ol><li>Erster Punkt</li><li>Zweiter Punkt</li><li>Dritter Punkt</li></ol>", &htmlType)
+	time.Sleep(time.Second)
+
+	// Step 12: Delete the marked message
 	if deleteID != "" {
 		deleteReply(rootID, deleteID)
 	}
 
-	// Step 11: Test finished
+	// Step 13: Test finished
 	postReply(rootID, "✅ Test finished", nil)
 
 	b.Log.Info("test: test sequence completed")

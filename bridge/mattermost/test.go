@@ -88,7 +88,15 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	post("**This text is bold**\n*This text is italic*\n~~This text is strikethrough~~\n### This is a heading\n[This is a link](https://github.com/matterbridge-org/matterbridge)", rootID)
 	time.Sleep(time.Second)
 
-	// Step 10: Delete the marked message
+	// Step 10: Unordered list
+	post("- Item eins\n- Item zwei\n- Item drei", rootID)
+	time.Sleep(time.Second)
+
+	// Step 11: Ordered list
+	post("1. Erster Punkt\n2. Zweiter Punkt\n3. Dritter Punkt", rootID)
+	time.Sleep(time.Second)
+
+	// Step 12: Delete the marked message
 	if deleteID != "" {
 		_, err := b.mc.Client.DeletePost(context.TODO(), deleteID)
 		if err != nil {
@@ -96,7 +104,7 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 		}
 	}
 
-	// Step 11: Test finished
+	// Step 13: Test finished
 	post("✅ Test finished", rootID)
 
 	b.Log.Info("test: test sequence completed")
