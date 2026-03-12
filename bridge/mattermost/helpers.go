@@ -117,7 +117,11 @@ func (b *Bmattermost) sendWebhook(msg config.Message) (string, error) {
 		return "", nil
 	}
 
-	if b.GetBool("PrefixMessagesWithNick") {
+	// When the webhook sets override_username (msg.Username is non-empty),
+	// do NOT prefix the message with the nick — it would show up twice
+	// (once as the sender name, once in the message body).
+	// Only prefix when there's no username to use as override.
+	if b.GetBool("PrefixMessagesWithNick") && msg.Username == "" {
 		msg.Text = msg.Username + msg.Text
 	}
 
