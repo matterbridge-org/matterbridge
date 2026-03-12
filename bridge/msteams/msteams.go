@@ -137,34 +137,54 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
 
         // Handle file/image attachments.
         if msg.Extra != nil && len(msg.Extra["file"]) > 0 {
-                // For the first file, include msg.Text as a caption so that
-                // mixed content (text + image) arrives as a single Teams message.
+                // Build caption from msg.Text for the first message.
                 captionHTML := ""
                 if msg.Text != "" {
                         captionText := mapEmojis(msg.Text)
                         captionHTML = mdToTeamsHTML(captionText)
                 }
 
-                var firstID string
-                for i, files := range msg.Extra["file"] {
+                // Classify files: supported images (hostedContents) vs others.
+                var supportedImages []config.FileInfo
+                var otherFiles []config.FileInfo
+                for _, files := range msg.Extra["file"] {
                         fi, ok := files.(config.FileInfo)
                         if !ok {
                                 continue
                         }
-                        caption := ""
-                        if i == 0 {
-                                caption = captionHTML
+                        if isImageFile(fi.Name) && fi.Data != nil && isSupportedHostedContentType(fi.Name) {
+                                supportedImages = append(supportedImages, fi)
+                        } else {
+                                otherFiles = append(otherFiles, fi)
                         }
-                        id, err := b.sendFileAsMessage(msg, fi, caption)
+                }
+
+                var firstID string
+
+                // Send all supported images in a single Teams message.
+                if len(supportedImages) > 0 {
+                        id, err := b.sendImageHostedContent(msg, supportedImages, captionHTML)
+                        if err != nil {
+                                b.Log.Warnf("sendImageHostedContent failed: %s", err)
+                        } else {
+                                firstID = id
+                                captionHTML = "" // caption was included, don't duplicate
+                        }
+                }
+
+                // Handle remaining files individually (URL-based or notification).
+                for _, fi := range otherFiles {
+                        id, err := b.sendFileAsMessage(msg, fi, captionHTML)
                         if err != nil {
                                 b.Log.Warnf("sending file %s: %s", fi.Name, err)
                         }
                         if firstID == "" && id != "" {
                                 firstID = id
                         }
+                        captionHTML = "" // only include caption once
                 }
-                // Return the first file message ID so the gateway can cache it
-                // for thread-reply mapping.
+
+                // Return the first message ID for gateway thread-reply mapping.
                 return firstID, nil
         }
 
@@ -453,25 +473,14 @@ func isSupportedHostedContentType(name string) bool {
         return mime == "image/jpeg" || mime == "image/png"
 }
 
-// sendImageHostedContent sends an image as a Teams message using the hostedContents API.
-// The image data is base64-encoded and embedded directly in the message, so no external
-// server or public URL is required. Only works for JPG/PNG files.
-// The captionHTML parameter allows including additional text (e.g. msg.Text) in the same message.
-func (b *Bmsteams) sendImageHostedContent(msg config.Message, fi config.FileInfo, captionHTML string) (string, error) {
-        mimeType := mimeTypeForFile(fi.Name)
-        if mimeType == "" || fi.Data == nil {
-                return "", fmt.Errorf("sendImageHostedContent requires image file with data")
+// sendImageHostedContent sends one or more images as a single Teams message using
+// the hostedContents API. Image data is base64-encoded and embedded directly in the
+// message, so no external server or public URL is required. Only works for JPG/PNG.
+// The captionHTML parameter allows including additional text in the same message.
+func (b *Bmsteams) sendImageHostedContent(msg config.Message, files []config.FileInfo, captionHTML string) (string, error) {
+        if len(files) == 0 {
+                return "", fmt.Errorf("sendImageHostedContent requires at least one file")
         }
-
-        usernameHTML := b.formatMessageHTML(msg, "")
-        bodyHTML := usernameHTML
-        if captionHTML != "" {
-                bodyHTML += captionHTML + "<br>"
-        }
-        bodyHTML += fmt.Sprintf(
-                `<img src="../hostedContents/1/$value" alt="%s" style="max-width:600px"/>`,
-                fi.Name,
-        )
 
         type hostedContent struct {
                 TempID       string `json:"@microsoft.graph.temporaryId"`
@@ -487,18 +496,42 @@ func (b *Bmsteams) sendImageHostedContent(msg config.Message, fi config.FileInfo
                 HostedContents []hostedContent  `json:"hostedContents"`
         }
 
+        usernameHTML := b.formatMessageHTML(msg, "")
+        bodyHTML := usernameHTML
+        if captionHTML != "" {
+                bodyHTML += captionHTML + "<br>"
+        }
+
+        var hosted []hostedContent
+        for i, fi := range files {
+                if fi.Data == nil {
+                        continue
+                }
+                id := fmt.Sprintf("%d", i+1)
+                bodyHTML += fmt.Sprintf(
+                        `<img src="../hostedContents/%s/$value" alt="%s" style="max-width:600px"/>`,
+                        id, fi.Name,
+                )
+                if i < len(files)-1 {
+                        bodyHTML += "<br>"
+                }
+                hosted = append(hosted, hostedContent{
+                        TempID:       id,
+                        ContentBytes: base64.StdEncoding.EncodeToString(*fi.Data),
+                        ContentType:  mimeTypeForFile(fi.Name),
+                })
+        }
+
+        if len(hosted) == 0 {
+                return "", fmt.Errorf("no valid image data to send")
+        }
+
         payload := graphMessage{
                 Body: msgBody{
                         ContentType: "html",
                         Content:     bodyHTML,
                 },
-                HostedContents: []hostedContent{
-                        {
-                                TempID:       "1",
-                                ContentBytes: base64.StdEncoding.EncodeToString(*fi.Data),
-                                ContentType:  mimeType,
-                        },
-                },
+                HostedContents: hosted,
         }
 
         jsonData, err := json.Marshal(payload)
@@ -554,21 +587,12 @@ func (b *Bmsteams) sendImageHostedContent(msg config.Message, fi config.FileInfo
         return "", nil
 }
 
-// sendFileAsMessage sends a file as a Teams message. The captionHTML parameter
-// allows including additional text (converted from msg.Text) in the same message
-// so that text+image posts arrive as a single message instead of two.
+// sendFileAsMessage sends a file as a Teams message using a URL (either from the
+// source bridge or uploaded to a MediaServer). For hostedContents-supported images,
+// use sendImageHostedContent instead (called from Send()).
+// The captionHTML parameter allows including additional text in the same message.
 func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, captionHTML string) (string, error) {
         isImage := isImageFile(fi.Name)
-
-        // Prefer hostedContents for supported image types with binary data.
-        if isImage && fi.Data != nil && isSupportedHostedContentType(fi.Name) {
-                id, err := b.sendImageHostedContent(msg, fi, captionHTML)
-                if err != nil {
-                        b.Log.Debugf("hostedContents failed for %s, falling back: %s", fi.Name, err)
-                } else {
-                        return id, nil
-                }
-        }
 
         contentType := msgraph.BodyTypeVHTML
         var bodyText string
@@ -601,29 +625,19 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
                         usernameHTML, captionPart, fileURL, fi.Name,
                 )
         default:
-                // Post a notification to the Teams channel so users know the file didn't arrive.
+                // File can't be sent: no hostedContents support and no MediaServer URL.
+                // Send a notification back to the source side via b.Remote so users
+                // know the file didn't arrive (instead of posting to Teams).
                 b.Log.Warnf("cannot send file %s (%s) to Teams: type not supported by hostedContents and no MediaServerUpload configured",
                         fi.Name, mimeTypeForFile(fi.Name))
-                noticeText := fmt.Sprintf(`&#9888; Datei <b>%s</b> (%s) konnte nicht übertragen werden — `+
-                        `Format wird von Teams nicht unterstützt.`, fi.Name, mimeTypeForFile(fi.Name))
-                noticeHTML := usernameHTML + noticeText
-                noticeContent := &msgraph.ItemBody{
-                        Content:     &noticeHTML,
-                        ContentType: &contentType,
-                }
-                noticeMsg := &msgraph.ChatMessage{Body: noticeContent}
-
-                var noticeRes *msgraph.ChatMessage
-                if msg.ParentValid() {
-                        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(msg.Channel)).Messages().ID(msg.ParentID).Replies().Request()
-                        noticeRes, _ = ct.Add(b.ctx, noticeMsg)
-                } else {
-                        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(msg.Channel)).Messages().Request()
-                        noticeRes, _ = ct.Add(b.ctx, noticeMsg)
-                }
-                if noticeRes != nil && noticeRes.ID != nil {
-                        b.sentIDs[*noticeRes.ID] = struct{}{}
-                        b.updatedIDs[*noticeRes.ID] = time.Now().Add(30 * time.Second)
+                b.Remote <- config.Message{
+                        Text: fmt.Sprintf("⚠️ Datei **%s** (%s) konnte nicht zu Teams übertragen werden"+
+                                " — Format wird nicht unterstützt, kein MediaServer konfiguriert.",
+                                fi.Name, mimeTypeForFile(fi.Name)),
+                        Channel:  msg.Channel,
+                        Account:  b.Account,
+                        Username: "system",
+                        Extra:    make(map[string][]interface{}),
                 }
                 return "", nil
         }

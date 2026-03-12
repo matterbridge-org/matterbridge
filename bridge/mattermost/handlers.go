@@ -2,6 +2,7 @@ package bmattermost
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -178,43 +179,54 @@ func (b *Bmattermost) handleMatterHook(messages chan *config.Message) {
 }
 
 func (b *Bmattermost) handleUploadFile(msg *config.Message) (string, error) {
-	var err error
-	var res string
 	channelID := b.getChannelID(msg.Channel)
-	for _, f := range msg.Extra["file"] {
-		fi := f.(config.FileInfo)
-		fileID, uploadErr := b.mc.UploadFile(*fi.Data, channelID, fi.Name)
-		if uploadErr != nil {
-			return "", uploadErr
-		}
-		text := fi.Comment
-		if b.GetBool("PrefixMessagesWithNick") {
-			text = "**" + strings.TrimSpace(msg.Username) + "**\n" + text
-		}
 
-		// Build a post with webhook-like props so the message appears with the
-		// bridged user's name and avatar instead of the bot's identity.
-		post := &model.Post{
-			ChannelId: channelID,
-			Message:   text,
-			RootId:    msg.ParentID,
-			FileIds:   []string{fileID},
-			Props: model.StringInterface{
-				"from_webhook":           "true",
-				"override_username":      strings.TrimSpace(msg.Username),
-				"matterbridge_" + b.uuid: true,
-			},
+	// Upload all files first, then create a single post with all file IDs.
+	var fileIDs []string
+	var firstComment string
+	for i, f := range msg.Extra["file"] {
+		fi := f.(config.FileInfo)
+		fileID, err := b.mc.UploadFile(*fi.Data, channelID, fi.Name)
+		if err != nil {
+			b.Log.Errorf("upload file %s failed: %s", fi.Name, err)
+			continue
 		}
-		if msg.Avatar != "" {
-			post.Props["override_icon_url"] = msg.Avatar
+		fileIDs = append(fileIDs, fileID)
+		if i == 0 {
+			firstComment = fi.Comment
 		}
-		created, _, createErr := b.mc.Client.CreatePost(context.TODO(), post)
-		if createErr != nil {
-			return "", createErr
-		}
-		res = created.Id
 	}
-	return res, err
+
+	if len(fileIDs) == 0 {
+		return "", fmt.Errorf("no files uploaded successfully")
+	}
+
+	text := firstComment
+	if b.GetBool("PrefixMessagesWithNick") {
+		text = "**" + strings.TrimSpace(msg.Username) + "**\n" + text
+	}
+
+	// Build a single post with all files so they appear as one message
+	// with the bridged user's name and avatar.
+	post := &model.Post{
+		ChannelId: channelID,
+		Message:   text,
+		RootId:    msg.ParentID,
+		FileIds:   fileIDs,
+		Props: model.StringInterface{
+			"from_webhook":           "true",
+			"override_username":      strings.TrimSpace(msg.Username),
+			"matterbridge_" + b.uuid: true,
+		},
+	}
+	if msg.Avatar != "" {
+		post.Props["override_icon_url"] = msg.Avatar
+	}
+	created, _, err := b.mc.Client.CreatePost(context.TODO(), post)
+	if err != nil {
+		return "", err
+	}
+	return created.Id, nil
 }
 
 //nolint:forcetypeassert

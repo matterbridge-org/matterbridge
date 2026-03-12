@@ -200,12 +200,14 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
                         // then send any remaining text via webhook. Webhooks can't upload
                         // binary files, so we need the API path for actual file uploads.
                         if msg.Extra != nil && len(msg.Extra["file"]) > 0 && b.mc != nil {
-                                if _, err := b.handleUploadFile(&msg); err != nil {
+                                postID, err := b.handleUploadFile(&msg)
+                                if err != nil {
                                         b.Log.Errorf("handleUploadFile failed: %s", err)
                                 }
-                                // If there's no remaining text, we're done.
+                                // If there's no remaining text, return the upload post ID
+                                // so the gateway can cache it for thread-reply mapping.
                                 if strings.TrimSpace(msg.Text) == "" {
-                                        return "", nil
+                                        return postID, nil
                                 }
                                 // Clear the files so sendWebhook doesn't append URLs again.
                                 delete(msg.Extra, "file")
