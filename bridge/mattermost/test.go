@@ -140,43 +140,14 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	time.Sleep(time.Second)
 
 	// Step 15: Important priority message
-	// Create post first, then set priority via separate API call.
-	// (Metadata in CreatePost is ignored by the server.)
-	{
-		p := &model.Post{
-			ChannelId: channelID,
-			Message:   "Priority test: important message",
-			RootId:    rootID,
-			Props:     testProps,
-		}
-		created, _, err := b.mc.Client.CreatePost(context.TODO(), p)
-		if err != nil {
-			b.Log.Errorf("test: CreatePost important priority failed: %s", err)
-		} else {
-			b.Log.Debugf("test: created important priority post %s, setting priority...", created.Id)
-			prio := "important"
-			b.mc.Client.SetPostPriority(context.TODO(), created.Id, &model.PostPriority{Priority: &prio})
-		}
-	}
+	// NOTE: Client4.SetPostPriority is not available in this model version.
+	// Posts are created as regular messages; priority must be set manually in MM
+	// to test the priority extraction + relay pipeline.
+	post("❗ Priority test: important message", rootID)
 	time.Sleep(time.Second)
 
 	// Step 16: Urgent priority message
-	{
-		p := &model.Post{
-			ChannelId: channelID,
-			Message:   "Priority test: urgent message",
-			RootId:    rootID,
-			Props:     testProps,
-		}
-		created, _, err := b.mc.Client.CreatePost(context.TODO(), p)
-		if err != nil {
-			b.Log.Errorf("test: CreatePost urgent priority failed: %s", err)
-		} else {
-			b.Log.Debugf("test: created urgent priority post %s, setting priority...", created.Id)
-			prio := "urgent"
-			b.mc.Client.SetPostPriority(context.TODO(), created.Id, &model.PostPriority{Priority: &prio})
-		}
-	}
+	post("🚨 Priority test: urgent message", rootID)
 	time.Sleep(time.Second)
 
 	// Step 17: Delete the marked message
