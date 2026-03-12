@@ -112,6 +112,13 @@ func (b *Bmsteams) JoinChannel(channel config.ChannelInfo) error {
 func (b *Bmsteams) Send(msg config.Message) (string, error) {
         b.Log.Debugf("=> Receiving %#v", msg)
 
+        // Debug: log nick resolution for troubleshooting RemoteNickFormat.
+        if nicks, ok := msg.Extra["nick"]; ok && len(nicks) > 0 {
+                b.Log.Debugf("nick from Extra: %v, msg.Username: %s", nicks[0], msg.Username)
+        } else {
+                b.Log.Debugf("no nick in Extra, msg.Username: %s", msg.Username)
+        }
+
         // Handle deletes from Mattermost → Teams.
         if msg.Event == config.EventMsgDelete && msg.ID != "" {
                 b.Log.Debugf("delete: soft-deleting Teams message ID %s", msg.ID)
@@ -187,6 +194,11 @@ func mdToTeamsHTML(text string) string {
         result = preCodeLangRE.ReplaceAllString(result, `<codeblock class="$1"><code>`)
         result = strings.ReplaceAll(result, "</code></pre>", "</code></codeblock>")
         result = strings.ReplaceAll(result, "<pre><code>", "<codeblock><code>")
+
+        // Post-process: convert gomarkdown's <del> to <s> for Teams strikethrough support.
+        // Teams renders <s> but not <del>.
+        result = strings.ReplaceAll(result, "<del>", "<s>")
+        result = strings.ReplaceAll(result, "</del>", "</s>")
 
         return strings.TrimSpace(result)
 }

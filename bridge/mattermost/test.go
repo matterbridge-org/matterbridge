@@ -71,7 +71,7 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	time.Sleep(time.Second)
 
 	// Step 7: Emojis
-	post(":thumbsup: :tada: :rocket: :heart: :eyes: :flag_at:", rootID)
+	post(":thumbsup: :tada: :rocket: :heart: :eyes: :flag-at:", rootID)
 	time.Sleep(time.Second)
 
 	// Step 8: Edit the typo message
