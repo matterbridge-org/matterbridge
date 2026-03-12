@@ -282,10 +282,8 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 	})
 	time.Sleep(time.Second)
 
-	// Step 13: Single GIF image
-	postReplyWithImages(rootID, "Image test: GIF", []testImage{
-		{name: "demo.gif", contentType: "image/gif", data: testdata.DemoGIF},
-	})
+	// Step 13: GIF — hostedContents only supports JPG/PNG; Teams client uses SharePoint for GIFs.
+	postReply(rootID, "⚠️ Please manually check GIF file transmission from Teams to Mattermost — this test cannot upload files to your SharePoint.", nil)
 	time.Sleep(time.Second)
 
 	// Step 14: Multi-image (2x PNG in one message)

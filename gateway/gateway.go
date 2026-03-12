@@ -61,7 +61,15 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 	}
 
 	// Initialize persistent message ID cache if configured.
-	if cachePath := gw.BridgeValues().General.MessageCacheFile; cachePath != "" {
+	// Check per-bridge settings first (br.GetString falls back to [general]).
+	var cachePath string
+	for _, br := range gw.Bridges {
+		if p := br.GetString("MessageCacheFile"); p != "" {
+			cachePath = p
+			break
+		}
+	}
+	if cachePath != "" {
 		gw.PersistentCache = NewPersistentMsgCache(cachePath, logger)
 	}
 

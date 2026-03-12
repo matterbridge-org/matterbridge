@@ -490,10 +490,10 @@ func isImageFile(name string) bool {
 }
 
 // isSupportedHostedContentType returns true if the file type can be embedded
-// via the Graph API hostedContents endpoint. JPG, PNG, and GIF are supported.
+// via the Graph API hostedContents endpoint. Only JPG and PNG are supported.
 func isSupportedHostedContentType(name string) bool {
         mime := mimeTypeForFile(name)
-        return mime == "image/jpeg" || mime == "image/png" || mime == "image/gif"
+        return mime == "image/jpeg" || mime == "image/png"
 }
 
 // sendImageHostedContent sends one or more images as a single Teams message using
@@ -898,6 +898,7 @@ func (b *Bmsteams) poll(channelName string) error {
                                         }
                                         if !isEdit && !isDelete {
                                                 b.handleAttachments(&rmsg, msg)
+                                                b.handleHostedContents(&rmsg, msg, "")
                                         }
                                         b.Log.Debugf("<= Message is %#v", rmsg)
                                         b.Remote <- rmsg
@@ -1012,6 +1013,7 @@ func (b *Bmsteams) poll(channelName string) error {
                                 }
                                 if !isReplyEdit && !isReplyDelete {
                                         b.handleAttachments(&rrmsg, reply)
+                                        b.handleHostedContents(&rrmsg, reply, *msg.ID)
                                 }
                                 b.Log.Debugf("<= Reply message is %#v", rrmsg)
                                 b.Remote <- rrmsg

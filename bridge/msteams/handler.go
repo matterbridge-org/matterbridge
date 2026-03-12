@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -11,6 +12,9 @@ import (
 
 	msgraph "github.com/yaegashi/msgraph.go/beta"
 )
+
+var hostedContentImgRE = regexp.MustCompile(`(?i)<img[^>]*src="[^"]*hostedContents/([^/]+)/\$value"[^>]*(?:alt="([^"]*)")?[^>]*/?>`)
+
 
 func (b *Bmsteams) findFile(weburl string) (string, error) {
 	itemRB, err := b.gc.GetDriveItemByURL(b.ctx, weburl)
@@ -99,4 +103,63 @@ func (b *Bmsteams) handleCodeSnippet(rmsg *config.Message, attach msgraph.ChatMe
 		return
 	}
 	rmsg.Text = rmsg.Text + "\n```" + content.Language + "\n" + string(res) + "\n```\n"
+}
+
+// handleHostedContents downloads inline images embedded via hostedContents
+// in the Teams message HTML body and adds them to rmsg.Extra["file"].
+// parentMsgID should be empty for top-level messages, or the parent message ID for replies.
+func (b *Bmsteams) handleHostedContents(rmsg *config.Message, msg msgraph.ChatMessage, parentMsgID string) {
+	if msg.Body == nil || msg.Body.Content == nil {
+		return
+	}
+
+	matches := hostedContentImgRE.FindAllStringSubmatch(*msg.Body.Content, -1)
+	if len(matches) == 0 {
+		return
+	}
+
+	teamID := b.GetString("TeamID")
+	channelID := decodeChannelID(rmsg.Channel)
+	msgID := *msg.ID
+
+	for _, m := range matches {
+		hcID := m[1]
+		filename := m[2] // from alt attribute
+		if filename == "" {
+			filename = fmt.Sprintf("image_%s.png", hcID)
+		}
+
+		// Build the Graph API URL for the hostedContent binary.
+		var apiURL string
+		if parentMsgID == "" {
+			apiURL = fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages/%s/hostedContents/%s/$value",
+				teamID, channelID, msgID, hcID)
+		} else {
+			apiURL = fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages/%s/replies/%s/hostedContents/%s/$value",
+				teamID, channelID, parentMsgID, msgID, hcID)
+		}
+
+		resp, err := b.gc.Teams().Request().Client().Get(apiURL)
+		if err != nil {
+			b.Log.Errorf("handleHostedContents: GET %s failed: %s", apiURL, err)
+			continue
+		}
+
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			b.Log.Errorf("handleHostedContents: reading body for %s failed: %s", filename, err)
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			b.Log.Errorf("handleHostedContents: GET %s returned %d", apiURL, resp.StatusCode)
+			continue
+		}
+
+		b.Log.Debugf("handleHostedContents: downloaded %s (%d bytes)", filename, len(data))
+		comment := rmsg.Text
+		rmsg.Text = ""
+		helper.HandleDownloadData(b.Log, rmsg, filename, comment, "", &data, b.General)
+	}
 }
