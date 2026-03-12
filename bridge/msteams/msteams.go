@@ -145,6 +145,7 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
                         captionHTML = mdToTeamsHTML(captionText)
                 }
 
+                var firstID string
                 for i, files := range msg.Extra["file"] {
                         fi, ok := files.(config.FileInfo)
                         if !ok {
@@ -154,12 +155,17 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
                         if i == 0 {
                                 caption = captionHTML
                         }
-                        if _, err := b.sendFileAsMessage(msg, fi, caption); err != nil {
+                        id, err := b.sendFileAsMessage(msg, fi, caption)
+                        if err != nil {
                                 b.Log.Warnf("sending file %s: %s", fi.Name, err)
                         }
+                        if firstID == "" && id != "" {
+                                firstID = id
+                        }
                 }
-                // Text was included in the first file message, so don't send it again.
-                return "", nil
+                // Return the first file message ID so the gateway can cache it
+                // for thread-reply mapping.
+                return firstID, nil
         }
 
         if msg.ParentValid() {
@@ -188,6 +194,7 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
                 return "", err
         }
         b.sentIDs[*res.ID] = struct{}{}
+        b.updatedIDs[*res.ID] = time.Now().Add(30 * time.Second)
         return *res.ID, nil
 }
 
@@ -541,6 +548,7 @@ func (b *Bmsteams) sendImageHostedContent(msg config.Message, fi config.FileInfo
         }
         if err := json.Unmarshal(respBody, &result); err == nil && result.ID != "" {
                 b.sentIDs[result.ID] = struct{}{}
+                b.updatedIDs[result.ID] = time.Now().Add(30 * time.Second)
                 return result.ID, nil
         }
         return "", nil
@@ -593,11 +601,31 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
                         usernameHTML, captionPart, fileURL, fi.Name,
                 )
         default:
-                // Don't post error messages to Teams for unsupported file types.
-                // Just log and return an error so the caller can handle it.
+                // Post a notification to the Teams channel so users know the file didn't arrive.
                 b.Log.Warnf("cannot send file %s (%s) to Teams: type not supported by hostedContents and no MediaServerUpload configured",
                         fi.Name, mimeTypeForFile(fi.Name))
-                return "", fmt.Errorf("file type not supported: %s", fi.Name)
+                noticeText := fmt.Sprintf(`&#9888; Datei <b>%s</b> (%s) konnte nicht übertragen werden — `+
+                        `Format wird von Teams nicht unterstützt.`, fi.Name, mimeTypeForFile(fi.Name))
+                noticeHTML := usernameHTML + noticeText
+                noticeContent := &msgraph.ItemBody{
+                        Content:     &noticeHTML,
+                        ContentType: &contentType,
+                }
+                noticeMsg := &msgraph.ChatMessage{Body: noticeContent}
+
+                var noticeRes *msgraph.ChatMessage
+                if msg.ParentValid() {
+                        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(msg.Channel)).Messages().ID(msg.ParentID).Replies().Request()
+                        noticeRes, _ = ct.Add(b.ctx, noticeMsg)
+                } else {
+                        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(msg.Channel)).Messages().Request()
+                        noticeRes, _ = ct.Add(b.ctx, noticeMsg)
+                }
+                if noticeRes != nil && noticeRes.ID != nil {
+                        b.sentIDs[*noticeRes.ID] = struct{}{}
+                        b.updatedIDs[*noticeRes.ID] = time.Now().Add(30 * time.Second)
+                }
+                return "", nil
         }
 
         content := &msgraph.ItemBody{
@@ -620,6 +648,7 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
         }
         if res != nil && res.ID != nil {
                 b.sentIDs[*res.ID] = struct{}{}
+                b.updatedIDs[*res.ID] = time.Now().Add(30 * time.Second)
                 return *res.ID, nil
         }
         return "", nil
@@ -645,6 +674,7 @@ func (b *Bmsteams) sendReply(msg config.Message) (string, error) {
                 return "", err
         }
         b.sentIDs[*res.ID] = struct{}{}
+        b.updatedIDs[*res.ID] = time.Now().Add(30 * time.Second)
         return *res.ID, nil
 }
 
@@ -806,7 +836,9 @@ func (b *Bmsteams) poll(channelName string) error {
                                                 Avatar:   b.GetString("IconURL"),
                                                 Extra:    make(map[string][]interface{}),
                                         }
-                                        b.handleAttachments(&rmsg, msg)
+                                        if !isEdit && !isDelete {
+                                                b.handleAttachments(&rmsg, msg)
+                                        }
                                         b.Log.Debugf("<= Message is %#v", rmsg)
                                         b.Remote <- rmsg
                                 }
@@ -918,7 +950,9 @@ func (b *Bmsteams) poll(channelName string) error {
                                         Avatar:   b.GetString("IconURL"),
                                         Extra:    make(map[string][]interface{}),
                                 }
-                                b.handleAttachments(&rrmsg, reply)
+                                if !isReplyEdit && !isReplyDelete {
+                                        b.handleAttachments(&rrmsg, reply)
+                                }
                                 b.Log.Debugf("<= Reply message is %#v", rrmsg)
                                 b.Remote <- rrmsg
                         }
