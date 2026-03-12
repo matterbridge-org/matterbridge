@@ -144,6 +144,13 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 			}
 		}
 
+		// Intercept test command before relaying.
+		if b.isTestCommand(rmsg.Text) {
+			b.Log.Info("Test command received, starting test sequence")
+			go b.runTestSequence(channelName)
+			continue
+		}
+
 		// Use nickname instead of username if defined
 		if !b.GetBool("useusername") {
 			if nick := b.mc.GetNickName(rmsg.UserID); nick != "" {

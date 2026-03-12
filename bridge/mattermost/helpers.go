@@ -231,8 +231,11 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 		}
 	}
 
-	// Ignore messages sent from a user logged in as the bot
-	if b.mc.User.Username == message.Username {
+	// Allow test messages from ourselves to be relayed (bypass echo prevention).
+	isTestMessage := message.Post.Props != nil && message.Post.Props["matterbridge_test"] != nil
+
+	// Ignore messages sent from a user logged in as the bot (unless it's a test message).
+	if !isTestMessage && b.mc.User.Username == message.Username {
 		b.Log.Debug("message from same user as bot, ignoring")
 		return true
 	}

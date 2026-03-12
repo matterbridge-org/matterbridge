@@ -612,6 +612,15 @@ func (b *Bmsteams) poll(channelName string) error {
                                         b.Log.Debugf("<= Sending message from %s on %s to gateway", *msg.From.User.DisplayName, b.Account)
 
                                         text := b.convertToMD(*msg.Body.Content)
+
+                                        // Intercept test command (only for new messages, not edits/deletes).
+                                        if !isDelete && !isEdit && b.isTestCommand(text) {
+                                                b.Log.Info("Test command received, starting test sequence")
+                                                go b.runTestSequence(channelName)
+                                                // Don't relay the trigger message, but continue processing other messages.
+                                                continue
+                                        }
+
                                         // Prepend subject if present (Teams thread subjects)
                                         if msg.Subject != nil && *msg.Subject != "" {
                                                 text = "**" + *msg.Subject + "**\n" + text
