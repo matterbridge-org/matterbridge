@@ -27,8 +27,8 @@ type Gateway struct {
 	ChannelOptions  map[string]config.ChannelOptions
 	Message         chan config.Message
 	Name            string
-	Messages        *lru.Cache
-	PersistentCache *PersistentMsgCache
+	Messages     *lru.Cache
+	BridgeCaches map[string]*PersistentMsgCache // per-bridge persistent caches, keyed by Account
 
 	logger *logrus.Entry
 }
@@ -60,17 +60,24 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 		logger.Errorf("Failed to add configuration to gateway: %#v", err)
 	}
 
-	// Initialize persistent message ID cache if configured.
-	// Check per-bridge settings first (br.GetString falls back to [general]).
-	var cachePath string
+	// Initialize per-bridge persistent message ID caches.
+	// Each bridge with a MessageCacheFile setting gets its own cache.
+	// br.GetString() checks per-bridge config first, then falls back to [general].
+	// Bridges resolving to the same file path share one cache instance.
+	gw.BridgeCaches = make(map[string]*PersistentMsgCache)
+	pathToCache := make(map[string]*PersistentMsgCache)
 	for _, br := range gw.Bridges {
-		if p := br.GetString("MessageCacheFile"); p != "" {
-			cachePath = p
-			break
+		p := br.GetString("MessageCacheFile")
+		if p == "" {
+			continue
 		}
-	}
-	if cachePath != "" {
-		gw.PersistentCache = NewPersistentMsgCache(cachePath, logger)
+		if existing, ok := pathToCache[p]; ok {
+			gw.BridgeCaches[br.Account] = existing
+		} else {
+			cache := NewPersistentMsgCache(p, logger)
+			pathToCache[p] = cache
+			gw.BridgeCaches[br.Account] = cache
+		}
 	}
 
 	return gw
@@ -95,15 +102,15 @@ func (gw *Gateway) FindCanonicalMsgID(protocol string, mID string) string {
 	}
 
 	// Fallback to persistent cache if LRU missed.
-	if gw.PersistentCache != nil {
+	if gw.hasPersistentCache() {
 		// Check if ID is a direct key in persistent cache.
-		if entries, ok := gw.PersistentCache.Get(ID); ok {
+		if entries, ok := gw.persistentCacheGet(ID); ok {
 			gw.restoreToCacheFindCanonical(ID, entries)
 			return ID
 		}
 		// Check if ID is a downstream value.
-		if canonical := gw.PersistentCache.FindDownstream(ID); canonical != "" {
-			if entries, ok := gw.PersistentCache.Get(canonical); ok {
+		if canonical := gw.persistentCacheFindDownstream(ID); canonical != "" {
+			if entries, ok := gw.persistentCacheGet(canonical); ok {
 				gw.restoreToCacheFindCanonical(canonical, entries)
 			}
 			return canonical
@@ -140,6 +147,57 @@ func (gw *Gateway) findBridge(protocol, name string) *bridge.Bridge {
 		}
 	}
 	return nil
+}
+
+// hasPersistentCache returns true if any bridge has a persistent cache configured.
+func (gw *Gateway) hasPersistentCache() bool {
+	return len(gw.BridgeCaches) > 0
+}
+
+// persistentCacheAdd writes an entry to all unique persistent caches.
+func (gw *Gateway) persistentCacheAdd(key string, entries []PersistentMsgEntry) {
+	seen := make(map[*PersistentMsgCache]bool)
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil && !seen[cache] {
+			cache.Add(key, entries)
+			seen[cache] = true
+		}
+	}
+}
+
+// persistentCacheGet looks up an entry across all persistent caches.
+func (gw *Gateway) persistentCacheGet(key string) ([]PersistentMsgEntry, bool) {
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil {
+			if entries, ok := cache.Get(key); ok {
+				return entries, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// persistentCacheFindDownstream searches for a downstream ID across all persistent caches.
+func (gw *Gateway) persistentCacheFindDownstream(id string) string {
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil {
+			if key := cache.FindDownstream(id); key != "" {
+				return key
+			}
+		}
+	}
+	return ""
+}
+
+// stopPersistentCaches stops all unique persistent cache instances.
+func (gw *Gateway) stopPersistentCaches() {
+	seen := make(map[*PersistentMsgCache]bool)
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil && !seen[cache] {
+			cache.Stop()
+			seen[cache] = true
+		}
+	}
 }
 
 // AddBridge sets up a new bridge on startup.
@@ -346,8 +404,8 @@ func (gw *Gateway) getDestMsgID(msgID string, dest *bridge.Bridge, channel *conf
 	}
 
 	// Fallback to persistent cache if LRU missed.
-	if gw.PersistentCache != nil {
-		if entries, ok := gw.PersistentCache.Get(msgID); ok {
+	if gw.hasPersistentCache() {
+		if entries, ok := gw.persistentCacheGet(msgID); ok {
 			// Restore to LRU and retry.
 			gw.restoreToCacheFindCanonical(msgID, entries)
 			if res, ok := gw.Messages.Get(msgID); ok {

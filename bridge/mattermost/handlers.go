@@ -211,12 +211,9 @@ func (b *Bmattermost) handleUploadFile(msg *config.Message) (string, error) {
 	}
 
 	text := firstComment
-	if b.GetBool("PrefixMessagesWithNick") {
-		text = "**" + strings.TrimSpace(msg.Username) + "**\n" + text
-	}
 
 	// Build a single post with all files so they appear as one message
-	// with the bridged user's name and avatar.
+	// with the bridged user's name and avatar via override_username.
 	post := &model.Post{
 		ChannelId: channelID,
 		Message:   text,

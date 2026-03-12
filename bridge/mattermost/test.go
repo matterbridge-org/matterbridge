@@ -140,33 +140,41 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	time.Sleep(time.Second)
 
 	// Step 15: Important priority message
+	// Create post first, then set priority via separate API call.
+	// (Metadata in CreatePost is ignored by the server.)
 	{
-		prio := "important"
 		p := &model.Post{
 			ChannelId: channelID,
 			Message:   "Priority test: important message",
 			RootId:    rootID,
 			Props:     testProps,
-			Metadata:  &model.PostMetadata{Priority: &model.PostPriority{Priority: &prio}},
 		}
-		if _, _, err := b.mc.Client.CreatePost(context.TODO(), p); err != nil {
-			b.Log.Errorf("test: CreatePost with important priority failed: %s", err)
+		created, _, err := b.mc.Client.CreatePost(context.TODO(), p)
+		if err != nil {
+			b.Log.Errorf("test: CreatePost important priority failed: %s", err)
+		} else {
+			b.Log.Debugf("test: created important priority post %s, setting priority...", created.Id)
+			prio := "important"
+			b.mc.Client.SetPostPriority(context.TODO(), created.Id, &model.PostPriority{Priority: &prio})
 		}
 	}
 	time.Sleep(time.Second)
 
 	// Step 16: Urgent priority message
 	{
-		prio := "urgent"
 		p := &model.Post{
 			ChannelId: channelID,
 			Message:   "Priority test: urgent message",
 			RootId:    rootID,
 			Props:     testProps,
-			Metadata:  &model.PostMetadata{Priority: &model.PostPriority{Priority: &prio}},
 		}
-		if _, _, err := b.mc.Client.CreatePost(context.TODO(), p); err != nil {
-			b.Log.Errorf("test: CreatePost with urgent priority failed: %s", err)
+		created, _, err := b.mc.Client.CreatePost(context.TODO(), p)
+		if err != nil {
+			b.Log.Errorf("test: CreatePost urgent priority failed: %s", err)
+		} else {
+			b.Log.Debugf("test: created urgent priority post %s, setting priority...", created.Id)
+			prio := "urgent"
+			b.mc.Client.SetPostPriority(context.TODO(), created.Id, &model.PostPriority{Priority: &prio})
 		}
 	}
 	time.Sleep(time.Second)

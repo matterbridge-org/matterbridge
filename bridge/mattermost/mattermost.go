@@ -314,7 +314,20 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
         // Upload a file if it exists
         if msg.Extra != nil {
                 for _, rmsg := range helper.HandleExtra(&msg, b.General) {
-                        if _, err := b.mc.PostMessage(b.getChannelID(rmsg.Channel), rmsg.Username+rmsg.Text, msg.ParentID); err != nil {
+                        extraPost := &model.Post{
+                                ChannelId: b.getChannelID(rmsg.Channel),
+                                Message:   rmsg.Text,
+                                RootId:    msg.ParentID,
+                                Props: model.StringInterface{
+                                        "from_webhook":           "true",
+                                        "override_username":      strings.TrimSpace(rmsg.Username),
+                                        "matterbridge_" + b.uuid: true,
+                                },
+                        }
+                        if rmsg.Avatar != "" {
+                                extraPost.Props["override_icon_url"] = rmsg.Avatar
+                        }
+                        if _, _, err := b.mc.Client.CreatePost(context.TODO(), extraPost); err != nil {
                                 b.Log.Errorf("PostMessage failed: %s", err)
                         }
                 }
@@ -323,29 +336,29 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
                 }
         }
 
-        // Prepend nick if configured. Bold the username and put the message
-        // on the next line so it visually matches webhook post styling.
-        if b.GetBool("PrefixMessagesWithNick") {
-                msg.Text = "**" + strings.TrimSpace(msg.Username) + "**\n" + msg.Text
-        }
-
         // Edit message if we have an ID
         if msg.ID != "" {
                 return b.mc.EditMessage(msg.ID, msg.Text)
         }
 
-        // Post normal message, embedding source ID for cross-bridge cache reconstruction.
+        // Post normal message with override_username/icon so it appears as the
+        // bridged user (same as handleUploadFile does for file posts).
         post := &model.Post{
                 ChannelId: b.getChannelID(msg.Channel),
                 Message:   msg.Text,
                 RootId:    msg.ParentID,
+                Props: model.StringInterface{
+                        "from_webhook":           "true",
+                        "override_username":      strings.TrimSpace(msg.Username),
+                        "matterbridge_" + b.uuid: true,
+                },
+        }
+        if msg.Avatar != "" {
+                post.Props["override_icon_url"] = msg.Avatar
         }
         if msg.Extra != nil {
                 if srcIDs, ok := msg.Extra["source_msgid"]; ok && len(srcIDs) > 0 {
                         if srcID, ok := srcIDs[0].(string); ok {
-                                if post.Props == nil {
-                                        post.Props = model.StringInterface{}
-                                }
                                 post.Props["matterbridge_srcid"] = srcID
                         }
                 }

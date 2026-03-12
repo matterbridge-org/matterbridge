@@ -181,7 +181,7 @@ func (r *Router) handleReceive() {
 				}
 
 				// Write-through to persistent cache.
-				if gw.PersistentCache != nil && len(msgIDs) > 0 {
+				if gw.hasPersistentCache() && len(msgIDs) > 0 {
 					var entries []PersistentMsgEntry
 					for _, mid := range msgIDs {
 						if mid.br != nil && mid.ID != "" {
@@ -194,7 +194,7 @@ func (r *Router) handleReceive() {
 						}
 					}
 					if len(entries) > 0 {
-						gw.PersistentCache.Add(cacheKey, entries)
+						gw.persistentCacheAdd(cacheKey, entries)
 					}
 				}
 			}
@@ -231,7 +231,7 @@ func (r *Router) handleHistoricalMapping(msg *config.Message) {
 	sourceKey := sourceProtocol + " " + sourceMessageID
 
 	for _, gw := range r.Gateways {
-		if gw.PersistentCache == nil {
+		if !gw.hasPersistentCache() {
 			continue
 		}
 
@@ -264,8 +264,8 @@ func (r *Router) handleHistoricalMapping(msg *config.Message) {
 		}
 
 		// Store: sourceKey → points to local bridge (e.g., "mattermost POST123" → msteams entry)
-		if _, exists := gw.PersistentCache.Get(sourceKey); !exists {
-			gw.PersistentCache.Add(sourceKey, []PersistentMsgEntry{{
+		if _, exists := gw.persistentCacheGet(sourceKey); !exists {
+			gw.persistentCacheAdd(sourceKey, []PersistentMsgEntry{{
 				Protocol:   localBridge.Protocol,
 				BridgeName: localBridge.Name,
 				ID:         localKey,
@@ -274,8 +274,8 @@ func (r *Router) handleHistoricalMapping(msg *config.Message) {
 		}
 
 		// Store: localKey → points to source bridge (e.g., "msteams TEAMS456" → mattermost entry)
-		if _, exists := gw.PersistentCache.Get(localKey); !exists && sourceChannelID != "" {
-			gw.PersistentCache.Add(localKey, []PersistentMsgEntry{{
+		if _, exists := gw.persistentCacheGet(localKey); !exists && sourceChannelID != "" {
+			gw.persistentCacheAdd(localKey, []PersistentMsgEntry{{
 				Protocol:   sourceBridge.Protocol,
 				BridgeName: sourceBridge.Name,
 				ID:         sourceKey,
