@@ -28,6 +28,7 @@ type PersistentMsgCache struct {
 	dirty     bool
 	ticker    *time.Ticker
 	stopCh    chan struct{}
+	doneCh    chan struct{}
 	logger    *logrus.Entry
 	maxAge    time.Duration
 	lastPrune time.Time
@@ -51,6 +52,7 @@ func NewPersistentMsgCache(path string, maxAge time.Duration, logger *logrus.Ent
 		path:   path,
 		data:   make(map[string][]PersistentMsgEntry),
 		stopCh: make(chan struct{}),
+		doneCh: make(chan struct{}),
 		logger: logger,
 		maxAge: maxAge,
 	}
@@ -89,6 +91,7 @@ func (c *PersistentMsgCache) load() {
 }
 
 func (c *PersistentMsgCache) flushLoop() {
+	defer close(c.doneCh)
 	for {
 		select {
 		case <-c.ticker.C:
@@ -249,7 +252,8 @@ func (c *PersistentMsgCache) GetDeltaToken(channelKey string) (string, bool) {
 	return entries[0].ID, true
 }
 
-// Stop stops the background flush loop and performs a final flush.
+// Stop stops the background flush loop and waits for the final flush to complete.
 func (c *PersistentMsgCache) Stop() {
 	close(c.stopCh)
+	<-c.doneCh // block until flushLoop completes its final Flush()
 }
