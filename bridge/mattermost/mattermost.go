@@ -480,7 +480,7 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
                 }
                 _, _, err := b.mc.Client.PatchPost(context.TODO(), msg.ID, &model.PostPatch{
                         Message: &msg.Text,
-                        Props:   props,
+                        Props:   &props,
                 })
                 if err != nil {
                         return "", err

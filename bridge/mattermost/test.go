@@ -93,7 +93,7 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 		}
 		_, _, err := b.mc.Client.PatchPost(context.TODO(), typoID, &model.PostPatch{
 			Message: &newText,
-			Props:   editProps,
+			Props:   &editProps,
 		})
 		if err != nil {
 			b.Log.Errorf("test: PatchPost failed: %s", err)
