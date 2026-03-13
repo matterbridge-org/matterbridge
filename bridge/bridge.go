@@ -53,6 +53,12 @@ type Config struct {
 	// GetLastSeen returns the timestamp of the last processed message for a channel.
 	// Used by replay to determine the cutoff point.
 	GetLastSeen func(channelKey string) (time.Time, bool)
+
+	// MarkMessageBridged marks a message as handled in the persistent cache.
+	// Used by bridges when they handle a message locally (e.g. posting an error
+	// notification) without routing it through the gateway, so replay won't
+	// re-process it on the next restart.
+	MarkMessageBridged func(protocol, msgID string)
 }
 
 // Factory is the factory function to create a bridge

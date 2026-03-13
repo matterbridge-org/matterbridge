@@ -250,7 +250,7 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
 
                 // Format replay prefix with original timestamp.
                 createTime := *msg.CreatedDateTime
-                replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04"))
+                replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04 MST"))
 
                 rmsg := config.Message{
                         Event:    config.EventReplayMessage,
@@ -313,7 +313,7 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
 
                         text := b.convertToMD(*reply.Body.Content)
                         createTime := *reply.CreatedDateTime
-                        replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04"))
+                        replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04 MST"))
 
                         rrmsg := config.Message{
                                 Event:    config.EventReplayMessage,

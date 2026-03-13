@@ -91,6 +91,19 @@ func (b *Bmsteams) notifyFileTooLarge(rmsg *config.Message, filename string, act
 	}
 	if res != nil && res.ID != nil {
 		b.sentIDs[*res.ID] = struct{}{}
+
+		// Persist the warning reply and the original message in the cache so
+		// replay won't re-process them after a restart (sentIDs is in-memory only).
+		if b.MarkMessageBridged != nil {
+			// Mark the original message as handled.
+			if parentID != "" {
+				b.MarkMessageBridged("msteams", parentID)
+				// Mark the reply (warning) itself using the composite key.
+				b.MarkMessageBridged("msteams", parentID+"/"+*res.ID)
+			} else {
+				b.MarkMessageBridged("msteams", *res.ID)
+			}
+		}
 	}
 }
 

@@ -241,6 +241,14 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 				}
 				return time.Time{}, false
 			},
+			MarkMessageBridged: func(protocol, msgID string) {
+				key := protocol + " " + msgID
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						cache.Add(key, []PersistentMsgEntry{})
+					}
+				}
+			},
 		}
 		// add the actual bridger for this protocol to this bridge using the bridgeMap
 		if _, ok := gw.Router.BridgeMap[br.Protocol]; !ok {
