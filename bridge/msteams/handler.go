@@ -112,9 +112,19 @@ func (b *Bmsteams) handleAttachments(rmsg *config.Message, msg msgraph.ChatMessa
 		//remove the attachment tags from the text
 		rmsg.Text = attachRE.ReplaceAllString(rmsg.Text, "")
 
+		// Skip attachments without required fields (e.g. messageReference from
+		// "reply with quote" has no Name/ContentURL).
+		if a.ContentType == nil {
+			continue
+		}
+
 		//handle a code snippet (code block)
 		if *a.ContentType == "application/vnd.microsoft.card.codesnippet" {
 			b.handleCodeSnippet(rmsg, a)
+			continue
+		}
+
+		if a.Name == nil || a.ContentURL == nil {
 			continue
 		}
 
