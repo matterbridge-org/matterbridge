@@ -207,7 +207,7 @@ func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
         }
 
         sinceMillis := cutoff.UnixMilli()
-        postList, _, err := b.mc.Client.GetPostsSince(context.TODO(), channelID, sinceMillis, "")
+        postList, _, err := b.mc.Client.GetPostsSince(context.TODO(), channelID, sinceMillis, false)
         if err != nil {
                 b.Log.Errorf("replayMissedMessages: GetPostsSince failed: %s", err)
                 return
