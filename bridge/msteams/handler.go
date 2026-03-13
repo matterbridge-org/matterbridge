@@ -61,17 +61,36 @@ func (b *Bmsteams) handleDownloadFile(rmsg *config.Message, filename, weburl str
 	return nil
 }
 
-// notifyFileTooLarge sends a warning reply back to the source channel
-// so the sender knows their file was not transferred.
+// notifyFileTooLarge posts a warning reply directly into the Teams channel
+// (via Graph API) so the sender sees that their file was not transferred.
+// This must NOT use b.Remote because the handler runs on the source side —
+// b.Remote would route the warning to the destination bridge instead.
 func (b *Bmsteams) notifyFileTooLarge(rmsg *config.Message, filename string, actualSize int64, maxSize int) {
-	b.Remote <- config.Message{
-		Text: fmt.Sprintf("⚠️ File **%s** could not be transferred — file too large (%d MB, limit: %d MB).",
-			filename, actualSize/(1024*1024), maxSize/(1024*1024)),
-		Channel:  rmsg.Channel,
-		Account:  b.Account,
-		Username: "matterbridge",
-		ParentID: rmsg.ID,
-		Extra:    make(map[string][]interface{}),
+	teamID := b.GetString("TeamID")
+	channelID := decodeChannelID(rmsg.Channel)
+	parentID := rmsg.ID
+
+	text := fmt.Sprintf("⚠️ File <b>%s</b> could not be transferred — file too large (%d MB, limit: %d MB).",
+		filename, actualSize/(1024*1024), maxSize/(1024*1024))
+	htmlType := msgraph.BodyTypeVHTML
+	content := &msgraph.ItemBody{Content: &text, ContentType: &htmlType}
+	chatMsg := &msgraph.ChatMessage{Body: content}
+
+	var res *msgraph.ChatMessage
+	var err error
+	if parentID != "" {
+		ct := b.gc.Teams().ID(teamID).Channels().ID(channelID).Messages().ID(parentID).Replies().Request()
+		res, err = ct.Add(b.ctx, chatMsg)
+	} else {
+		ct := b.gc.Teams().ID(teamID).Channels().ID(channelID).Messages().Request()
+		res, err = ct.Add(b.ctx, chatMsg)
+	}
+	if err != nil {
+		b.Log.Errorf("notifyFileTooLarge: failed to post warning: %s", err)
+		return
+	}
+	if res != nil && res.ID != nil {
+		b.sentIDs[*res.ID] = struct{}{}
 	}
 }
 

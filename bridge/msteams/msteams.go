@@ -140,7 +140,7 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
         // Fetch recent messages via Graph API with $top=50 for broader coverage.
         teamID := b.GetString("TeamID")
         channelID := decodeChannelID(channelName)
-        apiURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50&$orderby=lastModifiedDateTime+desc",
+        apiURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50",
                 teamID, channelID)
 
         token, tokenErr := b.getAccessToken()
