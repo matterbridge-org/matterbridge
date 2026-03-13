@@ -120,24 +120,16 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
                 return
         }
 
-        replayWindowStr := b.GetString("ReplayWindow")
-        if replayWindowStr == "" {
-                return
-        }
-        replayWindow, err := time.ParseDuration(replayWindowStr)
-        if err != nil {
-                b.Log.Errorf("replayMissedMessages: invalid ReplayWindow %q: %s", replayWindowStr, err)
-                return
-        }
-
         channelKey := channelName + b.Account
-        cutoff := time.Now().Add(-replayWindow)
-
-        if lastSeen, ok := b.GetLastSeen(channelKey); ok && lastSeen.After(cutoff) {
-                cutoff = lastSeen
+        lastSeen, ok := b.GetLastSeen(channelKey)
+        if !ok {
+                // First start: no replay, let the cache initialize through normal polling.
+                b.Log.Debugf("replayMissedMessages: no lastSeen for %s, skipping (first start)", channelKey)
+                return
         }
+        cutoff := lastSeen
 
-        // Fetch recent messages via Graph API with pagination to cover the full ReplayWindow.
+        // Fetch recent messages via Graph API with pagination.
         teamID := b.GetString("TeamID")
         channelID := decodeChannelID(channelName)
         firstURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50",

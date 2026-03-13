@@ -158,7 +158,6 @@ type Protocol struct {
 	MediaConvertTgs        string     // telegram
 	MediaConvertWebPToPNG  bool       // telegram
 	MessageCacheFile       string     // general, msteams, mattermost: persistent message ID cache file
-	ReplayWindow           string     // general, msteams, mattermost: duration for replay window on startup (e.g. "24h")
 	MessageDelay           int        // IRC, time in millisecond to wait between messages
 	MessageFormat          string     // telegram
 	MessageLength          int        // IRC, max length of a message allowed

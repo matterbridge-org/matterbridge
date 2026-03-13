@@ -183,28 +183,19 @@ func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
                 return
         }
 
-        replayWindowStr := b.GetString("ReplayWindow")
-        if replayWindowStr == "" {
-                return
-        }
-        replayWindow, err := time.ParseDuration(replayWindowStr)
-        if err != nil {
-                b.Log.Errorf("replayMissedMessages: invalid ReplayWindow %q: %s", replayWindowStr, err)
-                return
-        }
-
         channelID := b.getChannelID(channel.Name)
         if channelID == "" {
                 return
         }
 
         channelKey := channel.Name + b.Account
-        cutoff := time.Now().Add(-replayWindow)
-
-        // Use last-seen timestamp if available and more recent than window cutoff.
-        if lastSeen, ok := b.GetLastSeen(channelKey); ok && lastSeen.After(cutoff) {
-                cutoff = lastSeen
+        lastSeen, ok := b.GetLastSeen(channelKey)
+        if !ok {
+                // First start: no replay, let the cache initialize through normal operation.
+                b.Log.Debugf("replayMissedMessages: no lastSeen for %s, skipping (first start)", channelKey)
+                return
         }
+        cutoff := lastSeen
 
         sinceMillis := cutoff.UnixMilli()
         postList, _, err := b.mc.Client.GetPostsSince(context.TODO(), channelID, sinceMillis, false)
