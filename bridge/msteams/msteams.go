@@ -270,10 +270,12 @@ func (b *Bmsteams) processReplay(messages []msgraph.ChatMessage, replyToIDs map[
 
                 key, parentID := deltaMessageKey(msg, replyToIDs)
 
-                // Skip messages posted by the bridge itself (e.g. test sequence,
-                // relayed messages from other platforms). These should never be
-                // replayed back — the source platform's replay handles them.
-                if msg.From.User.ID != nil && *msg.From.User.ID == b.botID {
+                // Skip messages posted by the bridge itself. All messages sent
+                // by the bridge contain a hidden data-mb-src marker in the HTML
+                // body (added by formatMessageHTML and test sequences). Manually
+                // typed messages in Teams don't have this marker.
+                if msg.Body != nil && msg.Body.Content != nil &&
+                        strings.Contains(*msg.Body.Content, "data-mb-src=") {
                         continue
                 }
 

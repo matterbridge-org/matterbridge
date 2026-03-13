@@ -30,6 +30,11 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 
 	// Helper to post a top-level message and return its ID.
 	postRoot := func(text string, contentType *msgraph.BodyType) string {
+		// Add bridge marker so processReplay() skips test messages on restart.
+		text += `<span data-mb-src="test" style="display:none"></span>`
+		if contentType == nil {
+			contentType = &htmlType
+		}
 		ct := b.gc.Teams().ID(teamID).Channels().ID(channelID).Messages().Request()
 		content := &msgraph.ItemBody{Content: &text}
 		if contentType != nil {
@@ -46,6 +51,11 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 
 	// Helper to post a reply and return its ID.
 	postReply := func(rootID, text string, contentType *msgraph.BodyType) string {
+		// Add bridge marker so processReplay() skips test messages on restart.
+		text += `<span data-mb-src="test" style="display:none"></span>`
+		if contentType == nil {
+			contentType = &htmlType
+		}
 		ct := b.gc.Teams().ID(teamID).Channels().ID(channelID).Messages().ID(rootID).Replies().Request()
 		content := &msgraph.ItemBody{Content: &text}
 		if contentType != nil {
