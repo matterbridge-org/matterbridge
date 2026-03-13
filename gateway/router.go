@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -110,6 +111,13 @@ func (r *Router) Start() error {
 	return nil
 }
 
+// Stop performs a graceful shutdown: flushes and stops all persistent caches.
+func (r *Router) Stop() {
+	for _, gw := range r.Gateways {
+		gw.stopPersistentCaches()
+	}
+}
+
 // disableBridge returns true and empties a bridge if we have IgnoreFailureOnStart configured
 // otherwise returns false
 func (r *Router) disableBridge(br *bridge.Bridge, err error) bool {
@@ -143,6 +151,42 @@ func (r *Router) handleReceive() {
 		// Set message protocol based on the account it came from
 		msg.Protocol = r.getBridge(msg.Account).Protocol
 
+		// Handle historical cache population events — don't relay, just cache.
+		if msg.Event == config.EventHistoricalMapping {
+			r.handleHistoricalMapping(&msg)
+			continue
+		}
+
+		// Handle replay messages — check persistent cache for dedup, then treat as normal.
+		isReplay := msg.Event == config.EventReplayMessage
+		if isReplay {
+			if msg.ID != "" {
+				cacheKey := msg.Protocol + " " + msg.ID
+				r.logger.Debugf("replay: dedup check for %s (account=%s)", cacheKey, msg.Account)
+				alreadyBridged := false
+				for _, gw := range r.Gateways {
+					if !gw.hasPersistentCache() {
+						r.logger.Debugf("replay: gateway %s has no persistent cache", gw.Name)
+						continue
+					}
+					if _, exists := gw.persistentCacheGet(cacheKey); exists {
+						alreadyBridged = true
+						break
+					}
+					if downstream := gw.persistentCacheFindDownstream(cacheKey); downstream != "" {
+						alreadyBridged = true
+						break
+					}
+				}
+				if alreadyBridged {
+					r.logger.Debugf("replay: skipping already-bridged message %s", cacheKey)
+					continue
+				}
+				r.logger.Debugf("replay: message %s NOT found in cache, will bridge", cacheKey)
+			}
+			msg.Event = "" // clear so downstream pipeline treats it as a normal message
+		}
+
 		filesHandled := false
 		for _, gw := range r.Gateways {
 			// record all the message ID's of the different bridges
@@ -161,7 +205,8 @@ func (r *Router) handleReceive() {
 			}
 
 			if msg.ID != "" {
-				_, exists := gw.Messages.Get(msg.Protocol + " " + msg.ID)
+				cacheKey := msg.Protocol + " " + msg.ID
+				_, exists := gw.Messages.Get(cacheKey)
 
 				// Only add the message ID if it doesn't already exist
 				//
@@ -169,11 +214,128 @@ func (r *Router) handleReceive() {
 				// This is necessary as msgIDs will change if a bridge returns
 				// a different ID in response to edits.
 				if !exists {
-					gw.Messages.Add(msg.Protocol+" "+msg.ID, msgIDs)
+					gw.Messages.Add(cacheKey, msgIDs)
+				}
+
+				// Write-through to persistent cache.
+				if gw.hasPersistentCache() && len(msgIDs) > 0 {
+					var entries []PersistentMsgEntry
+					for _, mid := range msgIDs {
+						if mid.br != nil && mid.ID != "" {
+							entries = append(entries, PersistentMsgEntry{
+								Protocol:   mid.br.Protocol,
+								BridgeName: mid.br.Name,
+								ID:         mid.ID,
+								ChannelID:  mid.ChannelID,
+							})
+						}
+					}
+					if len(entries) > 0 {
+						gw.persistentCacheAdd(cacheKey, entries, msg.Account)
+					} else if isReplay {
+						r.logger.Debugf("replay: no cacheable entries for %s (msgIDs=%d)", cacheKey, len(msgIDs))
+					}
+					// Update last-seen timestamp for the source channel.
+					channelKey := msg.Channel + msg.Account
+					if cache, ok := gw.BridgeCaches[msg.Account]; ok && cache != nil {
+						cache.SetLastSeen(channelKey, msg.Timestamp)
+					}
 				}
 			}
 		}
 	}
+}
+
+// handleHistoricalMapping processes historical ID mapping events from bridges.
+// It extracts the source-ID marker and stores a bidirectional mapping in the
+// persistent cache of every gateway that has both the reporting bridge and
+// the source bridge configured.
+func (r *Router) handleHistoricalMapping(msg *config.Message) {
+	if msg.ID == "" || msg.Extra == nil {
+		return
+	}
+	srcIDs, ok := msg.Extra["source_msgid"]
+	if !ok || len(srcIDs) == 0 {
+		return
+	}
+	sourceIDStr, ok := srcIDs[0].(string)
+	if !ok || sourceIDStr == "" {
+		return
+	}
+
+	// Parse "protocol:messageID" from the source marker.
+	parts := strings.SplitN(sourceIDStr, ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+	sourceProtocol := parts[0]
+	sourceMessageID := parts[1]
+
+	localKey := msg.Protocol + " " + msg.ID
+	sourceKey := sourceProtocol + " " + sourceMessageID
+
+	for _, gw := range r.Gateways {
+		if !gw.hasPersistentCache() {
+			continue
+		}
+
+		// Find the local bridge (the one that reported this mapping).
+		localBridge := gw.findBridge(msg.Protocol, extractBridgeName(msg.Account))
+		if localBridge == nil {
+			continue
+		}
+
+		// Find a bridge matching the source protocol in this gateway.
+		var sourceBridge *bridge.Bridge
+		for _, br := range gw.Bridges {
+			if br.Protocol == sourceProtocol {
+				sourceBridge = br
+				break
+			}
+		}
+		if sourceBridge == nil {
+			continue
+		}
+
+		// Find channel IDs for both sides.
+		localChannelID := msg.Channel + msg.Account
+		var sourceChannelID string
+		for chID, ch := range gw.Channels {
+			if ch.Account == sourceBridge.Account {
+				sourceChannelID = chID
+				break
+			}
+		}
+
+		// Store: sourceKey → points to local bridge (e.g., "mattermost POST123" → msteams entry)
+		if _, exists := gw.persistentCacheGet(sourceKey); !exists {
+			gw.persistentCacheAdd(sourceKey, []PersistentMsgEntry{{
+				Protocol:   localBridge.Protocol,
+				BridgeName: localBridge.Name,
+				ID:         localKey,
+				ChannelID:  localChannelID,
+			}}, sourceBridge.Account)
+		}
+
+		// Store: localKey → points to source bridge (e.g., "msteams TEAMS456" → mattermost entry)
+		if _, exists := gw.persistentCacheGet(localKey); !exists && sourceChannelID != "" {
+			gw.persistentCacheAdd(localKey, []PersistentMsgEntry{{
+				Protocol:   sourceBridge.Protocol,
+				BridgeName: sourceBridge.Name,
+				ID:         sourceKey,
+				ChannelID:  sourceChannelID,
+			}}, msg.Account)
+		}
+	}
+}
+
+// extractBridgeName returns the part after the dot in an account string like "msteams.windoof".
+func extractBridgeName(account string) string {
+	parts := strings.SplitN(account, ".", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return account
 }
 
 // updateChannelMembers sends every minute an GetChannelMembers event to all bridges.

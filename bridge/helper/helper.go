@@ -23,8 +23,72 @@ import (
 
 var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
 
+// ErrFileTooLarge is returned when a file exceeds the configured MediaDownloadSize.
+type ErrFileTooLarge struct {
+	Size    int64
+	MaxSize int
+}
+
+func (e *ErrFileTooLarge) Error() string {
+	return fmt.Sprintf("file too large (%d bytes, limit %d bytes)", e.Size, e.MaxSize)
+}
+
 func HttpGetNotOkError(url string, code int) error {
 	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, url, code)
+}
+
+// DownloadFileWithSizeCheck downloads a file, aborting if it exceeds maxSize bytes.
+// First tries an HTTP HEAD request to check Content-Length before downloading.
+// If HEAD is not supported or returns no Content-Length, falls back to a size-limited
+// download that reads at most maxSize+1 bytes to detect oversized files without
+// buffering the entire content.
+func DownloadFileWithSizeCheck(url string, maxSize int) (*[]byte, error) {
+	client := &http.Client{Timeout: time.Second * 30}
+
+	// Try HEAD first to check Content-Length without downloading.
+	headReq, err := http.NewRequest("HEAD", url, nil)
+	if err == nil {
+		if headResp, headErr := client.Do(headReq); headErr == nil {
+			headResp.Body.Close()
+			if cl := headResp.ContentLength; cl > 0 && cl > int64(maxSize) {
+				return nil, &ErrFileTooLarge{Size: cl, MaxSize: maxSize}
+			}
+		}
+	}
+
+	// Download with size limit.
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, HttpGetNotOkError(url, resp.StatusCode)
+	}
+
+	// Check Content-Length from GET response too.
+	if cl := resp.ContentLength; cl > 0 && cl > int64(maxSize) {
+		return nil, &ErrFileTooLarge{Size: cl, MaxSize: maxSize}
+	}
+
+	// Read up to maxSize+1 bytes. If we get more, the file is too large.
+	limited := io.LimitReader(resp.Body, int64(maxSize)+1)
+	var buf bytes.Buffer
+	n, err := io.Copy(&buf, limited)
+	if err != nil {
+		return nil, err
+	}
+	if n > int64(maxSize) {
+		return nil, &ErrFileTooLarge{Size: n, MaxSize: maxSize}
+	}
+
+	data := buf.Bytes()
+	return &data, nil
 }
 
 // DownloadFile downloads the given non-authenticated URL.

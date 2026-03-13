@@ -20,14 +20,15 @@ import (
 type Gateway struct {
 	config.Config
 
-	Router         *Router
-	MyConfig       *config.Gateway
-	Bridges        map[string]*bridge.Bridge
-	Channels       map[string]*config.ChannelInfo
-	ChannelOptions map[string]config.ChannelOptions
-	Message        chan config.Message
-	Name           string
-	Messages       *lru.Cache
+	Router          *Router
+	MyConfig        *config.Gateway
+	Bridges         map[string]*bridge.Bridge
+	Channels        map[string]*config.ChannelInfo
+	ChannelOptions  map[string]config.ChannelOptions
+	Message         chan config.Message
+	Name            string
+	Messages     *lru.Cache
+	BridgeCaches map[string]*PersistentMsgCache // per-bridge persistent caches, keyed by Account
 
 	logger *logrus.Entry
 }
@@ -58,6 +59,28 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 	if err := gw.AddConfig(cfg); err != nil {
 		logger.Errorf("Failed to add configuration to gateway: %#v", err)
 	}
+
+	// Initialize per-bridge persistent message ID caches.
+	// Each bridge with a MessageCacheFile setting gets its own cache.
+	// br.GetString() checks per-bridge config first, then falls back to [general].
+	// Bridges resolving to the same file path share one cache instance.
+	gw.BridgeCaches = make(map[string]*PersistentMsgCache)
+	pathToCache := make(map[string]*PersistentMsgCache)
+	for _, br := range gw.Bridges {
+		p := br.GetString("MessageCacheFile")
+		if p == "" {
+			continue
+		}
+		if existing, ok := pathToCache[p]; ok {
+			gw.BridgeCaches[br.Account] = existing
+		} else {
+			maxAge := parseCacheDuration(br.GetString("MessageCacheDuration"))
+			cache := NewPersistentMsgCache(p, maxAge, logger)
+			pathToCache[p] = cache
+			gw.BridgeCaches[br.Account] = cache
+		}
+	}
+
 	return gw
 }
 
@@ -78,7 +101,123 @@ func (gw *Gateway) FindCanonicalMsgID(protocol string, mID string) string {
 			}
 		}
 	}
+
+	// Fallback to persistent cache if LRU missed.
+	if gw.hasPersistentCache() {
+		// Check if ID is a direct key in persistent cache.
+		if entries, ok := gw.persistentCacheGet(ID); ok {
+			gw.restoreToCacheFindCanonical(ID, entries)
+			return ID
+		}
+		// Check if ID is a downstream value.
+		if canonical := gw.persistentCacheFindDownstream(ID); canonical != "" {
+			if entries, ok := gw.persistentCacheGet(canonical); ok {
+				gw.restoreToCacheFindCanonical(canonical, entries)
+			}
+			return canonical
+		}
+	}
+
 	return ""
+}
+
+// restoreToCacheFindCanonical restores persistent cache entries into the LRU cache.
+func (gw *Gateway) restoreToCacheFindCanonical(key string, entries []PersistentMsgEntry) {
+	var brMsgIDs []*BrMsgID
+	for _, entry := range entries {
+		br := gw.findBridge(entry.Protocol, entry.BridgeName)
+		if br == nil {
+			continue
+		}
+		brMsgIDs = append(brMsgIDs, &BrMsgID{
+			br:        br,
+			ID:        entry.ID,
+			ChannelID: entry.ChannelID,
+		})
+	}
+	if len(brMsgIDs) > 0 {
+		gw.Messages.Add(key, brMsgIDs)
+	}
+}
+
+// findBridge looks up a bridge by protocol and name across the gateway.
+func (gw *Gateway) findBridge(protocol, name string) *bridge.Bridge {
+	for _, br := range gw.Bridges {
+		if br.Protocol == protocol && br.Name == name {
+			return br
+		}
+	}
+	return nil
+}
+
+// hasPersistentCache returns true if any bridge has a persistent cache configured.
+func (gw *Gateway) hasPersistentCache() bool {
+	return len(gw.BridgeCaches) > 0
+}
+
+// persistentCacheAdd writes an entry to the persistent cache of the given
+// source bridge account. Lookups (Get/FindDownstream) still search all caches.
+func (gw *Gateway) persistentCacheAdd(key string, entries []PersistentMsgEntry, sourceAccount string) {
+	if cache, ok := gw.BridgeCaches[sourceAccount]; ok && cache != nil {
+		cache.Add(key, entries)
+		gw.logger.Debugf("persistentCacheAdd: %s → %d entries (cache: %s)", key, len(entries), sourceAccount)
+	} else {
+		gw.logger.Debugf("persistentCacheAdd: %s SKIPPED (no cache for %s, have: %v)", key, sourceAccount, func() []string {
+			keys := make([]string, 0, len(gw.BridgeCaches))
+			for k := range gw.BridgeCaches {
+				keys = append(keys, k)
+			}
+			return keys
+		}())
+	}
+}
+
+// persistentCacheGet looks up an entry across all persistent caches.
+func (gw *Gateway) persistentCacheGet(key string) ([]PersistentMsgEntry, bool) {
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil {
+			if entries, ok := cache.Get(key); ok {
+				return entries, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// persistentCacheFindDownstream searches for a downstream ID across all persistent caches.
+func (gw *Gateway) persistentCacheFindDownstream(id string) string {
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil {
+			if key := cache.FindDownstream(id); key != "" {
+				return key
+			}
+		}
+	}
+	return ""
+}
+
+// stopPersistentCaches stops all unique persistent cache instances.
+func (gw *Gateway) stopPersistentCaches() {
+	seen := make(map[*PersistentMsgCache]bool)
+	for _, cache := range gw.BridgeCaches {
+		if cache != nil && !seen[cache] {
+			cache.Stop()
+			seen[cache] = true
+		}
+	}
+}
+
+// parseCacheDuration parses a MessageCacheDuration string (e.g. "168h", "24h").
+// Returns 0 for empty/invalid values (caller should apply default).
+func parseCacheDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
 }
 
 // AddBridge sets up a new bridge on startup.
@@ -105,6 +244,56 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 		brconfig := &bridge.Config{
 			Remote: gw.Message,
 			Bridge: br,
+			IsMessageBridged: func(protocol, msgID string) bool {
+				key := protocol + " " + msgID
+				if entries, exists := gw.persistentCacheGet(key); exists {
+					gw.logger.Debugf("IsMessageBridged: %s found (direct, %d entries)", key, len(entries))
+					return true
+				}
+				if downstream := gw.persistentCacheFindDownstream(key); downstream != "" {
+					gw.logger.Debugf("IsMessageBridged: %s found (downstream of %s)", key, downstream)
+					return true
+				}
+				gw.logger.Debugf("IsMessageBridged: %s NOT found (caches: %d)", key, len(gw.BridgeCaches))
+				return false
+			},
+			GetLastSeen: func(channelKey string) (time.Time, bool) {
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						if t, ok := cache.GetLastSeen(channelKey); ok {
+							return t, true
+						}
+					}
+				}
+				return time.Time{}, false
+			},
+			MarkMessageBridged: func(protocol, msgID string) {
+				key := protocol + " " + msgID
+				gw.logger.Debugf("MarkMessageBridged: %s", key)
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						// Store a sentinel entry (not empty) so prune() doesn't delete it.
+						cache.Add(key, []PersistentMsgEntry{{Protocol: protocol}})
+					}
+				}
+			},
+			SetDeltaToken: func(channelKey, token string) {
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						cache.SetDeltaToken(channelKey, token)
+					}
+				}
+			},
+			GetDeltaToken: func(channelKey string) (string, bool) {
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						if token, ok := cache.GetDeltaToken(channelKey); ok {
+							return token, true
+						}
+					}
+				}
+				return "", false
+			},
 		}
 		// add the actual bridger for this protocol to this bridge using the bridgeMap
 		if _, ok := gw.Router.BridgeMap[br.Protocol]; !ok {
@@ -283,6 +472,23 @@ func (gw *Gateway) getDestMsgID(msgID string, dest *bridge.Bridge, channel *conf
 			}
 		}
 	}
+
+	// Fallback to persistent cache if LRU missed.
+	if gw.hasPersistentCache() {
+		if entries, ok := gw.persistentCacheGet(msgID); ok {
+			// Restore to LRU and retry.
+			gw.restoreToCacheFindCanonical(msgID, entries)
+			if res, ok := gw.Messages.Get(msgID); ok {
+				IDs := res.([]*BrMsgID)
+				for _, id := range IDs {
+					if dest.Protocol == id.br.Protocol && dest.Name == id.br.Name && channel.ID == id.ChannelID {
+						return strings.Replace(id.ID, dest.Protocol+" ", "", 1)
+					}
+				}
+			}
+		}
+	}
+
 	return ""
 }
 
@@ -378,6 +584,13 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) stri
 	nick = strings.ReplaceAll(nick, "{NICK}", msg.Username)
 	nick = strings.ReplaceAll(nick, "{USERID}", msg.UserID)
 	nick = strings.ReplaceAll(nick, "{CHANNEL}", msg.Channel)
+	displayName := msg.Username
+	if dns, ok := msg.Extra["displayname"]; ok && len(dns) > 0 {
+		if dn, ok := dns[0].(string); ok && dn != "" {
+			displayName = dn
+		}
+	}
+	nick = strings.ReplaceAll(nick, "{DISPLAYNAME}", displayName)
 	tengoNick, err := gw.modifyUsernameTengo(msg, br)
 	if err != nil {
 		gw.logger.Errorf("modifyUsernameTengo error: %s", err)
@@ -476,6 +689,19 @@ func (gw *Gateway) SendMessage(
 
 	msg.Channel = channel.Name
 	msg.Avatar = gw.modifyAvatar(rmsg, dest)
+
+	// Store original nick before RemoteNickFormat expansion, so bridges
+	// that need HTML-aware formatting can access it.
+	if msg.Extra == nil {
+		msg.Extra = make(map[string][]interface{})
+	}
+	msg.Extra["nick"] = []interface{}{rmsg.Username}
+
+	// Pass source message ID so bridges can embed it for historical cache population.
+	if rmsg.ID != "" {
+		msg.Extra["source_msgid"] = []interface{}{rmsg.Protocol + ":" + rmsg.ID}
+	}
+
 	msg.Username = gw.modifyUsername(rmsg, dest)
 
 	// exclude file delete event as the msg ID here is the native file ID that needs to be deleted

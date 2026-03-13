@@ -45,6 +45,26 @@ type Config struct {
 	*Bridge
 
 	Remote chan config.Message
+
+	// IsMessageBridged checks whether a message has already been bridged
+	// (exists in the persistent cache). Used by replay to avoid duplicates.
+	IsMessageBridged func(protocol, msgID string) bool
+
+	// GetLastSeen returns the timestamp of the last processed message for a channel.
+	// Used by replay to determine the cutoff point.
+	GetLastSeen func(channelKey string) (time.Time, bool)
+
+	// MarkMessageBridged marks a message as handled in the persistent cache.
+	// Used by bridges when they handle a message locally (e.g. posting an error
+	// notification) without routing it through the gateway, so replay won't
+	// re-process it on the next restart.
+	MarkMessageBridged func(protocol, msgID string)
+
+	// SetDeltaToken stores a Graph API delta token for a channel.
+	SetDeltaToken func(channelKey, token string)
+
+	// GetDeltaToken returns the stored Graph API delta token for a channel.
+	GetDeltaToken func(channelKey string) (string, bool)
 }
 
 // Factory is the factory function to create a bridge

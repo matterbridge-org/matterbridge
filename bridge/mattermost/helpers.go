@@ -117,7 +117,11 @@ func (b *Bmattermost) sendWebhook(msg config.Message) (string, error) {
 		return "", nil
 	}
 
-	if b.GetBool("PrefixMessagesWithNick") {
+	// When the webhook sets override_username (msg.Username is non-empty),
+	// do NOT prefix the message with the nick — it would show up twice
+	// (once as the sender name, once in the message body).
+	// Only prefix when there's no username to use as override.
+	if b.GetBool("PrefixMessagesWithNick") && msg.Username == "" {
 		msg.Text = msg.Username + msg.Text
 	}
 
@@ -227,8 +231,11 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 		}
 	}
 
-	// Ignore messages sent from a user logged in as the bot
-	if b.mc.User.Username == message.Username {
+	// Allow test messages from ourselves to be relayed (bypass echo prevention).
+	isTestMessage := message.Post.Props != nil && message.Post.Props["matterbridge_test"] != nil
+
+	// Ignore messages sent from a user logged in as the bot (unless it's a test message).
+	if !isTestMessage && b.mc.User.Username == message.Username {
 		b.Log.Debug("message from same user as bot, ignoring")
 		return true
 	}

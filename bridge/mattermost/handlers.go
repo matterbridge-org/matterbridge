@@ -2,6 +2,8 @@ package bmattermost
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
@@ -96,6 +98,21 @@ func (b *Bmattermost) handleMatter() {
 //nolint:cyclop
 func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 	for message := range b.mc.MessageChan {
+		// Allowlist: only process events relevant to bridging.
+		// This avoids logging noise from status_change, hello, preferences_changed, etc.
+		et := message.Raw.EventType()
+		switch et {
+		case "posted", model.WebsocketEventPostEdited, model.WebsocketEventPostDeleted:
+			// Post events: always process (join/leave come as "posted" with system message type).
+		case "typing":
+			// Typing events: only process if ShowUserTyping is enabled.
+			if !b.GetBool("ShowUserTyping") {
+				continue
+			}
+		default:
+			continue
+		}
+
 		b.Log.Debugf("%#v %#v", message.Raw.GetData(), message.Raw.EventType())
 
 		if b.skipMessage(message) {
@@ -128,6 +145,15 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 		// handle mattermost post properties (override username and attachments)
 		b.handleProps(rmsg, message)
 
+		// Extract message priority from Post.Metadata if present.
+		if message.Post.Metadata != nil && message.Post.Metadata.Priority != nil &&
+			message.Post.Metadata.Priority.Priority != nil {
+			prio := *message.Post.Metadata.Priority.Priority
+			if prio != "" && prio != "standard" {
+				rmsg.Extra["priority"] = []interface{}{prio}
+			}
+		}
+
 		// create a text for bridges that don't support native editing
 		if message.Raw.EventType() == model.WebsocketEventPostEdited && !b.GetBool("EditDisable") {
 			rmsg.Text = message.Text + b.GetString("EditSuffix")
@@ -144,11 +170,23 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 			}
 		}
 
+		// Intercept test command before relaying.
+		if b.isTestCommand(rmsg.Text) {
+			b.Log.Info("Test command received, starting test sequence")
+			go b.runTestSequence(channelName)
+			continue
+		}
+
 		// Use nickname instead of username if defined
 		if !b.GetBool("useusername") {
 			if nick := b.mc.GetNickName(rmsg.UserID); nick != "" {
 				rmsg.Username = nick
 			}
+		}
+
+		// Populate full display name (FirstName + LastName) for bridges that support it.
+		if dn := b.getDisplayName(rmsg.UserID); dn != "" {
+			rmsg.Extra["displayname"] = []interface{}{dn}
 		}
 
 		messages <- rmsg
@@ -170,22 +208,58 @@ func (b *Bmattermost) handleMatterHook(messages chan *config.Message) {
 }
 
 func (b *Bmattermost) handleUploadFile(msg *config.Message) (string, error) {
-	var err error
-	var res, id string
 	channelID := b.getChannelID(msg.Channel)
-	for _, f := range msg.Extra["file"] {
+
+	// Upload all files first, then create a single post with all file IDs.
+	var fileIDs []string
+	var firstComment string
+	for i, f := range msg.Extra["file"] {
 		fi := f.(config.FileInfo)
-		id, err = b.mc.UploadFile(*fi.Data, channelID, fi.Name)
+		fileID, err := b.mc.UploadFile(*fi.Data, channelID, fi.Name)
 		if err != nil {
-			return "", err
+			b.Log.Errorf("upload file %s failed: %s", fi.Name, err)
+			continue
 		}
-		msg.Text = fi.Comment
-		if b.GetBool("PrefixMessagesWithNick") {
-			msg.Text = msg.Username + msg.Text
+		fileIDs = append(fileIDs, fileID)
+		if i == 0 {
+			firstComment = fi.Comment
 		}
-		res, err = b.mc.PostMessageWithFiles(channelID, msg.Text, msg.ParentID, []string{id})
 	}
-	return res, err
+
+	if len(fileIDs) == 0 {
+		return "", fmt.Errorf("no files uploaded successfully")
+	}
+
+	text := firstComment
+
+	// Build a single post with all files so they appear as one message
+	// with the bridged user's name and avatar via override_username.
+	post := &model.Post{
+		ChannelId: channelID,
+		Message:   text,
+		RootId:    msg.ParentID,
+		FileIds:   fileIDs,
+		Props: model.StringInterface{
+			"from_webhook":           "true",
+			"override_username":      strings.TrimSpace(msg.Username),
+			"matterbridge_" + b.uuid: true,
+		},
+	}
+	if msg.Avatar != "" {
+		post.Props["override_icon_url"] = msg.Avatar
+	}
+	if msg.Extra != nil {
+		if srcIDs, ok := msg.Extra["source_msgid"]; ok && len(srcIDs) > 0 {
+			if srcID, ok := srcIDs[0].(string); ok {
+				post.Props["matterbridge_srcid"] = srcID
+			}
+		}
+	}
+	created, _, err := b.mc.Client.CreatePost(context.TODO(), post)
+	if err != nil {
+		return "", err
+	}
+	return created.Id, nil
 }
 
 //nolint:forcetypeassert
