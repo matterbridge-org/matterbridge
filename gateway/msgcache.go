@@ -72,7 +72,19 @@ func (c *PersistentMsgCache) load() {
 	if err := json.Unmarshal(f, &c.data); err != nil {
 		c.logger.Warnf("failed to parse message cache %s: %s", c.path, err)
 	} else {
-		c.logger.Infof("loaded %d entries from message cache %s", len(c.data), c.path)
+		// Count non-metadata entries and show a sample.
+		msgEntries := 0
+		sample := make([]string, 0, 5)
+		for key := range c.data {
+			if !strings.HasPrefix(key, lastSeenPrefix) && !strings.HasPrefix(key, deltaTokenPrefix) {
+				msgEntries++
+				if len(sample) < 5 {
+					sample = append(sample, key)
+				}
+			}
+		}
+		c.logger.Infof("loaded %d entries from message cache %s (%d msg, %d metadata, sample: %v)",
+			len(c.data), c.path, msgEntries, len(c.data)-msgEntries, sample)
 	}
 }
 
@@ -166,6 +178,13 @@ func (c *PersistentMsgCache) Flush() {
 	if !c.dirty {
 		return
 	}
+	// Count non-metadata entries for logging.
+	msgEntries := 0
+	for key := range c.data {
+		if !strings.HasPrefix(key, lastSeenPrefix) && !strings.HasPrefix(key, deltaTokenPrefix) {
+			msgEntries++
+		}
+	}
 	data, err := json.MarshalIndent(c.data, "", "  ")
 	if err != nil {
 		c.logger.Errorf("failed to marshal message cache: %s", err)
@@ -176,6 +195,7 @@ func (c *PersistentMsgCache) Flush() {
 		return
 	}
 	c.dirty = false
+	c.logger.Infof("flushed message cache %s (%d msg entries, %d total keys)", c.path, msgEntries, len(c.data))
 }
 
 // SetLastSeen stores the timestamp of the last processed message for a channel.

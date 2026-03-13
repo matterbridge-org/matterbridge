@@ -160,6 +160,15 @@ func (gw *Gateway) hasPersistentCache() bool {
 func (gw *Gateway) persistentCacheAdd(key string, entries []PersistentMsgEntry, sourceAccount string) {
 	if cache, ok := gw.BridgeCaches[sourceAccount]; ok && cache != nil {
 		cache.Add(key, entries)
+		gw.logger.Debugf("persistentCacheAdd: %s → %d entries (cache: %s)", key, len(entries), sourceAccount)
+	} else {
+		gw.logger.Debugf("persistentCacheAdd: %s SKIPPED (no cache for %s, have: %v)", key, sourceAccount, func() []string {
+			keys := make([]string, 0, len(gw.BridgeCaches))
+			for k := range gw.BridgeCaches {
+				keys = append(keys, k)
+			}
+			return keys
+		}())
 	}
 }
 
@@ -237,12 +246,15 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 			Bridge: br,
 			IsMessageBridged: func(protocol, msgID string) bool {
 				key := protocol + " " + msgID
-				if _, exists := gw.persistentCacheGet(key); exists {
+				if entries, exists := gw.persistentCacheGet(key); exists {
+					gw.logger.Debugf("IsMessageBridged: %s found (direct, %d entries)", key, len(entries))
 					return true
 				}
 				if downstream := gw.persistentCacheFindDownstream(key); downstream != "" {
+					gw.logger.Debugf("IsMessageBridged: %s found (downstream of %s)", key, downstream)
 					return true
 				}
+				gw.logger.Debugf("IsMessageBridged: %s NOT found (caches: %d)", key, len(gw.BridgeCaches))
 				return false
 			},
 			GetLastSeen: func(channelKey string) (time.Time, bool) {
@@ -257,9 +269,11 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 			},
 			MarkMessageBridged: func(protocol, msgID string) {
 				key := protocol + " " + msgID
+				gw.logger.Debugf("MarkMessageBridged: %s", key)
 				for _, cache := range gw.BridgeCaches {
 					if cache != nil {
-						cache.Add(key, []PersistentMsgEntry{})
+						// Store a sentinel entry (not empty) so prune() doesn't delete it.
+						cache.Add(key, []PersistentMsgEntry{{Protocol: protocol}})
 					}
 				}
 			},

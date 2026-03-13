@@ -162,9 +162,11 @@ func (r *Router) handleReceive() {
 		if isReplay {
 			if msg.ID != "" {
 				cacheKey := msg.Protocol + " " + msg.ID
+				r.logger.Debugf("replay: dedup check for %s (account=%s)", cacheKey, msg.Account)
 				alreadyBridged := false
 				for _, gw := range r.Gateways {
 					if !gw.hasPersistentCache() {
+						r.logger.Debugf("replay: gateway %s has no persistent cache", gw.Name)
 						continue
 					}
 					if _, exists := gw.persistentCacheGet(cacheKey); exists {
@@ -180,6 +182,7 @@ func (r *Router) handleReceive() {
 					r.logger.Debugf("replay: skipping already-bridged message %s", cacheKey)
 					continue
 				}
+				r.logger.Debugf("replay: message %s NOT found in cache, will bridge", cacheKey)
 			}
 			msg.Event = "" // clear so downstream pipeline treats it as a normal message
 		}
@@ -229,6 +232,8 @@ func (r *Router) handleReceive() {
 					}
 					if len(entries) > 0 {
 						gw.persistentCacheAdd(cacheKey, entries, msg.Account)
+					} else if isReplay {
+						r.logger.Debugf("replay: no cacheable entries for %s (msgIDs=%d)", cacheKey, len(msgIDs))
 					}
 					// Update last-seen timestamp for the source channel.
 					channelKey := msg.Channel + msg.Account
