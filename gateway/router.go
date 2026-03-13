@@ -150,6 +150,33 @@ func (r *Router) handleReceive() {
 			continue
 		}
 
+		// Handle replay messages — check persistent cache for dedup, then treat as normal.
+		isReplay := msg.Event == config.EventReplayMessage
+		if isReplay {
+			if msg.ID != "" {
+				cacheKey := msg.Protocol + " " + msg.ID
+				alreadyBridged := false
+				for _, gw := range r.Gateways {
+					if !gw.hasPersistentCache() {
+						continue
+					}
+					if _, exists := gw.persistentCacheGet(cacheKey); exists {
+						alreadyBridged = true
+						break
+					}
+					if downstream := gw.persistentCacheFindDownstream(cacheKey); downstream != "" {
+						alreadyBridged = true
+						break
+					}
+				}
+				if alreadyBridged {
+					r.logger.Debugf("replay: skipping already-bridged message %s", cacheKey)
+					continue
+				}
+			}
+			msg.Event = "" // clear so downstream pipeline treats it as a normal message
+		}
+
 		filesHandled := false
 		for _, gw := range r.Gateways {
 			// record all the message ID's of the different bridges
@@ -195,6 +222,11 @@ func (r *Router) handleReceive() {
 					}
 					if len(entries) > 0 {
 						gw.persistentCacheAdd(cacheKey, entries, msg.Account)
+					}
+					// Update last-seen timestamp for the source channel.
+					channelKey := msg.Channel + msg.Account
+					if cache, ok := gw.BridgeCaches[msg.Account]; ok && cache != nil {
+						cache.SetLastSeen(channelKey, msg.Timestamp)
 					}
 				}
 			}

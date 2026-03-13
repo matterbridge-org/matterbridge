@@ -98,6 +98,9 @@ func (b *Bmsteams) Disconnect() error {
 }
 
 func (b *Bmsteams) JoinChannel(channel config.ChannelInfo) error {
+        // Replay missed messages before starting the poll loop.
+        b.replayMissedMessages(channel.Name)
+
         go func(name string) {
                 for {
                         err := b.poll(name)
@@ -108,6 +111,141 @@ func (b *Bmsteams) JoinChannel(channel config.ChannelInfo) error {
                 }
         }(channel.Name)
         return nil
+}
+
+// replayMissedMessages fetches recent messages from the Teams channel and replays
+// any that were not yet bridged. This catches up on messages missed during downtime.
+func (b *Bmsteams) replayMissedMessages(channelName string) {
+        if b.IsMessageBridged == nil || b.GetLastSeen == nil {
+                return
+        }
+
+        replayWindowStr := b.GetString("ReplayWindow")
+        if replayWindowStr == "" {
+                return
+        }
+        replayWindow, err := time.ParseDuration(replayWindowStr)
+        if err != nil {
+                b.Log.Errorf("replayMissedMessages: invalid ReplayWindow %q: %s", replayWindowStr, err)
+                return
+        }
+
+        channelKey := channelName + b.Account
+        cutoff := time.Now().Add(-replayWindow)
+
+        if lastSeen, ok := b.GetLastSeen(channelKey); ok && lastSeen.After(cutoff) {
+                cutoff = lastSeen
+        }
+
+        // Fetch recent messages via Graph API with $top=50 for broader coverage.
+        teamID := b.GetString("TeamID")
+        channelID := decodeChannelID(channelName)
+        apiURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50&$orderby=lastModifiedDateTime+desc",
+                teamID, channelID)
+
+        token, tokenErr := b.getAccessToken()
+        if tokenErr != nil {
+                b.Log.Errorf("replayMissedMessages: getAccessToken failed: %s", tokenErr)
+                return
+        }
+
+        req, reqErr := http.NewRequestWithContext(b.ctx, http.MethodGet, apiURL, nil)
+        if reqErr != nil {
+                b.Log.Errorf("replayMissedMessages: NewRequest failed: %s", reqErr)
+                return
+        }
+        req.Header.Set("Authorization", "Bearer "+token)
+
+        resp, doErr := http.DefaultClient.Do(req)
+        if doErr != nil {
+                b.Log.Errorf("replayMissedMessages: HTTP request failed: %s", doErr)
+                return
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode != http.StatusOK {
+                body, _ := io.ReadAll(resp.Body)
+                b.Log.Errorf("replayMissedMessages: API returned %d: %s", resp.StatusCode, string(body))
+                return
+        }
+
+        var result struct {
+                Value []msgraph.ChatMessage `json:"value"`
+        }
+        body, _ := io.ReadAll(resp.Body)
+        if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+                b.Log.Errorf("replayMissedMessages: JSON parse failed: %s", jsonErr)
+                return
+        }
+
+        // Filter and sort messages: oldest first, only those after cutoff.
+        var messages []msgraph.ChatMessage
+        for _, msg := range result.Value {
+                if msg.CreatedDateTime == nil || msg.CreatedDateTime.Before(cutoff) {
+                        continue
+                }
+                if msg.ID == nil || msg.From == nil || msg.From.User == nil || msg.Body == nil {
+                        continue
+                }
+                if msg.DeletedDateTime != nil {
+                        continue
+                }
+                messages = append(messages, msg)
+        }
+        // Sort oldest first (bubble sort for simplicity).
+        for i := 0; i < len(messages); i++ {
+                for j := i + 1; j < len(messages); j++ {
+                        if messages[j].CreatedDateTime.Before(*messages[i].CreatedDateTime) {
+                                messages[i], messages[j] = messages[j], messages[i]
+                        }
+                }
+        }
+
+        count := 0
+        for _, msg := range messages {
+                // Skip messages we sent.
+                if _, wasSentByUs := b.sentIDs[*msg.ID]; wasSentByUs {
+                        continue
+                }
+
+                // Skip if already bridged.
+                if b.IsMessageBridged("msteams", *msg.ID) {
+                        continue
+                }
+
+                text := b.convertToMD(*msg.Body.Content)
+
+                // Prepend subject if present.
+                if msg.Subject != nil && *msg.Subject != "" {
+                        text = "**" + *msg.Subject + "**\n" + text
+                }
+
+                // Format replay prefix with original timestamp.
+                createTime := *msg.CreatedDateTime
+                replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04"))
+
+                rmsg := config.Message{
+                        Event:    config.EventReplayMessage,
+                        Username: *msg.From.User.DisplayName,
+                        Text:     replayPrefix + text,
+                        Channel:  channelName,
+                        Account:  b.Account,
+                        UserID:   *msg.From.User.ID,
+                        ID:       *msg.ID,
+                        Extra:    make(map[string][]interface{}),
+                }
+
+                b.handleAttachments(&rmsg, msg)
+                b.handleHostedContents(&rmsg, msg, "")
+
+                b.Remote <- rmsg
+                count++
+                time.Sleep(500 * time.Millisecond)
+        }
+
+        if count > 0 {
+                b.Log.Infof("replayMissedMessages: replayed %d messages from %s", count, channelName)
+        }
 }
 
 func (b *Bmsteams) Send(msg config.Message) (string, error) {
@@ -237,7 +375,7 @@ func (b *Bmsteams) Send(msg config.Message) (string, error) {
 // code fences, and line breaks using the gomarkdown library.
 // Code fences are post-processed to use Teams-native <codeblock> tags.
 func mdToTeamsHTML(text string) string {
-        extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode | parser.Strikethrough
+        extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode | parser.Strikethrough | parser.Autolink
         p := parser.NewWithExtensions(extensions)
         renderer := mdhtml.NewRenderer(mdhtml.RendererOptions{Flags: 0})
         result := string(markdown.ToHTML([]byte(text), p, renderer))

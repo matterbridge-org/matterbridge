@@ -2,6 +2,7 @@ package bmsteams
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -33,15 +34,21 @@ func (b *Bmsteams) findFile(weburl string) (string, error) {
 	return "", nil
 }
 
-// handleDownloadFile handles file download
+// handleDownloadFile handles file download with size validation.
 func (b *Bmsteams) handleDownloadFile(rmsg *config.Message, filename, weburl string) error {
 	realURL, err := b.findFile(weburl)
 	if err != nil {
 		return err
 	}
-	// Actually download the file.
-	data, err := helper.DownloadFile(realURL)
+	// Download the file with size limit enforcement.
+	data, err := helper.DownloadFileWithSizeCheck(realURL, b.General.MediaDownloadSize)
 	if err != nil {
+		var tooLarge *helper.ErrFileTooLarge
+		if errors.As(err, &tooLarge) {
+			b.Log.Warnf("file %s too large (%d bytes, limit %d bytes)", filename, tooLarge.Size, tooLarge.MaxSize)
+			b.notifyFileTooLarge(rmsg, filename, tooLarge.Size, tooLarge.MaxSize)
+			return err
+		}
 		return fmt.Errorf("download %s failed %#v", weburl, err)
 	}
 
@@ -52,6 +59,20 @@ func (b *Bmsteams) handleDownloadFile(rmsg *config.Message, filename, weburl str
 	rmsg.Text = ""
 	helper.HandleDownloadData(b.Log, rmsg, filename, comment, weburl, data, b.General)
 	return nil
+}
+
+// notifyFileTooLarge sends a warning reply back to the source channel
+// so the sender knows their file was not transferred.
+func (b *Bmsteams) notifyFileTooLarge(rmsg *config.Message, filename string, actualSize int64, maxSize int) {
+	b.Remote <- config.Message{
+		Text: fmt.Sprintf("⚠️ File **%s** could not be transferred — file too large (%d MB, limit: %d MB).",
+			filename, actualSize/(1024*1024), maxSize/(1024*1024)),
+		Channel:  rmsg.Channel,
+		Account:  b.Account,
+		Username: "matterbridge",
+		ParentID: rmsg.ID,
+		Extra:    make(map[string][]interface{}),
+	}
 }
 
 func (b *Bmsteams) handleAttachments(rmsg *config.Message, msg msgraph.ChatMessage) {
@@ -145,15 +166,23 @@ func (b *Bmsteams) handleHostedContents(rmsg *config.Message, msg msgraph.ChatMe
 			continue
 		}
 
-		data, err := io.ReadAll(resp.Body)
+		if resp.StatusCode >= 400 {
+			resp.Body.Close()
+			b.Log.Errorf("handleHostedContents: GET %s returned %d", apiURL, resp.StatusCode)
+			continue
+		}
+
+		maxSize := b.General.MediaDownloadSize
+		data, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxSize)+1))
 		resp.Body.Close()
 		if err != nil {
 			b.Log.Errorf("handleHostedContents: reading body for %s failed: %s", filename, err)
 			continue
 		}
 
-		if resp.StatusCode >= 400 {
-			b.Log.Errorf("handleHostedContents: GET %s returned %d", apiURL, resp.StatusCode)
+		if len(data) > maxSize {
+			b.Log.Warnf("handleHostedContents: %s too large (>%d bytes, limit %d bytes)", filename, maxSize, maxSize)
+			b.notifyFileTooLarge(rmsg, filename, int64(len(data)), maxSize)
 			continue
 		}
 

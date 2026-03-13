@@ -45,6 +45,14 @@ type Config struct {
 	*Bridge
 
 	Remote chan config.Message
+
+	// IsMessageBridged checks whether a message has already been bridged
+	// (exists in the persistent cache). Used by replay to avoid duplicates.
+	IsMessageBridged func(protocol, msgID string) bool
+
+	// GetLastSeen returns the timestamp of the last processed message for a channel.
+	// Used by replay to determine the cutoff point.
+	GetLastSeen func(channelKey string) (time.Time, bool)
 }
 
 // Factory is the factory function to create a bridge

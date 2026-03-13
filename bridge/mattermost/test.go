@@ -139,13 +139,22 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	}
 	time.Sleep(time.Second)
 
-	// Step 15: Important priority message (set via API metadata)
+	// Step 15: Delete the marked message
+	if deleteID != "" {
+		_, err := b.mc.Client.DeletePost(context.TODO(), deleteID)
+		if err != nil {
+			b.Log.Errorf("test: DeletePost failed: %s", err)
+		}
+	}
+	time.Sleep(time.Second)
+
+	// Step 16: Important priority message as ROOT POST (priority only allowed on root posts)
 	{
 		prio := "important"
 		p := &model.Post{
 			ChannelId: channelID,
 			Message:   "Priority test: important message",
-			RootId:    rootID,
+			RootId:    "",
 			Props:     testProps,
 			Metadata: &model.PostMetadata{
 				Priority: &model.PostPriority{
@@ -161,13 +170,13 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	}
 	time.Sleep(time.Second)
 
-	// Step 16: Urgent priority message (set via API metadata)
+	// Step 17: Urgent priority message as ROOT POST (priority only allowed on root posts)
 	{
 		prio := "urgent"
 		p := &model.Post{
 			ChannelId: channelID,
 			Message:   "Priority test: urgent message",
-			RootId:    rootID,
+			RootId:    "",
 			Props:     testProps,
 			Metadata: &model.PostMetadata{
 				Priority: &model.PostPriority{
@@ -182,14 +191,6 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 		}
 	}
 	time.Sleep(time.Second)
-
-	// Step 17: Delete the marked message
-	if deleteID != "" {
-		_, err := b.mc.Client.DeletePost(context.TODO(), deleteID)
-		if err != nil {
-			b.Log.Errorf("test: DeletePost failed: %s", err)
-		}
-	}
 
 	// Step 18: Test finished
 	post("✅ Test finished", rootID)

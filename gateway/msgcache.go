@@ -127,6 +127,34 @@ func (c *PersistentMsgCache) Flush() {
 	c.dirty = false
 }
 
+// SetLastSeen stores the timestamp of the last processed message for a channel.
+// The channelKey should uniquely identify a channel+account combination.
+func (c *PersistentMsgCache) SetLastSeen(channelKey string, t time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data[lastSeenPrefix+channelKey] = []PersistentMsgEntry{{
+		ID: t.Format(time.RFC3339Nano),
+	}}
+	c.dirty = true
+}
+
+// GetLastSeen returns the timestamp of the last processed message for a channel.
+func (c *PersistentMsgCache) GetLastSeen(channelKey string) (time.Time, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entries, ok := c.data[lastSeenPrefix+channelKey]
+	if !ok || len(entries) == 0 {
+		return time.Time{}, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, entries[0].ID)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+const lastSeenPrefix = "__last_seen__:"
+
 // Stop stops the background flush loop and performs a final flush.
 func (c *PersistentMsgCache) Stop() {
 	close(c.stopCh)

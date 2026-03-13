@@ -221,6 +221,26 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 		brconfig := &bridge.Config{
 			Remote: gw.Message,
 			Bridge: br,
+			IsMessageBridged: func(protocol, msgID string) bool {
+				key := protocol + " " + msgID
+				if _, exists := gw.persistentCacheGet(key); exists {
+					return true
+				}
+				if downstream := gw.persistentCacheFindDownstream(key); downstream != "" {
+					return true
+				}
+				return false
+			},
+			GetLastSeen: func(channelKey string) (time.Time, bool) {
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						if t, ok := cache.GetLastSeen(channelKey); ok {
+							return t, true
+						}
+					}
+				}
+				return time.Time{}, false
+			},
 		}
 		// add the actual bridger for this protocol to this bridge using the bridgeMap
 		if _, ok := gw.Router.BridgeMap[br.Protocol]; !ok {

@@ -128,8 +128,11 @@ func (b *Bmattermost) JoinChannel(channel config.ChannelInfo) error {
                 }
         }
 
-        // Scan recent messages for historical source-ID markers in background.
-        go b.scanHistoricalMappings(channel)
+        // Scan recent messages for historical source-ID markers, then replay missed messages.
+        go func() {
+                b.scanHistoricalMappings(channel)
+                b.replayMissedMessages(channel)
+        }()
 
         return nil
 }
@@ -170,6 +173,144 @@ func (b *Bmattermost) scanHistoricalMappings(channel config.ChannelInfo) {
         }
         if count > 0 {
                 b.Log.Infof("scanHistoricalMappings: found %d mappings in %s", count, channel.Name)
+        }
+}
+
+// replayMissedMessages fetches recent messages from the channel and replays any
+// that were not yet bridged. This catches up on messages missed during downtime.
+func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
+        if b.mc == nil || b.IsMessageBridged == nil || b.GetLastSeen == nil {
+                return
+        }
+
+        replayWindowStr := b.GetString("ReplayWindow")
+        if replayWindowStr == "" {
+                return
+        }
+        replayWindow, err := time.ParseDuration(replayWindowStr)
+        if err != nil {
+                b.Log.Errorf("replayMissedMessages: invalid ReplayWindow %q: %s", replayWindowStr, err)
+                return
+        }
+
+        channelID := b.getChannelID(channel.Name)
+        if channelID == "" {
+                return
+        }
+
+        channelKey := channel.Name + b.Account
+        cutoff := time.Now().Add(-replayWindow)
+
+        // Use last-seen timestamp if available and more recent than window cutoff.
+        if lastSeen, ok := b.GetLastSeen(channelKey); ok && lastSeen.After(cutoff) {
+                cutoff = lastSeen
+        }
+
+        sinceMillis := cutoff.UnixMilli()
+        postList, _, err := b.mc.Client.GetPostsSince(context.TODO(), channelID, sinceMillis, "")
+        if err != nil {
+                b.Log.Errorf("replayMissedMessages: GetPostsSince failed: %s", err)
+                return
+        }
+
+        // Collect and sort posts by CreateAt ascending (oldest first).
+        type postEntry struct {
+                id   string
+                post *model.Post
+        }
+        var posts []postEntry
+        for _, id := range postList.Order {
+                post := postList.Posts[id]
+                if post.CreateAt < sinceMillis {
+                        continue
+                }
+                posts = append(posts, postEntry{id, post})
+        }
+        // Sort oldest first.
+        for i := 0; i < len(posts); i++ {
+                for j := i + 1; j < len(posts); j++ {
+                        if posts[j].post.CreateAt < posts[i].post.CreateAt {
+                                posts[i], posts[j] = posts[j], posts[i]
+                        }
+                }
+        }
+
+        count := 0
+        propKey := "matterbridge_" + b.uuid
+        for _, pe := range posts {
+                post := pe.post
+
+                // Skip messages sent by matterbridge itself.
+                if post.Props != nil {
+                        if _, ok := post.Props[propKey].(bool); ok {
+                                continue
+                        }
+                        // Also skip test messages.
+                        if _, ok := post.Props["matterbridge_test"]; ok {
+                                continue
+                        }
+                }
+
+                // Skip system messages.
+                if post.Type != "" && strings.HasPrefix(post.Type, "system_") {
+                        continue
+                }
+
+                // Skip if already bridged.
+                if b.IsMessageBridged("mattermost", post.Id) {
+                        continue
+                }
+
+                // Resolve username for the post author.
+                username := ""
+                if post.Props != nil {
+                        if override, ok := post.Props["override_username"].(string); ok && override != "" {
+                                username = override
+                        }
+                }
+                if username == "" {
+                        user, _, userErr := b.mc.Client.GetUser(context.TODO(), post.UserId, "")
+                        if userErr == nil && user != nil {
+                                if !b.GetBool("useusername") && user.Nickname != "" {
+                                        username = user.Nickname
+                                } else {
+                                        username = user.Username
+                                }
+                        } else {
+                                username = "unknown"
+                        }
+                }
+
+                // Format replay prefix with original timestamp.
+                createTime := time.UnixMilli(post.CreateAt)
+                replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04"))
+
+                rmsg := config.Message{
+                        Event:    config.EventReplayMessage,
+                        Account:  b.Account,
+                        Channel:  channel.Name,
+                        Username: username,
+                        UserID:   post.UserId,
+                        Text:     replayPrefix + post.Message,
+                        ID:       post.Id,
+                        ParentID: post.RootId,
+                        Extra:    make(map[string][]interface{}),
+                }
+
+                // Handle file attachments.
+                for _, fileID := range post.FileIds {
+                        if dlErr := b.handleDownloadFile(&rmsg, fileID); dlErr != nil {
+                                b.Log.Errorf("replay: download failed for %s: %s", fileID, dlErr)
+                        }
+                }
+
+                b.Remote <- rmsg
+                count++
+                time.Sleep(500 * time.Millisecond)
+        }
+
+        if count > 0 {
+                b.Log.Infof("replayMissedMessages: replayed %d messages from %s", count, channel.Name)
         }
 }
 
