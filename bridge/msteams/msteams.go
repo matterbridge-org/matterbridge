@@ -307,7 +307,7 @@ func (b *Bmsteams) processReplay(messages []msgraph.ChatMessage, replyToIDs map[
 }
 
 // processDelta handles messages from a normal delta poll cycle (not replay).
-func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[string]string, channelName string, msgmap map[string]time.Time, mbSrcRE *regexp.Regexp) {
+func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[string]string, channelName string, msgmap map[string]time.Time, mbSrcRE *regexp.Regexp, startTime time.Time) {
         for _, msg := range messages {
                 if msg.ID == nil || msg.CreatedDateTime == nil {
                         continue
@@ -326,6 +326,18 @@ func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[s
                 }
 
                 if !isNewOrChanged {
+                        continue
+                }
+
+                // Guard against first-start flooding: messages created before poll
+                // started that aren't in our seed (e.g. delta returning old messages
+                // on first start with $deltatoken=latest) are silently seeded.
+                if _, inMap := msgmap[key]; !inMap && msg.CreatedDateTime.Before(startTime) {
+                        if msg.LastModifiedDateTime != nil {
+                                msgmap[key] = *msg.LastModifiedDateTime
+                        } else {
+                                msgmap[key] = *msg.CreatedDateTime
+                        }
                         continue
                 }
 
@@ -1079,6 +1091,7 @@ func (b *Bmsteams) poll(channelName string) error {
         teamID := b.GetString("TeamID")
         channelID := decodeChannelID(channelName)
         mbSrcRE := regexp.MustCompile(`data-mb-src="([^"]+)"`)
+        startTime := time.Now()
 
         // 1. Determine initial delta URL: stored token (replay) or $deltatoken=latest (first start).
         isReplay := false
@@ -1139,7 +1152,7 @@ func (b *Bmsteams) poll(channelName string) error {
                         return fmt.Errorf("fetchDelta: %w", err)
                 }
 
-                b.processDelta(messages, replyToIDs, channelName, msgmap, mbSrcRE)
+                b.processDelta(messages, replyToIDs, channelName, msgmap, mbSrcRE, startTime)
 
                 if newDeltaLink != "" {
                         deltaLink = newDeltaLink
