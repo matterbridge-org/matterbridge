@@ -187,10 +187,16 @@ func (b *Bmsteams) fetchDelta(deltaURL string) (
 
                         if meta.ReplyToID != nil && *meta.ReplyToID != "" {
                                 replyToIDs[*msg.ID] = *meta.ReplyToID
+                                b.Log.Debugf("fetchDelta: msg id=%s type=reply-to:%s created=%v", *msg.ID, *meta.ReplyToID, msg.CreatedDateTime)
+                        } else {
+                                b.Log.Debugf("fetchDelta: msg id=%s type=root created=%v", *msg.ID, msg.CreatedDateTime)
                         }
 
                         messages = append(messages, msg)
                 }
+
+                b.Log.Debugf("fetchDelta page %d: %d items, %d replies, nextLink=%v, deltaLink=%v",
+                        page, len(result.Value), len(replyToIDs), result.NextLink != "", result.DeltaLink != "")
 
                 if result.DeltaLink != "" {
                         nextDeltaLink = result.DeltaLink
@@ -314,6 +320,8 @@ func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[s
                 }
 
                 key, parentID := deltaMessageKey(msg, replyToIDs)
+
+                b.Log.Debugf("processDelta: key=%s parentID=%q", key, parentID)
 
                 // Check if this message is new or changed.
                 isNewOrChanged := true
