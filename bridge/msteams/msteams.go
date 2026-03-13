@@ -187,16 +187,15 @@ func (b *Bmsteams) fetchDelta(deltaURL string) (
 
                         if meta.ReplyToID != nil && *meta.ReplyToID != "" {
                                 replyToIDs[*msg.ID] = *meta.ReplyToID
-                                b.Log.Debugf("fetchDelta: msg id=%s type=reply-to:%s created=%v", *msg.ID, *meta.ReplyToID, msg.CreatedDateTime)
-                        } else {
-                                b.Log.Debugf("fetchDelta: msg id=%s type=root created=%v", *msg.ID, msg.CreatedDateTime)
                         }
 
                         messages = append(messages, msg)
                 }
 
-                b.Log.Debugf("fetchDelta page %d: %d items, %d replies, nextLink=%v, deltaLink=%v",
-                        page, len(result.Value), len(replyToIDs), result.NextLink != "", result.DeltaLink != "")
+                if len(result.Value) > 0 {
+                        b.Log.Debugf("fetchDelta page %d: %d items, nextLink=%v, deltaLink=%v",
+                                page, len(result.Value), result.NextLink != "", result.DeltaLink != "")
+                }
 
                 if result.DeltaLink != "" {
                         nextDeltaLink = result.DeltaLink
@@ -222,7 +221,8 @@ func deltaMessageKey(msg msgraph.ChatMessage, replyToIDs map[string]string) (key
 }
 
 // seedMsgmap populates the msgmap with timestamps from messages without relaying them.
-func (b *Bmsteams) seedMsgmap(messages []msgraph.ChatMessage, replyToIDs map[string]string, msgmap map[string]time.Time, mbSrcRE *regexp.Regexp, channelName string) {
+// If rootMsgCreated is non-nil, root message IDs are also tracked for reply polling.
+func (b *Bmsteams) seedMsgmap(messages []msgraph.ChatMessage, replyToIDs map[string]string, msgmap map[string]time.Time, mbSrcRE *regexp.Regexp, channelName string, rootMsgCreated map[string]time.Time) {
         for _, msg := range messages {
                 if msg.ID == nil || msg.CreatedDateTime == nil {
                         continue
@@ -232,6 +232,12 @@ func (b *Bmsteams) seedMsgmap(messages []msgraph.ChatMessage, replyToIDs map[str
                         msgmap[key] = *msg.LastModifiedDateTime
                 } else {
                         msgmap[key] = *msg.CreatedDateTime
+                }
+                // Track root messages for reply polling.
+                if rootMsgCreated != nil {
+                        if _, isReply := replyToIDs[*msg.ID]; !isReply {
+                                rootMsgCreated[*msg.ID] = *msg.CreatedDateTime
+                        }
                 }
 
                 // Extract source ID marker from message body for persistent cache population.
@@ -320,8 +326,6 @@ func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[s
                 }
 
                 key, parentID := deltaMessageKey(msg, replyToIDs)
-
-                b.Log.Debugf("processDelta: key=%s parentID=%q", key, parentID)
 
                 // Check if this message is new or changed.
                 isNewOrChanged := true
@@ -1088,8 +1092,13 @@ func decodeChannelID(id string) string {
         return decoded
 }
 
-// poll uses Graph API delta queries to detect new/changed/deleted messages and replies
-// in a single API call, replacing the previous getMessages+getReplies approach.
+func (b *Bmsteams) getReplies(channel, messageID string) ([]msgraph.ChatMessage, error) {
+        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(channel)).Messages().ID(messageID).Replies().Request()
+        return ct.Get(b.ctx)
+}
+
+// poll uses Graph API delta queries to detect new/changed/deleted root messages
+// and getReplies() to poll thread replies for recent threads.
 // On first start (no stored delta token), it initializes with $deltatoken=latest.
 // On restart (stored delta token), it replays missed messages before entering the poll loop.
 //
@@ -1132,6 +1141,7 @@ func (b *Bmsteams) poll(channelName string) error {
         }
 
         msgmap := make(map[string]time.Time)
+        rootMsgCreated := make(map[string]time.Time) // rootID → createdDateTime (for reply polling)
 
         if isReplay {
                 count := b.processReplay(messages, replyToIDs, channelName)
@@ -1140,13 +1150,36 @@ func (b *Bmsteams) poll(channelName string) error {
                 }
         }
         // Seed msgmap with all messages from the initial fetch (including replayed ones).
-        b.seedMsgmap(messages, replyToIDs, msgmap, mbSrcRE, channelName)
+        b.seedMsgmap(messages, replyToIDs, msgmap, mbSrcRE, channelName, rootMsgCreated)
+
+        // Seed replies for known root messages to avoid false-positive relaying
+        // on the first poll cycle.
+        for rootID := range rootMsgCreated {
+                replies, err := b.getReplies(channelName, rootID)
+                if err != nil {
+                        b.Log.Errorf("seeding replies for %s: %s", rootID, err)
+                        continue
+                }
+                rids := make(map[string]string)
+                for _, r := range replies {
+                        if r.ID != nil {
+                                rids[*r.ID] = rootID
+                        }
+                }
+                if isReplay {
+                        count := b.processReplay(replies, rids, channelName)
+                        if count > 0 {
+                                b.Log.Infof("poll: replayed %d missed replies for thread %s", count, rootID)
+                        }
+                }
+                b.seedMsgmap(replies, rids, msgmap, mbSrcRE, channelName, nil)
+        }
 
         if b.SetDeltaToken != nil && deltaLink != "" {
                 b.SetDeltaToken(channelKey, deltaLink)
         }
 
-        b.Log.Debugf("poll: entering delta poll loop for %s", channelName)
+        b.Log.Debugf("poll: entering delta poll loop for %s (%d root messages tracked)", channelName, len(rootMsgCreated))
 
         // 3. Poll loop.
         for {
@@ -1161,6 +1194,31 @@ func (b *Bmsteams) poll(channelName string) error {
                 }
 
                 b.processDelta(messages, replyToIDs, channelName, msgmap, mbSrcRE, startTime)
+
+                // Delta-guided reply polling: when a root message appears in delta
+                // (e.g. lastModifiedDateTime updated because a reply was posted),
+                // fetch and process its replies.
+                for _, msg := range messages {
+                        if msg.ID == nil {
+                                continue
+                        }
+                        // Skip if this is somehow a reply (shouldn't happen with delta, but be safe).
+                        if _, isReply := replyToIDs[*msg.ID]; isReply {
+                                continue
+                        }
+                        replies, err := b.getReplies(channelName, *msg.ID)
+                        if err != nil {
+                                b.Log.Errorf("getReplies for %s: %s", *msg.ID, err)
+                                continue
+                        }
+                        rids := make(map[string]string)
+                        for _, r := range replies {
+                                if r.ID != nil {
+                                        rids[*r.ID] = *msg.ID
+                                }
+                        }
+                        b.processDelta(replies, rids, channelName, msgmap, mbSrcRE, startTime)
+                }
 
                 if newDeltaLink != "" {
                         deltaLink = newDeltaLink
