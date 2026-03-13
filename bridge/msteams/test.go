@@ -28,6 +28,8 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 
 	b.Log.Infof("test: starting test sequence in channel %s", channelName)
 
+	htmlType := msgraph.BodyTypeVHTML
+
 	// Helper to post a top-level message and return its ID.
 	postRoot := func(text string, contentType *msgraph.BodyType) string {
 		// Add bridge marker so processReplay() skips test messages on restart.
@@ -150,8 +152,6 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 		}
 		// Do NOT add to updatedIDs — let poll() pick up the delete for relay.
 	}
-
-	htmlType := msgraph.BodyTypeVHTML
 
 	// Step 1: Root message
 	rootID := postRoot("🧪 <b>Matterbridge Test Sequence</b><br>This is a root message to test the bridge relay.", &htmlType)

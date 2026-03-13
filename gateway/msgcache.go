@@ -206,9 +206,12 @@ func (c *PersistentMsgCache) Flush() {
 func (c *PersistentMsgCache) SetLastSeen(channelKey string, t time.Time) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.data[lastSeenPrefix+channelKey] = []PersistentMsgEntry{{
-		ID: t.Format(time.RFC3339Nano),
-	}}
+	key := lastSeenPrefix + channelKey
+	formatted := t.Format(time.RFC3339Nano)
+	if entries, ok := c.data[key]; ok && len(entries) > 0 && entries[0].ID == formatted {
+		return
+	}
+	c.data[key] = []PersistentMsgEntry{{ID: formatted}}
 	c.dirty = true
 }
 
@@ -235,9 +238,11 @@ const deltaTokenPrefix = "__delta_token__:"
 func (c *PersistentMsgCache) SetDeltaToken(channelKey, token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.data[deltaTokenPrefix+channelKey] = []PersistentMsgEntry{{
-		ID: token,
-	}}
+	key := deltaTokenPrefix + channelKey
+	if entries, ok := c.data[key]; ok && len(entries) > 0 && entries[0].ID == token {
+		return
+	}
+	c.data[key] = []PersistentMsgEntry{{ID: token}}
 	c.dirty = true
 }
 
