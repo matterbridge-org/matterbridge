@@ -99,148 +99,180 @@ func (b *Bmsteams) Disconnect() error {
 
 func (b *Bmsteams) JoinChannel(channel config.ChannelInfo) error {
         go func(name string) {
-                // Replay missed messages before starting the poll loop.
-                // Runs inside the goroutine so it cannot block JoinChannel.
-                b.replayMissedMessages(name)
                 for {
                         err := b.poll(name)
                         if err != nil {
                                 b.Log.Errorf("polling failed for %s: %s. retrying in 5 seconds", name, err)
                         }
-                        time.Sleep(time.Second * 2)
+                        time.Sleep(5 * time.Second)
                 }
         }(channel.Name)
         return nil
 }
 
-// replayMissedMessages fetches recent messages from the Teams channel and replays
-// any that were not yet bridged. This catches up on messages missed during downtime.
-func (b *Bmsteams) replayMissedMessages(channelName string) {
-        if b.IsMessageBridged == nil || b.GetLastSeen == nil {
-                return
+// errDeltaTokenExpired is returned by fetchDelta when the server responds with
+// HTTP 410 Gone, indicating the delta token has expired.
+var errDeltaTokenExpired = fmt.Errorf("delta token expired")
+
+// deltaResponse is the JSON structure returned by the Graph API delta endpoint.
+type deltaResponse struct {
+        Value     []json.RawMessage `json:"value"`
+        NextLink  string            `json:"@odata.nextLink"`
+        DeltaLink string            `json:"@odata.deltaLink"`
+}
+
+// deltaMessageMeta extracts the replyToId field that msgraph.ChatMessage lacks.
+type deltaMessageMeta struct {
+        ReplyToID *string `json:"replyToId"`
+}
+
+// fetchDelta calls the Graph API delta endpoint and paginates through all pages.
+// Returns the list of messages, a map of messageID→parentID for replies, and the
+// new deltaLink URL for the next incremental sync.
+func (b *Bmsteams) fetchDelta(deltaURL string) (
+        messages []msgraph.ChatMessage,
+        replyToIDs map[string]string,
+        nextDeltaLink string,
+        err error,
+) {
+        replyToIDs = make(map[string]string)
+
+        token, err := b.getAccessToken()
+        if err != nil {
+                return nil, nil, "", fmt.Errorf("getAccessToken: %w", err)
         }
 
-        channelKey := channelName + b.Account
-        lastSeen, ok := b.GetLastSeen(channelKey)
-        if !ok {
-                // First start: no replay, let the cache initialize through normal polling.
-                b.Log.Debugf("replayMissedMessages: no lastSeen for %s, skipping (first start)", channelKey)
-                return
-        }
-        cutoff := lastSeen
-
-        // Fetch recent messages via Graph API with pagination.
-        teamID := b.GetString("TeamID")
-        channelID := decodeChannelID(channelName)
-        firstURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50",
-                teamID, channelID)
-
-        token, tokenErr := b.getAccessToken()
-        if tokenErr != nil {
-                b.Log.Errorf("replayMissedMessages: getAccessToken failed: %s", tokenErr)
-                return
-        }
-
-        type graphMessagesResponse struct {
-                Value    []msgraph.ChatMessage `json:"value"`
-                NextLink string                `json:"@odata.nextLink"`
-        }
-
-        var allRawMessages []msgraph.ChatMessage
-        currentURL := firstURL
-        const maxPages = 5
+        currentURL := deltaURL
+        const maxPages = 10
 
         for page := 0; page < maxPages && currentURL != ""; page++ {
                 req, reqErr := http.NewRequestWithContext(b.ctx, http.MethodGet, currentURL, nil)
                 if reqErr != nil {
-                        b.Log.Errorf("replayMissedMessages: NewRequest failed: %s", reqErr)
-                        return
+                        return nil, nil, "", fmt.Errorf("NewRequest: %w", reqErr)
                 }
                 req.Header.Set("Authorization", "Bearer "+token)
 
                 resp, doErr := http.DefaultClient.Do(req)
                 if doErr != nil {
-                        b.Log.Errorf("replayMissedMessages: HTTP request failed: %s", doErr)
-                        return
-                }
-
-                if resp.StatusCode != http.StatusOK {
-                        body, _ := io.ReadAll(resp.Body)
-                        resp.Body.Close()
-                        b.Log.Errorf("replayMissedMessages: API returned %d: %s", resp.StatusCode, string(body))
-                        return
+                        return nil, nil, "", fmt.Errorf("HTTP request: %w", doErr)
                 }
 
                 body, _ := io.ReadAll(resp.Body)
                 resp.Body.Close()
 
-                var result graphMessagesResponse
+                if resp.StatusCode == http.StatusGone {
+                        return nil, nil, "", errDeltaTokenExpired
+                }
+                if resp.StatusCode != http.StatusOK {
+                        return nil, nil, "", fmt.Errorf("API returned %d: %s", resp.StatusCode, string(body))
+                }
+
+                var result deltaResponse
                 if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
-                        b.Log.Errorf("replayMissedMessages: JSON parse failed: %s", jsonErr)
-                        return
+                        return nil, nil, "", fmt.Errorf("JSON parse: %w", jsonErr)
                 }
 
-                allRawMessages = append(allRawMessages, result.Value...)
-
-                // Graph API returns newest-first. If the oldest message in this page
-                // is before the cutoff, we have all messages we need.
-                oldestInPage := time.Now()
-                for _, m := range result.Value {
-                        if m.CreatedDateTime != nil && m.CreatedDateTime.Before(oldestInPage) {
-                                oldestInPage = *m.CreatedDateTime
+                for _, raw := range result.Value {
+                        var msg msgraph.ChatMessage
+                        if err := json.Unmarshal(raw, &msg); err != nil {
+                                b.Log.Debugf("fetchDelta: skipping unparseable message: %s", err)
+                                continue
                         }
+                        if msg.ID == nil {
+                                continue
+                        }
+
+                        var meta deltaMessageMeta
+                        _ = json.Unmarshal(raw, &meta)
+
+                        if meta.ReplyToID != nil && *meta.ReplyToID != "" {
+                                replyToIDs[*msg.ID] = *meta.ReplyToID
+                        }
+
+                        messages = append(messages, msg)
                 }
-                if oldestInPage.Before(cutoff) || result.NextLink == "" {
-                        break
+
+                if result.DeltaLink != "" {
+                        nextDeltaLink = result.DeltaLink
                 }
                 currentURL = result.NextLink
         }
 
-        // Filter and sort messages: oldest first, only those after cutoff.
-        var messages []msgraph.ChatMessage
-        for _, msg := range allRawMessages {
-                if msg.CreatedDateTime == nil || msg.CreatedDateTime.Before(cutoff) {
+        // If we exhausted maxPages without getting a deltaLink, use the last nextLink
+        // as a workaround (will continue pagination on next call).
+        if nextDeltaLink == "" && currentURL != "" {
+                nextDeltaLink = currentURL
+        }
+
+        return messages, replyToIDs, nextDeltaLink, nil
+}
+
+// deltaMessageKey returns the cache key and parentID for a delta message.
+func deltaMessageKey(msg msgraph.ChatMessage, replyToIDs map[string]string) (key, parentID string) {
+        if parent, isReply := replyToIDs[*msg.ID]; isReply {
+                return parent + "/" + *msg.ID, parent
+        }
+        return *msg.ID, ""
+}
+
+// seedMsgmap populates the msgmap with timestamps from messages without relaying them.
+func (b *Bmsteams) seedMsgmap(messages []msgraph.ChatMessage, replyToIDs map[string]string, msgmap map[string]time.Time, mbSrcRE *regexp.Regexp, channelName string) {
+        for _, msg := range messages {
+                if msg.ID == nil || msg.CreatedDateTime == nil {
                         continue
                 }
-                if msg.ID == nil || msg.From == nil || msg.From.User == nil || msg.Body == nil {
+                key, _ := deltaMessageKey(msg, replyToIDs)
+                if msg.LastModifiedDateTime != nil {
+                        msgmap[key] = *msg.LastModifiedDateTime
+                } else {
+                        msgmap[key] = *msg.CreatedDateTime
+                }
+
+                // Extract source ID marker from message body for persistent cache population.
+                if msg.Body != nil && msg.Body.Content != nil {
+                        if matches := mbSrcRE.FindStringSubmatch(*msg.Body.Content); len(matches) == 2 {
+                                b.Remote <- config.Message{
+                                        Event:   config.EventHistoricalMapping,
+                                        Account: b.Account,
+                                        Channel: channelName,
+                                        ID:      *msg.ID,
+                                        Extra:   map[string][]interface{}{"source_msgid": {matches[1]}},
+                                }
+                        }
+                }
+        }
+}
+
+// processReplay relays missed messages (from a delta sync after restart) to the gateway.
+func (b *Bmsteams) processReplay(messages []msgraph.ChatMessage, replyToIDs map[string]string, channelName string) int {
+        count := 0
+        for _, msg := range messages {
+                if msg.ID == nil || msg.CreatedDateTime == nil {
+                        continue
+                }
+                if msg.From == nil || msg.From.User == nil || msg.Body == nil {
                         continue
                 }
                 if msg.DeletedDateTime != nil {
                         continue
                 }
-                messages = append(messages, msg)
-        }
-        // Sort oldest first (bubble sort for simplicity).
-        for i := 0; i < len(messages); i++ {
-                for j := i + 1; j < len(messages); j++ {
-                        if messages[j].CreatedDateTime.Before(*messages[i].CreatedDateTime) {
-                                messages[i], messages[j] = messages[j], messages[i]
-                        }
-                }
-        }
 
-        count := 0
+                key, parentID := deltaMessageKey(msg, replyToIDs)
 
-        // --- Replay top-level messages ---
-        for _, msg := range messages {
                 // Skip messages we sent.
                 if _, wasSentByUs := b.sentIDs[*msg.ID]; wasSentByUs {
                         continue
                 }
-
                 // Skip if already bridged.
-                if b.IsMessageBridged("msteams", *msg.ID) {
+                if b.IsMessageBridged != nil && b.IsMessageBridged("msteams", key) {
                         continue
                 }
 
                 text := b.convertToMD(*msg.Body.Content)
-
-                // Prepend subject if present.
                 if msg.Subject != nil && *msg.Subject != "" {
                         text = "**" + *msg.Subject + "**\n" + text
                 }
 
-                // Format replay prefix with original timestamp.
                 createTime := *msg.CreatedDateTime
                 replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04 MST"))
 
@@ -251,13 +283,14 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
                         Channel:  channelName,
                         Account:  b.Account,
                         UserID:   *msg.From.User.ID,
-                        ID:       *msg.ID,
+                        ID:       key,
+                        ParentID: parentID,
                         Avatar:   b.GetString("IconURL"),
                         Extra:    make(map[string][]interface{}),
                 }
 
                 b.handleAttachments(&rmsg, msg)
-                b.handleHostedContents(&rmsg, msg, "")
+                b.handleHostedContents(&rmsg, msg, parentID)
 
                 // Skip empty messages (e.g. failed file download with no text content).
                 hasFiles := len(rmsg.Extra["file"]) > 0
@@ -270,74 +303,143 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
                 count++
                 time.Sleep(500 * time.Millisecond)
         }
+        return count
+}
 
-        // --- Replay thread replies ---
+// processDelta handles messages from a normal delta poll cycle (not replay).
+func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[string]string, channelName string, msgmap map[string]time.Time, mbSrcRE *regexp.Regexp) {
         for _, msg := range messages {
-                if msg.ID == nil {
-                        continue
-                }
-                replies, err := b.getReplies(channelName, *msg.ID)
-                if err != nil {
-                        b.Log.Warnf("replayMissedMessages: getReplies for %s failed: %s", *msg.ID, err)
+                if msg.ID == nil || msg.CreatedDateTime == nil {
                         continue
                 }
 
-                for _, reply := range replies {
-                        if reply.ID == nil || reply.From == nil || reply.From.User == nil || reply.Body == nil {
-                                continue
-                        }
-                        if reply.DeletedDateTime != nil {
-                                continue
-                        }
-                        if reply.CreatedDateTime == nil || reply.CreatedDateTime.Before(cutoff) {
-                                continue
-                        }
+                key, parentID := deltaMessageKey(msg, replyToIDs)
 
-                        // Composite key matching the poll loop (poll uses msg.ID + "/" + reply.ID).
-                        key := *msg.ID + "/" + *reply.ID
-
-                        if _, wasSentByUs := b.sentIDs[*reply.ID]; wasSentByUs {
-                                continue
+                // Check if this message is new or changed.
+                isNewOrChanged := true
+                if mtime, ok := msgmap[key]; ok {
+                        if mtime == *msg.CreatedDateTime && msg.LastModifiedDateTime == nil {
+                                isNewOrChanged = false
+                        } else if msg.LastModifiedDateTime != nil && mtime == *msg.LastModifiedDateTime {
+                                isNewOrChanged = false
                         }
-                        if b.IsMessageBridged("msteams", key) {
-                                continue
-                        }
-
-                        text := b.convertToMD(*reply.Body.Content)
-                        createTime := *reply.CreatedDateTime
-                        replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04 MST"))
-
-                        rrmsg := config.Message{
-                                Event:    config.EventReplayMessage,
-                                Username: *reply.From.User.DisplayName,
-                                Text:     replayPrefix + text,
-                                Channel:  channelName,
-                                Account:  b.Account,
-                                UserID:   *reply.From.User.ID,
-                                ID:       key,
-                                ParentID: *msg.ID,
-                                Avatar:   b.GetString("IconURL"),
-                                Extra:    make(map[string][]interface{}),
-                        }
-
-                        b.handleAttachments(&rrmsg, reply)
-                        b.handleHostedContents(&rrmsg, reply, *msg.ID)
-
-                        // Skip empty messages (e.g. failed file download with no text content).
-                        hasFiles := len(rrmsg.Extra["file"]) > 0
-                        textAfterPrefix := strings.TrimSpace(strings.TrimPrefix(rrmsg.Text, replayPrefix))
-                        if textAfterPrefix == "" && !hasFiles {
-                                continue
-                        }
-
-                        b.Remote <- rrmsg
-                        count++
-                        time.Sleep(500 * time.Millisecond)
                 }
-        }
 
-        if count > 0 {
-                b.Log.Infof("replayMissedMessages: replayed %d messages from %s", count, channelName)
+                if !isNewOrChanged {
+                        continue
+                }
+
+                if b.GetBool("debug") {
+                        b.Log.Debug("Msg dump: ", spew.Sdump(msg))
+                }
+
+                if msg.From == nil || msg.From.User == nil {
+                        // System message or bot — update msgmap silently.
+                        if msg.LastModifiedDateTime != nil {
+                                msgmap[key] = *msg.LastModifiedDateTime
+                        } else {
+                                msgmap[key] = *msg.CreatedDateTime
+                        }
+                        continue
+                }
+
+                // Echo prevention: check if we PATCHed this message.
+                if expiry, wasUpdatedByUs := b.updatedIDs[*msg.ID]; wasUpdatedByUs && time.Now().Before(expiry) {
+                        b.Log.Debugf("skipping echo of our own edit for %s", key)
+                        if msg.LastModifiedDateTime != nil {
+                                msgmap[key] = *msg.LastModifiedDateTime
+                        } else {
+                                msgmap[key] = *msg.CreatedDateTime
+                        }
+                        continue
+                }
+
+                // Echo prevention: check if we posted this message.
+                if _, wasSentByUs := b.sentIDs[*msg.ID]; wasSentByUs {
+                        b.Log.Debug("skipping own message")
+                        if msg.LastModifiedDateTime != nil {
+                                msgmap[key] = *msg.LastModifiedDateTime
+                        } else {
+                                msgmap[key] = *msg.CreatedDateTime
+                        }
+                        delete(b.sentIDs, *msg.ID)
+                        continue
+                }
+
+                // Determine event type: delete, edit, or new.
+                isDelete := msg.DeletedDateTime != nil
+                isEdit := false
+                if !isDelete {
+                        if _, alreadySeen := msgmap[key]; alreadySeen {
+                                isEdit = true
+                        }
+                }
+
+                // Update msgmap.
+                if msg.LastModifiedDateTime != nil {
+                        msgmap[key] = *msg.LastModifiedDateTime
+                } else {
+                        msgmap[key] = *msg.CreatedDateTime
+                }
+
+                // Extract source ID marker.
+                if msg.Body != nil && msg.Body.Content != nil {
+                        if matches := mbSrcRE.FindStringSubmatch(*msg.Body.Content); len(matches) == 2 {
+                                b.Remote <- config.Message{
+                                        Event:   config.EventHistoricalMapping,
+                                        Account: b.Account,
+                                        Channel: channelName,
+                                        ID:      *msg.ID,
+                                        Extra:   map[string][]interface{}{"source_msgid": {matches[1]}},
+                                }
+                        }
+                }
+
+                text := ""
+                if msg.Body != nil && msg.Body.Content != nil {
+                        text = b.convertToMD(*msg.Body.Content)
+                }
+
+                // Intercept test command (only for new root messages).
+                if !isDelete && !isEdit && parentID == "" && b.isTestCommand(text) {
+                        b.Log.Info("Test command received, starting test sequence")
+                        go b.runTestSequence(channelName)
+                        continue
+                }
+
+                // Prepend subject if present.
+                if msg.Subject != nil && *msg.Subject != "" {
+                        text = "**" + *msg.Subject + "**\n" + text
+                }
+
+                event := ""
+                if isDelete {
+                        event = config.EventMsgDelete
+                        text = config.EventMsgDelete
+                } else if isEdit {
+                        event = "msg_update"
+                }
+
+                b.Log.Debugf("<= Sending message from %s on %s to gateway", *msg.From.User.DisplayName, b.Account)
+
+                rmsg := config.Message{
+                        Username: *msg.From.User.DisplayName,
+                        Text:     text,
+                        Channel:  channelName,
+                        Account:  b.Account,
+                        UserID:   *msg.From.User.ID,
+                        ID:       key,
+                        ParentID: parentID,
+                        Event:    event,
+                        Avatar:   b.GetString("IconURL"),
+                        Extra:    make(map[string][]interface{}),
+                }
+                if !isEdit && !isDelete {
+                        b.handleAttachments(&rmsg, msg)
+                        b.handleHostedContents(&rmsg, msg, parentID)
+                }
+                b.Log.Debugf("<= Message is %#v", rmsg)
+                b.Remote <- rmsg
         }
 }
 
@@ -966,292 +1068,85 @@ func decodeChannelID(id string) string {
         return decoded
 }
 
-func (b *Bmsteams) getMessages(channel string) ([]msgraph.ChatMessage, error) {
-        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(channel)).Messages().Request()
-
-        rct, err := ct.Get(b.ctx)
-        if err != nil {
-                return nil, err
-        }
-
-        b.Log.Debugf("got %#v messages", len(rct))
-        return rct, nil
-}
-
-func (b *Bmsteams) getReplies(channel, messageID string) ([]msgraph.ChatMessage, error) {
-        ct := b.gc.Teams().ID(b.GetString("TeamID")).Channels().ID(decodeChannelID(channel)).Messages().ID(messageID).Replies().Request()
-        return ct.Get(b.ctx)
-}
-
+// poll uses Graph API delta queries to detect new/changed/deleted messages and replies
+// in a single API call, replacing the previous getMessages+getReplies approach.
+// On first start (no stored delta token), it initializes with $deltatoken=latest.
+// On restart (stored delta token), it replays missed messages before entering the poll loop.
+//
 //nolint:gocognit
 func (b *Bmsteams) poll(channelName string) error {
+        channelKey := channelName + b.Account
+        teamID := b.GetString("TeamID")
+        channelID := decodeChannelID(channelName)
+        mbSrcRE := regexp.MustCompile(`data-mb-src="([^"]+)"`)
+
+        // 1. Determine initial delta URL: stored token (replay) or $deltatoken=latest (first start).
+        isReplay := false
+        var deltaURL string
+        if b.GetDeltaToken != nil {
+                if token, ok := b.GetDeltaToken(channelKey); ok && token != "" {
+                        deltaURL = token
+                        isReplay = true
+                }
+        }
+        if deltaURL == "" {
+                deltaURL = fmt.Sprintf(
+                        "https://graph.microsoft.com/beta/teams/%s/channels/%s/messages/delta?$deltatoken=latest",
+                        teamID, channelID)
+                b.Log.Debugf("poll: first start for %s, using $deltatoken=latest", channelName)
+        }
+
+        // 2. Initial fetch.
+        messages, replyToIDs, deltaLink, err := b.fetchDelta(deltaURL)
+        if err == errDeltaTokenExpired {
+                b.Log.Warn("poll: delta token expired, re-initializing")
+                deltaURL = fmt.Sprintf(
+                        "https://graph.microsoft.com/beta/teams/%s/channels/%s/messages/delta?$deltatoken=latest",
+                        teamID, channelID)
+                messages, replyToIDs, deltaLink, err = b.fetchDelta(deltaURL)
+                isReplay = false
+        }
+        if err != nil {
+                return fmt.Errorf("initial fetchDelta: %w", err)
+        }
+
         msgmap := make(map[string]time.Time)
 
-        // Record start time — we will ignore any message created before this moment
-        // that wasn't already captured in our initial seed.
-        startTime := time.Now()
-
-        b.Log.Debug("getting initial messages")
-        res, err := b.getMessages(channelName)
-        if err != nil {
-                return err
-        }
-
-        // Seed with existing messages — use newest timestamp to avoid re-delivery.
-        // Also scan for historical source-ID markers for persistent cache population.
-        mbSrcRE := regexp.MustCompile(`data-mb-src="([^"]+)"`)
-        for _, msg := range res {
-                if msg.LastModifiedDateTime != nil {
-                        msgmap[*msg.ID] = *msg.LastModifiedDateTime
-                } else {
-                        msgmap[*msg.ID] = *msg.CreatedDateTime
-                }
-                // Extract source ID marker from message body.
-                if msg.Body != nil && msg.Body.Content != nil {
-                        if matches := mbSrcRE.FindStringSubmatch(*msg.Body.Content); len(matches) == 2 {
-                                b.Remote <- config.Message{
-                                        Event:   config.EventHistoricalMapping,
-                                        Account: b.Account,
-                                        Channel: channelName,
-                                        ID:      *msg.ID,
-                                        Extra:   map[string][]interface{}{"source_msgid": {matches[1]}},
-                                }
-                        }
+        if isReplay {
+                count := b.processReplay(messages, replyToIDs, channelName)
+                if count > 0 {
+                        b.Log.Infof("poll: replayed %d missed messages from %s", count, channelName)
                 }
         }
+        // Seed msgmap with all messages from the initial fetch (including replayed ones).
+        b.seedMsgmap(messages, replyToIDs, msgmap, mbSrcRE, channelName)
 
-        // repliesFetchedAt tracks when we last fetched replies per message.
-        // We only poll replies for messages younger than 24h.
-        repliesFetchedAt := make(map[string]time.Time)
+        if b.SetDeltaToken != nil && deltaLink != "" {
+                b.SetDeltaToken(channelKey, deltaLink)
+        }
 
-        time.Sleep(time.Second * 2)
-        b.Log.Debug("polling for messages")
+        b.Log.Debugf("poll: entering delta poll loop for %s", channelName)
 
+        // 3. Poll loop.
         for {
-                res, err := b.getMessages(channelName)
+                time.Sleep(2 * time.Second)
+
+                messages, replyToIDs, newDeltaLink, err := b.fetchDelta(deltaLink)
+                if err == errDeltaTokenExpired {
+                        return fmt.Errorf("delta token expired mid-poll: %w", err)
+                }
                 if err != nil {
-                        return err
+                        return fmt.Errorf("fetchDelta: %w", err)
                 }
 
-                now := time.Now()
+                b.processDelta(messages, replyToIDs, channelName, msgmap, mbSrcRE)
 
-                for i := len(res) - 1; i >= 0; i-- {
-                        msg := res[i]
-
-                        // --- Top-level message ---
-                        isNewOrChanged := true
-                        if mtime, ok := msgmap[*msg.ID]; ok {
-                                if mtime == *msg.CreatedDateTime && msg.LastModifiedDateTime == nil {
-                                        isNewOrChanged = false
-                                } else if msg.LastModifiedDateTime != nil && mtime == *msg.LastModifiedDateTime {
-                                        isNewOrChanged = false
-                                }
-                        } else if msg.CreatedDateTime.Before(startTime) {
-                                // Message existed before we started but wasn't in our seed
-                                // (older than the ~20 messages getMessages returns).
-                                // Seed it silently to prevent future re-delivery.
-                                if msg.LastModifiedDateTime != nil {
-                                        msgmap[*msg.ID] = *msg.LastModifiedDateTime
-                                } else {
-                                        msgmap[*msg.ID] = *msg.CreatedDateTime
-                                }
-                                isNewOrChanged = false
-                        }
-
-                        if isNewOrChanged {
-                                if b.GetBool("debug") {
-                                        b.Log.Debug("Msg dump: ", spew.Sdump(msg))
-                                }
-
-                                if msg.From == nil || msg.From.User == nil {
-                                        msgmap[*msg.ID] = *msg.CreatedDateTime
-                                } else if expiry, wasUpdatedByUs := b.updatedIDs[*msg.ID]; wasUpdatedByUs && time.Now().Before(expiry) {
-                                        // We PATCHed this message — suppress echo, update msgmap silently.
-                                        b.Log.Debugf("skipping echo of our own edit for %s", *msg.ID)
-                                        if msg.LastModifiedDateTime != nil {
-                                                msgmap[*msg.ID] = *msg.LastModifiedDateTime
-                                        } else {
-                                                msgmap[*msg.ID] = *msg.CreatedDateTime
-                                        }
-                                } else if _, wasSentByUs := b.sentIDs[*msg.ID]; wasSentByUs {
-                                        // We posted this message — suppress echo.
-                                        b.Log.Debug("skipping own message")
-                                        msgmap[*msg.ID] = *msg.CreatedDateTime
-                                        delete(b.sentIDs, *msg.ID)
-                                } else {
-                                        // Check if this is a deletion.
-                                        isDelete := msg.DeletedDateTime != nil
-                                        isEdit := false
-                                        if !isDelete {
-                                                if _, alreadySeen := msgmap[*msg.ID]; alreadySeen {
-                                                        isEdit = true
-                                                }
-                                        }
-
-                                        msgmap[*msg.ID] = *msg.CreatedDateTime
-                                        if msg.LastModifiedDateTime != nil {
-                                                msgmap[*msg.ID] = *msg.LastModifiedDateTime
-                                        }
-
-                                        b.Log.Debugf("<= Sending message from %s on %s to gateway", *msg.From.User.DisplayName, b.Account)
-
-                                        text := b.convertToMD(*msg.Body.Content)
-
-                                        // Intercept test command (only for new messages, not edits/deletes).
-                                        if !isDelete && !isEdit && b.isTestCommand(text) {
-                                                b.Log.Info("Test command received, starting test sequence")
-                                                go b.runTestSequence(channelName)
-                                                // Don't relay the trigger message, but continue processing other messages.
-                                                continue
-                                        }
-
-                                        // Prepend subject if present (Teams thread subjects)
-                                        if msg.Subject != nil && *msg.Subject != "" {
-                                                text = "**" + *msg.Subject + "**\n" + text
-                                        }
-                                        event := ""
-                                        if isDelete {
-                                                event = config.EventMsgDelete
-                                                text = config.EventMsgDelete // gateway ignores empty text, use event as placeholder
-                                        } else if isEdit {
-                                                event = "msg_update"
-                                        }
-                                        rmsg := config.Message{
-                                                Username: *msg.From.User.DisplayName,
-                                                Text:     text,
-                                                Channel:  channelName,
-                                                Account:  b.Account,
-                                                UserID:   *msg.From.User.ID,
-                                                ID:       *msg.ID,
-                                                Event:    event,
-                                                Avatar:   b.GetString("IconURL"),
-                                                Extra:    make(map[string][]interface{}),
-                                        }
-                                        if !isEdit && !isDelete {
-                                                b.handleAttachments(&rmsg, msg)
-                                                b.handleHostedContents(&rmsg, msg, "")
-                                        }
-                                        b.Log.Debugf("<= Message is %#v", rmsg)
-                                        b.Remote <- rmsg
-                                }
-                        }
-
-                        // --- Replies: only for messages younger than 24h ---
-                        msgAge := now.Sub(*msg.CreatedDateTime)
-                        if msgAge >= 24*time.Hour {
-                                continue
-                        }
-
-                        lastFetch, fetched := repliesFetchedAt[*msg.ID]
-                        if fetched && now.Sub(lastFetch) < 5*time.Second {
-                                continue
-                        }
-                        _ = lastFetch
-
-                        replies, err := b.getReplies(channelName, *msg.ID)
-                        if err != nil {
-                                b.Log.Errorf("getting replies for %s failed: %s", *msg.ID, err)
-                                continue
-                        }
-                        repliesFetchedAt[*msg.ID] = now
-
-                        for j := len(replies) - 1; j >= 0; j-- {
-                                reply := replies[j]
-                                key := *msg.ID + "/" + *reply.ID
-
-                                isReplyNewOrChanged := true
-                                if mtime, ok := msgmap[key]; ok {
-                                        if mtime == *reply.CreatedDateTime && reply.LastModifiedDateTime == nil {
-                                                isReplyNewOrChanged = false
-                                        } else if reply.LastModifiedDateTime != nil && mtime == *reply.LastModifiedDateTime {
-                                                isReplyNewOrChanged = false
-                                        }
-                                } else if reply.CreatedDateTime.Before(startTime) {
-                                        // Reply existed before startup — seed silently.
-                                        if reply.LastModifiedDateTime != nil {
-                                                msgmap[key] = *reply.LastModifiedDateTime
-                                        } else {
-                                                msgmap[key] = *reply.CreatedDateTime
-                                        }
-                                        isReplyNewOrChanged = false
-                                }
-
-                                if !isReplyNewOrChanged {
-                                        continue
-                                }
-
-                                if b.GetBool("debug") {
-                                        b.Log.Debug("Reply dump: ", spew.Sdump(reply))
-                                }
-
-                                if reply.From == nil || reply.From.User == nil {
-                                        msgmap[key] = *reply.CreatedDateTime
-                                        continue
-                                }
-
-                                // Check if we PATCHed this reply (echo prevention with expiry).
-                                if expiry, wasUpdatedByUs := b.updatedIDs[*reply.ID]; wasUpdatedByUs && time.Now().Before(expiry) {
-                                        b.Log.Debugf("skipping echo of our own reply edit for %s", *reply.ID)
-                                        if reply.LastModifiedDateTime != nil {
-                                                msgmap[key] = *reply.LastModifiedDateTime
-                                        } else {
-                                                msgmap[key] = *reply.CreatedDateTime
-                                        }
-                                        continue
-                                }
-
-                                if _, wasSentByUs := b.sentIDs[*reply.ID]; wasSentByUs {
-                                        b.Log.Debug("skipping own reply")
-                                        msgmap[key] = *reply.CreatedDateTime
-                                        delete(b.sentIDs, *reply.ID)
-                                        continue
-                                }
-
-                                isReplyDelete := reply.DeletedDateTime != nil
-                                isReplyEdit := false
-                                if !isReplyDelete {
-                                        if _, alreadySeen := msgmap[key]; alreadySeen {
-                                                isReplyEdit = true
-                                        }
-                                }
-
-                                msgmap[key] = *reply.CreatedDateTime
-                                if reply.LastModifiedDateTime != nil {
-                                        msgmap[key] = *reply.LastModifiedDateTime
-                                }
-
-                                b.Log.Debugf("<= Sending reply from %s on %s to gateway", *reply.From.User.DisplayName, b.Account)
-
-                                text := b.convertToMD(*reply.Body.Content)
-                                event := ""
-                                if isReplyDelete {
-                                        event = config.EventMsgDelete
-                                        text = config.EventMsgDelete // gateway ignores empty text, use event as placeholder
-                                } else if isReplyEdit {
-                                        event = "msg_update"
-                                }
-                                rrmsg := config.Message{
-                                        Username: *reply.From.User.DisplayName,
-                                        Text:     text,
-                                        Channel:  channelName,
-                                        Account:  b.Account,
-                                        UserID:   *reply.From.User.ID,
-                                        ID:       key,
-                                        ParentID: *msg.ID,
-                                        Event:    event,
-                                        Avatar:   b.GetString("IconURL"),
-                                        Extra:    make(map[string][]interface{}),
-                                }
-                                if !isReplyEdit && !isReplyDelete {
-                                        b.handleAttachments(&rrmsg, reply)
-                                        b.handleHostedContents(&rrmsg, reply, *msg.ID)
-                                }
-                                b.Log.Debugf("<= Reply message is %#v", rrmsg)
-                                b.Remote <- rrmsg
+                if newDeltaLink != "" {
+                        deltaLink = newDeltaLink
+                        if b.SetDeltaToken != nil {
+                                b.SetDeltaToken(channelKey, deltaLink)
                         }
                 }
-
-                time.Sleep(time.Second * 2)
         }
 }
 

@@ -98,6 +98,21 @@ func (b *Bmattermost) handleMatter() {
 //nolint:cyclop
 func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 	for message := range b.mc.MessageChan {
+		// Allowlist: only process events relevant to bridging.
+		// This avoids logging noise from status_change, hello, preferences_changed, etc.
+		et := message.Raw.EventType()
+		switch et {
+		case "posted", model.WebsocketEventPostEdited, model.WebsocketEventPostDeleted:
+			// Post events: always process (join/leave come as "posted" with system message type).
+		case "typing":
+			// Typing events: only process if ShowUserTyping is enabled.
+			if !b.GetBool("ShowUserTyping") {
+				continue
+			}
+		default:
+			continue
+		}
+
 		b.Log.Debugf("%#v %#v", message.Raw.GetData(), message.Raw.EventType())
 
 		if b.skipMessage(message) {

@@ -59,6 +59,12 @@ type Config struct {
 	// notification) without routing it through the gateway, so replay won't
 	// re-process it on the next restart.
 	MarkMessageBridged func(protocol, msgID string)
+
+	// SetDeltaToken stores a Graph API delta token for a channel.
+	SetDeltaToken func(channelKey, token string)
+
+	// GetDeltaToken returns the stored Graph API delta token for a channel.
+	GetDeltaToken func(channelKey string) (string, bool)
 }
 
 // Factory is the factory function to create a bridge

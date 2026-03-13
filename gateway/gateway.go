@@ -249,6 +249,23 @@ func (gw *Gateway) AddBridge(cfg *config.Bridge) error {
 					}
 				}
 			},
+			SetDeltaToken: func(channelKey, token string) {
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						cache.SetDeltaToken(channelKey, token)
+					}
+				}
+			},
+			GetDeltaToken: func(channelKey string) (string, bool) {
+				for _, cache := range gw.BridgeCaches {
+					if cache != nil {
+						if token, ok := cache.GetDeltaToken(channelKey); ok {
+							return token, true
+						}
+					}
+				}
+				return "", false
+			},
 		}
 		// add the actual bridger for this protocol to this bridge using the bridgeMap
 		if _, ok := gw.Router.BridgeMap[br.Protocol]; !ok {

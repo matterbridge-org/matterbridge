@@ -154,6 +154,29 @@ func (c *PersistentMsgCache) GetLastSeen(channelKey string) (time.Time, bool) {
 }
 
 const lastSeenPrefix = "__last_seen__:"
+const deltaTokenPrefix = "__delta_token__:"
+
+// SetDeltaToken stores a Graph API delta token for a channel.
+// The channelKey should uniquely identify a channel+account combination.
+func (c *PersistentMsgCache) SetDeltaToken(channelKey, token string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data[deltaTokenPrefix+channelKey] = []PersistentMsgEntry{{
+		ID: token,
+	}}
+	c.dirty = true
+}
+
+// GetDeltaToken returns the stored Graph API delta token for a channel.
+func (c *PersistentMsgCache) GetDeltaToken(channelKey string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entries, ok := c.data[deltaTokenPrefix+channelKey]
+	if !ok || len(entries) == 0 {
+		return "", false
+	}
+	return entries[0].ID, true
+}
 
 // Stop stops the background flush loop and performs a final flush.
 func (c *PersistentMsgCache) Stop() {
