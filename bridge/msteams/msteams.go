@@ -18,7 +18,6 @@ import (
 
         "github.com/matterbridge-org/matterbridge/bridge"
         "github.com/matterbridge-org/matterbridge/bridge/config"
-        "github.com/davecgh/go-spew/spew"
         "github.com/gomarkdown/markdown"
         mdhtml "github.com/gomarkdown/markdown/html"
         "github.com/gomarkdown/markdown/parser"
@@ -354,7 +353,7 @@ func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[s
                 }
 
                 if b.GetBool("debug") {
-                        b.Log.Debug("Msg dump: ", spew.Sdump(msg))
+                        b.Log.Debugf("Msg dump: %+v", msg)
                 }
 
                 if msg.From == nil || msg.From.User == nil {
@@ -469,18 +468,6 @@ func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[s
 
 func (b *Bmsteams) Send(msg config.Message) (string, error) {
         b.Log.Debugf("=> Receiving %#v", msg)
-
-        // Debug: log nick and displayname resolution for troubleshooting RemoteNickFormat.
-        if nicks, ok := msg.Extra["nick"]; ok && len(nicks) > 0 {
-                b.Log.Debugf("nick from Extra: %v, msg.Username: %s", nicks[0], msg.Username)
-        } else {
-                b.Log.Debugf("no nick in Extra, msg.Username: %s", msg.Username)
-        }
-        if dns, ok := msg.Extra["displayname"]; ok && len(dns) > 0 {
-                b.Log.Debugf("displayname from Extra: %v", dns[0])
-        } else {
-                b.Log.Debugf("no displayname in Extra")
-        }
 
         // Handle deletes from Mattermost → Teams.
         if msg.Event == config.EventMsgDelete && msg.ID != "" {
@@ -724,7 +711,7 @@ func (b *Bmsteams) updateMessage(msg config.Message) (string, error) {
         }
 
         teamID := b.GetString("TeamID")
-        channelID := msg.Channel
+        channelID := decodeChannelID(msg.Channel)
         messageID := msg.ID
 
         url := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages/%s",
@@ -763,7 +750,7 @@ func (b *Bmsteams) updateMessage(msg config.Message) (string, error) {
 // For replies, msg.ParentID must be set to the top-level message ID.
 func (b *Bmsteams) deleteMessage(msg config.Message) (string, error) {
         teamID := b.GetString("TeamID")
-        channelID := msg.Channel
+        channelID := decodeChannelID(msg.Channel)
         messageID := msg.ID
 
         var url string
@@ -822,7 +809,7 @@ func (b *Bmsteams) uploadToMediaServer(fi config.FileInfo) (string, error) {
         }
         writer.Close()
 
-        resp, err := http.Post(serverURL+"/"+fi.Name, writer.FormDataContentType(), &buf) //nolint:gosec
+        resp, err := http.Post(serverURL+"/"+url.PathEscape(fi.Name), writer.FormDataContentType(), &buf) //nolint:gosec
         if err != nil {
                 return "", err
         }
@@ -907,7 +894,7 @@ func (b *Bmsteams) sendImageHostedContent(msg config.Message, files []config.Fil
                 id := fmt.Sprintf("%d", i+1)
                 bodyHTML += fmt.Sprintf(
                         `<img src="../hostedContents/%s/$value" alt="%s" style="max-width:600px"/>`,
-                        id, fi.Name,
+                        id, htmlEscape(fi.Name),
                 )
                 if i < len(files)-1 {
                         bodyHTML += "<br>"
@@ -1014,12 +1001,12 @@ func (b *Bmsteams) sendFileAsMessage(msg config.Message, fi config.FileInfo, cap
         case fileURL != "" && isImage:
                 bodyText = fmt.Sprintf(
                         `%s%s<img src="%s" alt="%s" style="max-width:600px"/>`,
-                        usernameHTML, captionPart, fileURL, fi.Name,
+                        usernameHTML, captionPart, htmlEscape(fileURL), htmlEscape(fi.Name),
                 )
         case fileURL != "":
                 bodyText = fmt.Sprintf(
                         `%s%s&#128206; <a href="%s">%s</a>`,
-                        usernameHTML, captionPart, fileURL, fi.Name,
+                        usernameHTML, captionPart, htmlEscape(fileURL), htmlEscape(fi.Name),
                 )
         default:
                 // File can't be sent: no hostedContents support and no MediaServer URL.

@@ -22,8 +22,6 @@ func (b *Bmsteams) findFile(weburl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	itemRB.Workbook().Worksheets()
-	b.gc.Workbooks()
 	item, err := itemRB.Request().Get(b.ctx)
 	if err != nil {
 		return "", err
@@ -71,7 +69,7 @@ func (b *Bmsteams) notifyFileTooLarge(rmsg *config.Message, filename string, act
 	parentID := rmsg.ID
 
 	text := fmt.Sprintf("⚠️ File <b>%s</b> could not be transferred — file too large (%d MB, limit: %d MB).",
-		filename, actualSize/(1024*1024), maxSize/(1024*1024))
+		htmlEscape(filename), actualSize/(1024*1024), maxSize/(1024*1024))
 	htmlType := msgraph.BodyTypeVHTML
 	content := &msgraph.ItemBody{Content: &text, ContentType: &htmlType}
 	chatMsg := &msgraph.ChatMessage{Body: content}
@@ -151,6 +149,10 @@ func (b *Bmsteams) handleCodeSnippet(rmsg *config.Message, attach msgraph.ChatMe
 	s := strings.Split(content.CodeSnippetURL, "/")
 	if len(s) != 13 {
 		b.Log.Errorf("codesnippetUrl has unexpected size: %s", content.CodeSnippetURL)
+		return
+	}
+	if !strings.HasPrefix(content.CodeSnippetURL, "https://graph.microsoft.com/") {
+		b.Log.Errorf("codesnippetUrl has unexpected host: %s", content.CodeSnippetURL)
 		return
 	}
 	resp, err := b.gc.Teams().Request().Client().Get(content.CodeSnippetURL)
