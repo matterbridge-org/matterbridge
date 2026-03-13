@@ -26,7 +26,13 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 
 	b.Log.Infof("test: starting test sequence in channel %s", channelName)
 
-	testProps := model.StringInterface{"matterbridge_test": true}
+	testProps := model.StringInterface{
+		"matterbridge_test": true,
+		"from_webhook":      "true",
+	}
+	if iconURL := b.GetString("IconURL"); iconURL != "" {
+		testProps["override_icon_url"] = iconURL
+	}
 
 	// Helper to post a message and return the post ID.
 	post := func(message, rootID string) string {

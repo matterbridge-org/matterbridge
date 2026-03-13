@@ -137,10 +137,10 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
                 cutoff = lastSeen
         }
 
-        // Fetch recent messages via Graph API with $top=50 for broader coverage.
+        // Fetch recent messages via Graph API with pagination to cover the full ReplayWindow.
         teamID := b.GetString("TeamID")
         channelID := decodeChannelID(channelName)
-        apiURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50",
+        firstURL := fmt.Sprintf("https://graph.microsoft.com/beta/teams/%s/channels/%s/messages?$top=50",
                 teamID, channelID)
 
         token, tokenErr := b.getAccessToken()
@@ -149,38 +149,64 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
                 return
         }
 
-        req, reqErr := http.NewRequestWithContext(b.ctx, http.MethodGet, apiURL, nil)
-        if reqErr != nil {
-                b.Log.Errorf("replayMissedMessages: NewRequest failed: %s", reqErr)
-                return
+        type graphMessagesResponse struct {
+                Value    []msgraph.ChatMessage `json:"value"`
+                NextLink string                `json:"@odata.nextLink"`
         }
-        req.Header.Set("Authorization", "Bearer "+token)
 
-        resp, doErr := http.DefaultClient.Do(req)
-        if doErr != nil {
-                b.Log.Errorf("replayMissedMessages: HTTP request failed: %s", doErr)
-                return
-        }
-        defer resp.Body.Close()
+        var allRawMessages []msgraph.ChatMessage
+        currentURL := firstURL
+        const maxPages = 5
 
-        if resp.StatusCode != http.StatusOK {
+        for page := 0; page < maxPages && currentURL != ""; page++ {
+                req, reqErr := http.NewRequestWithContext(b.ctx, http.MethodGet, currentURL, nil)
+                if reqErr != nil {
+                        b.Log.Errorf("replayMissedMessages: NewRequest failed: %s", reqErr)
+                        return
+                }
+                req.Header.Set("Authorization", "Bearer "+token)
+
+                resp, doErr := http.DefaultClient.Do(req)
+                if doErr != nil {
+                        b.Log.Errorf("replayMissedMessages: HTTP request failed: %s", doErr)
+                        return
+                }
+
+                if resp.StatusCode != http.StatusOK {
+                        body, _ := io.ReadAll(resp.Body)
+                        resp.Body.Close()
+                        b.Log.Errorf("replayMissedMessages: API returned %d: %s", resp.StatusCode, string(body))
+                        return
+                }
+
                 body, _ := io.ReadAll(resp.Body)
-                b.Log.Errorf("replayMissedMessages: API returned %d: %s", resp.StatusCode, string(body))
-                return
-        }
+                resp.Body.Close()
 
-        var result struct {
-                Value []msgraph.ChatMessage `json:"value"`
-        }
-        body, _ := io.ReadAll(resp.Body)
-        if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
-                b.Log.Errorf("replayMissedMessages: JSON parse failed: %s", jsonErr)
-                return
+                var result graphMessagesResponse
+                if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+                        b.Log.Errorf("replayMissedMessages: JSON parse failed: %s", jsonErr)
+                        return
+                }
+
+                allRawMessages = append(allRawMessages, result.Value...)
+
+                // Graph API returns newest-first. If the oldest message in this page
+                // is before the cutoff, we have all messages we need.
+                oldestInPage := time.Now()
+                for _, m := range result.Value {
+                        if m.CreatedDateTime != nil && m.CreatedDateTime.Before(oldestInPage) {
+                                oldestInPage = *m.CreatedDateTime
+                        }
+                }
+                if oldestInPage.Before(cutoff) || result.NextLink == "" {
+                        break
+                }
+                currentURL = result.NextLink
         }
 
         // Filter and sort messages: oldest first, only those after cutoff.
         var messages []msgraph.ChatMessage
-        for _, msg := range result.Value {
+        for _, msg := range allRawMessages {
                 if msg.CreatedDateTime == nil || msg.CreatedDateTime.Before(cutoff) {
                         continue
                 }
@@ -202,6 +228,8 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
         }
 
         count := 0
+
+        // --- Replay top-level messages ---
         for _, msg := range messages {
                 // Skip messages we sent.
                 if _, wasSentByUs := b.sentIDs[*msg.ID]; wasSentByUs {
@@ -232,15 +260,88 @@ func (b *Bmsteams) replayMissedMessages(channelName string) {
                         Account:  b.Account,
                         UserID:   *msg.From.User.ID,
                         ID:       *msg.ID,
+                        Avatar:   b.GetString("IconURL"),
                         Extra:    make(map[string][]interface{}),
                 }
 
                 b.handleAttachments(&rmsg, msg)
                 b.handleHostedContents(&rmsg, msg, "")
 
+                // Skip empty messages (e.g. failed file download with no text content).
+                hasFiles := len(rmsg.Extra["file"]) > 0
+                textAfterPrefix := strings.TrimSpace(strings.TrimPrefix(rmsg.Text, replayPrefix))
+                if textAfterPrefix == "" && !hasFiles {
+                        continue
+                }
+
                 b.Remote <- rmsg
                 count++
                 time.Sleep(500 * time.Millisecond)
+        }
+
+        // --- Replay thread replies ---
+        for _, msg := range messages {
+                if msg.ID == nil {
+                        continue
+                }
+                replies, err := b.getReplies(channelName, *msg.ID)
+                if err != nil {
+                        b.Log.Warnf("replayMissedMessages: getReplies for %s failed: %s", *msg.ID, err)
+                        continue
+                }
+
+                for _, reply := range replies {
+                        if reply.ID == nil || reply.From == nil || reply.From.User == nil || reply.Body == nil {
+                                continue
+                        }
+                        if reply.DeletedDateTime != nil {
+                                continue
+                        }
+                        if reply.CreatedDateTime == nil || reply.CreatedDateTime.Before(cutoff) {
+                                continue
+                        }
+
+                        // Composite key matching the poll loop (poll uses msg.ID + "/" + reply.ID).
+                        key := *msg.ID + "/" + *reply.ID
+
+                        if _, wasSentByUs := b.sentIDs[*reply.ID]; wasSentByUs {
+                                continue
+                        }
+                        if b.IsMessageBridged("msteams", key) {
+                                continue
+                        }
+
+                        text := b.convertToMD(*reply.Body.Content)
+                        createTime := *reply.CreatedDateTime
+                        replayPrefix := fmt.Sprintf("[Replay %s]\n", createTime.Format("2006-01-02 15:04"))
+
+                        rrmsg := config.Message{
+                                Event:    config.EventReplayMessage,
+                                Username: *reply.From.User.DisplayName,
+                                Text:     replayPrefix + text,
+                                Channel:  channelName,
+                                Account:  b.Account,
+                                UserID:   *reply.From.User.ID,
+                                ID:       key,
+                                ParentID: *msg.ID,
+                                Avatar:   b.GetString("IconURL"),
+                                Extra:    make(map[string][]interface{}),
+                        }
+
+                        b.handleAttachments(&rrmsg, reply)
+                        b.handleHostedContents(&rrmsg, reply, *msg.ID)
+
+                        // Skip empty messages (e.g. failed file download with no text content).
+                        hasFiles := len(rrmsg.Extra["file"]) > 0
+                        textAfterPrefix := strings.TrimSpace(strings.TrimPrefix(rrmsg.Text, replayPrefix))
+                        if textAfterPrefix == "" && !hasFiles {
+                                continue
+                        }
+
+                        b.Remote <- rrmsg
+                        count++
+                        time.Sleep(500 * time.Millisecond)
+                }
         }
 
         if count > 0 {

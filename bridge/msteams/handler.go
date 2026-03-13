@@ -108,7 +108,7 @@ func (b *Bmsteams) handleAttachments(rmsg *config.Message, msg msgraph.ChatMessa
 		//handle the download
 		err := b.handleDownloadFile(rmsg, *a.Name, *a.ContentURL)
 		if err != nil {
-			b.Log.Errorf("download of %s failed: %s", *a.Name, err)
+			b.Log.Warnf("download of %s failed: %s", *a.Name, err)
 		}
 	}
 }
