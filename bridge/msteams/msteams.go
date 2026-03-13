@@ -270,7 +270,14 @@ func (b *Bmsteams) processReplay(messages []msgraph.ChatMessage, replyToIDs map[
 
                 key, parentID := deltaMessageKey(msg, replyToIDs)
 
-                // Skip messages we sent.
+                // Skip messages posted by the bridge itself (e.g. test sequence,
+                // relayed messages from other platforms). These should never be
+                // replayed back — the source platform's replay handles them.
+                if msg.From.User.ID != nil && *msg.From.User.ID == b.botID {
+                        continue
+                }
+
+                // Skip messages we sent (in-memory, current run only).
                 if _, wasSentByUs := b.sentIDs[*msg.ID]; wasSentByUs {
                         continue
                 }

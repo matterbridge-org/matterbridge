@@ -269,6 +269,12 @@ func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
                         if _, ok := post.Props["matterbridge_test"]; ok {
                                 continue
                         }
+                        // Skip messages bridged from another platform (any bridge instance).
+                        // The matterbridge_srcid prop is set on all bridged messages and
+                        // survives across bridge restarts (unlike the UUID-based prop).
+                        if _, ok := post.Props["matterbridge_srcid"]; ok {
+                                continue
+                        }
                 }
 
                 // Skip system messages.
