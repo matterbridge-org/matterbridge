@@ -98,10 +98,10 @@ func (b *Bmsteams) Disconnect() error {
 }
 
 func (b *Bmsteams) JoinChannel(channel config.ChannelInfo) error {
-        // Replay missed messages before starting the poll loop.
-        b.replayMissedMessages(channel.Name)
-
         go func(name string) {
+                // Replay missed messages before starting the poll loop.
+                // Runs inside the goroutine so it cannot block JoinChannel.
+                b.replayMissedMessages(name)
                 for {
                         err := b.poll(name)
                         if err != nil {
