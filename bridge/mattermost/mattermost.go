@@ -24,24 +24,46 @@ type Bmattermost struct {
         uuid   string
         TeamID string
         *bridge.Config
-        avatarMap      map[string]string
-        channelsMutex  sync.RWMutex
-        channelInfoMap map[string]*config.ChannelInfo
+        avatarMap        map[string]string
+        displayNameCache map[string]string
+        channelsMutex    sync.RWMutex
+        channelInfoMap   map[string]*config.ChannelInfo
 }
 
 const mattermostPlugin = "mattermost.plugin"
 
 func New(cfg *bridge.Config) bridge.Bridger {
         b := &Bmattermost{
-                Config:         cfg,
-                avatarMap:      make(map[string]string),
-                channelInfoMap: make(map[string]*config.ChannelInfo),
+                Config:           cfg,
+                avatarMap:        make(map[string]string),
+                displayNameCache: make(map[string]string),
+                channelInfoMap:   make(map[string]*config.ChannelInfo),
         }
 
         b.v6 = b.GetBool("v6")
         b.uuid = xid.New().String()
 
         return b
+}
+
+// getDisplayName returns the full display name (FirstName + LastName) for a
+// Mattermost user, using a cache to avoid redundant API calls. Returns "" if
+// the user has no first/last name set.
+func (b *Bmattermost) getDisplayName(userID string) string {
+        if dn, ok := b.displayNameCache[userID]; ok {
+                return dn
+        }
+        if b.mc == nil {
+                return ""
+        }
+        user, _, err := b.mc.Client.GetUser(context.TODO(), userID, "")
+        if err != nil || user == nil {
+                b.displayNameCache[userID] = ""
+                return ""
+        }
+        dn := strings.TrimSpace(user.FirstName + " " + user.LastName)
+        b.displayNameCache[userID] = dn
+        return dn
 }
 
 func (b *Bmattermost) Command(cmd string) string {
@@ -259,6 +281,7 @@ func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
                                 username = override
                         }
                 }
+                var displayName string
                 if username == "" {
                         user, _, userErr := b.mc.Client.GetUser(context.TODO(), post.UserId, "")
                         if userErr == nil && user != nil {
@@ -267,6 +290,9 @@ func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
                                 } else {
                                         username = user.Username
                                 }
+                                dn := strings.TrimSpace(user.FirstName + " " + user.LastName)
+                                b.displayNameCache[post.UserId] = dn
+                                displayName = dn
                         } else {
                                 username = "unknown"
                         }
@@ -286,6 +312,9 @@ func (b *Bmattermost) replayMissedMessages(channel config.ChannelInfo) {
                         ID:       post.Id,
                         ParentID: post.RootId,
                         Extra:    make(map[string][]interface{}),
+                }
+                if displayName != "" {
+                        rmsg.Extra["displayname"] = []interface{}{displayName}
                 }
 
                 // Handle file attachments.

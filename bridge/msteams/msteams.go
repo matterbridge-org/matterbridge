@@ -650,8 +650,20 @@ func (b *Bmsteams) formatMessageHTML(msg config.Message, bodyHTML string) string
                 originalNick = strings.TrimSpace(msg.Username)
         }
 
+        // Extract full display name from Extra (set by Mattermost bridge).
+        displayName := ""
+        if dns, ok := msg.Extra["displayname"]; ok && len(dns) > 0 {
+                if dn, ok := dns[0].(string); ok {
+                        displayName = dn
+                }
+        }
+        if displayName == "" {
+                displayName = originalNick
+        }
+
         // HTML-aware expansion.
         result := template
+        result = strings.ReplaceAll(result, "{DISPLAYNAME}", "<b>"+htmlEscape(displayName)+"</b>")
         result = strings.ReplaceAll(result, "{NICK}", "<b>"+htmlEscape(originalNick)+"</b>")
         result = strings.ReplaceAll(result, "{NOPINGNICK}", "<b>"+htmlEscape(originalNick)+"</b>")
         result = strings.ReplaceAll(result, "{PROTOCOL}", htmlEscape(msg.Protocol))

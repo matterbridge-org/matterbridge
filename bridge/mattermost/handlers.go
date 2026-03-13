@@ -184,6 +184,11 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 			}
 		}
 
+		// Populate full display name (FirstName + LastName) for bridges that support it.
+		if dn := b.getDisplayName(rmsg.UserID); dn != "" {
+			rmsg.Extra["displayname"] = []interface{}{dn}
+		}
+
 		messages <- rmsg
 	}
 }
