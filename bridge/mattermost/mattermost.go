@@ -57,10 +57,17 @@ func (b *Bmattermost) getDisplayName(userID string) string {
                 return ""
         }
         user, _, err := b.mc.Client.GetUser(context.TODO(), userID, "")
-        if err != nil || user == nil {
+        if err != nil {
+                b.Log.Debugf("getDisplayName: GetUser failed for %s: %s", userID, err)
                 b.displayNameCache[userID] = ""
                 return ""
         }
+        if user == nil {
+                b.displayNameCache[userID] = ""
+                return ""
+        }
+        b.Log.Debugf("getDisplayName: user %s FirstName=%q LastName=%q Nickname=%q",
+                userID, user.FirstName, user.LastName, user.Nickname)
         dn := strings.TrimSpace(user.FirstName + " " + user.LastName)
         b.displayNameCache[userID] = dn
         return dn

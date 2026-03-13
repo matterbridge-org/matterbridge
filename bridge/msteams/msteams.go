@@ -470,11 +470,16 @@ func (b *Bmsteams) processDelta(messages []msgraph.ChatMessage, replyToIDs map[s
 func (b *Bmsteams) Send(msg config.Message) (string, error) {
         b.Log.Debugf("=> Receiving %#v", msg)
 
-        // Debug: log nick resolution for troubleshooting RemoteNickFormat.
+        // Debug: log nick and displayname resolution for troubleshooting RemoteNickFormat.
         if nicks, ok := msg.Extra["nick"]; ok && len(nicks) > 0 {
                 b.Log.Debugf("nick from Extra: %v, msg.Username: %s", nicks[0], msg.Username)
         } else {
                 b.Log.Debugf("no nick in Extra, msg.Username: %s", msg.Username)
+        }
+        if dns, ok := msg.Extra["displayname"]; ok && len(dns) > 0 {
+                b.Log.Debugf("displayname from Extra: %v", dns[0])
+        } else {
+                b.Log.Debugf("no displayname in Extra")
         }
 
         // Handle deletes from Mattermost → Teams.

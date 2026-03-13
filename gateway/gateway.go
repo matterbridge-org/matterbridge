@@ -556,6 +556,13 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) stri
 	nick = strings.ReplaceAll(nick, "{NICK}", msg.Username)
 	nick = strings.ReplaceAll(nick, "{USERID}", msg.UserID)
 	nick = strings.ReplaceAll(nick, "{CHANNEL}", msg.Channel)
+	displayName := msg.Username
+	if dns, ok := msg.Extra["displayname"]; ok && len(dns) > 0 {
+		if dn, ok := dns[0].(string); ok && dn != "" {
+			displayName = dn
+		}
+	}
+	nick = strings.ReplaceAll(nick, "{DISPLAYNAME}", displayName)
 	tengoNick, err := gw.modifyUsernameTengo(msg, br)
 	if err != nil {
 		gw.logger.Errorf("modifyUsernameTengo error: %s", err)
