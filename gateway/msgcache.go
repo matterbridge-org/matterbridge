@@ -3,6 +3,7 @@ package gateway
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,38 +12,50 @@ import (
 
 // PersistentMsgEntry represents a single downstream message ID mapping.
 type PersistentMsgEntry struct {
-	Protocol   string `json:"protocol"`
-	BridgeName string `json:"bridge_name"`
-	ID         string `json:"id"`
-	ChannelID  string `json:"channel_id"`
+	Protocol   string    `json:"protocol"`
+	BridgeName string    `json:"bridge_name"`
+	ID         string    `json:"id"`
+	ChannelID  string    `json:"channel_id"`
+	CreatedAt  time.Time `json:"created_at,omitempty"`
 }
 
 // PersistentMsgCache is a file-backed message ID cache that persists
 // cross-bridge message ID mappings across restarts.
 type PersistentMsgCache struct {
-	mu     sync.Mutex
-	path   string
-	data   map[string][]PersistentMsgEntry
-	dirty  bool
-	ticker *time.Ticker
-	stopCh chan struct{}
-	logger *logrus.Entry
+	mu        sync.Mutex
+	path      string
+	data      map[string][]PersistentMsgEntry
+	dirty     bool
+	ticker    *time.Ticker
+	stopCh    chan struct{}
+	logger    *logrus.Entry
+	maxAge    time.Duration
+	lastPrune time.Time
 }
+
+const defaultMaxAge = 168 * time.Hour // 7 days
+const pruneInterval = 1 * time.Hour
 
 // NewPersistentMsgCache creates a new persistent cache backed by the given file path.
 // Returns nil if path is empty. Loads existing data on creation and starts a
 // background flush loop that writes changes to disk every 30 seconds.
-func NewPersistentMsgCache(path string, logger *logrus.Entry) *PersistentMsgCache {
+// maxAge controls how long message ID entries are kept; zero uses the default (7 days).
+func NewPersistentMsgCache(path string, maxAge time.Duration, logger *logrus.Entry) *PersistentMsgCache {
 	if path == "" {
 		return nil
+	}
+	if maxAge <= 0 {
+		maxAge = defaultMaxAge
 	}
 	c := &PersistentMsgCache{
 		path:   path,
 		data:   make(map[string][]PersistentMsgEntry),
 		stopCh: make(chan struct{}),
 		logger: logger,
+		maxAge: maxAge,
 	}
 	c.load()
+	c.prune() // clean up stale entries on startup
 	c.ticker = time.NewTicker(30 * time.Second)
 	go c.flushLoop()
 	return c
@@ -67,6 +80,9 @@ func (c *PersistentMsgCache) flushLoop() {
 	for {
 		select {
 		case <-c.ticker.C:
+			if time.Since(c.lastPrune) >= pruneInterval {
+				c.prune()
+			}
 			c.Flush()
 		case <-c.stopCh:
 			c.ticker.Stop()
@@ -76,10 +92,45 @@ func (c *PersistentMsgCache) flushLoop() {
 	}
 }
 
-// Add stores a message ID mapping.
+// prune removes message ID entries older than maxAge.
+// Metadata keys (__last_seen__, __delta_token__) are never pruned.
+func (c *PersistentMsgCache) prune() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	cutoff := time.Now().Add(-c.maxAge)
+	pruned := 0
+	for key, entries := range c.data {
+		if strings.HasPrefix(key, lastSeenPrefix) || strings.HasPrefix(key, deltaTokenPrefix) {
+			continue
+		}
+		if len(entries) == 0 {
+			delete(c.data, key)
+			pruned++
+			continue
+		}
+		// Use CreatedAt of first entry as the age of this mapping.
+		// Zero time (old entries without CreatedAt) are pruned immediately.
+		t := entries[0].CreatedAt
+		if t.IsZero() || t.Before(cutoff) {
+			delete(c.data, key)
+			pruned++
+		}
+	}
+	if pruned > 0 {
+		c.dirty = true
+		c.logger.Infof("pruned %d stale entries from message cache (older than %s)", pruned, c.maxAge)
+	}
+	c.lastPrune = time.Now()
+}
+
+// Add stores a message ID mapping. Sets CreatedAt on all entries.
 func (c *PersistentMsgCache) Add(key string, entries []PersistentMsgEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	now := time.Now()
+	for i := range entries {
+		entries[i].CreatedAt = now
+	}
 	c.data[key] = entries
 	c.dirty = true
 }

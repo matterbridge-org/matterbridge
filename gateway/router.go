@@ -111,6 +111,13 @@ func (r *Router) Start() error {
 	return nil
 }
 
+// Stop performs a graceful shutdown: flushes and stops all persistent caches.
+func (r *Router) Stop() {
+	for _, gw := range r.Gateways {
+		gw.stopPersistentCaches()
+	}
+}
+
 // disableBridge returns true and empties a bridge if we have IgnoreFailureOnStart configured
 // otherwise returns false
 func (r *Router) disableBridge(br *bridge.Bridge, err error) bool {

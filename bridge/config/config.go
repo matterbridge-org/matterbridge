@@ -157,6 +157,7 @@ type Protocol struct {
 	MediaServerDownload    string
 	MediaConvertTgs        string     // telegram
 	MediaConvertWebPToPNG  bool       // telegram
+	MessageCacheDuration   string     // general, msteams, mattermost: max age of cache entries (default "168h" = 7 days)
 	MessageCacheFile       string     // general, msteams, mattermost: persistent message ID cache file
 	MessageDelay           int        // IRC, time in millisecond to wait between messages
 	MessageFormat          string     // telegram

@@ -74,7 +74,8 @@ func New(rootLogger *logrus.Logger, cfg *config.Gateway, r *Router) *Gateway {
 		if existing, ok := pathToCache[p]; ok {
 			gw.BridgeCaches[br.Account] = existing
 		} else {
-			cache := NewPersistentMsgCache(p, logger)
+			maxAge := parseCacheDuration(br.GetString("MessageCacheDuration"))
+			cache := NewPersistentMsgCache(p, maxAge, logger)
 			pathToCache[p] = cache
 			gw.BridgeCaches[br.Account] = cache
 		}
@@ -195,6 +196,19 @@ func (gw *Gateway) stopPersistentCaches() {
 			seen[cache] = true
 		}
 	}
+}
+
+// parseCacheDuration parses a MessageCacheDuration string (e.g. "168h", "24h").
+// Returns 0 for empty/invalid values (caller should apply default).
+func parseCacheDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
 }
 
 // AddBridge sets up a new bridge on startup.

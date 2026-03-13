@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/google/gops/agent"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -67,7 +69,11 @@ func main() {
 		logger.Fatalf("Starting gateway failed: %s", err)
 	}
 	logger.Printf("Gateway(s) started successfully. Now relaying messages")
-	select {}
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	<-sig
+	logger.Printf("Received signal, shutting down...")
+	r.Stop()
 }
 
 func setupLogger() *logrus.Logger {
