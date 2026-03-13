@@ -81,10 +81,20 @@ func (b *Bmattermost) runTestSequence(channelName string) {
 	post(":thumbsup: :tada: :rocket: :heart: :eyes: :flag-at:", rootID)
 	time.Sleep(time.Second)
 
-	// Step 8: Edit the typo message
+	// Step 8: Edit the typo message — include Props to preserve override_username/icon.
 	if typoID != "" {
 		newText := "this message contained a typo"
-		_, _, err := b.mc.Client.PatchPost(context.TODO(), typoID, &model.PostPatch{Message: &newText})
+		editProps := model.StringInterface{
+			"from_webhook":      "true",
+			"override_username": "matterbridge",
+		}
+		if b.GetString("IconURL") != "" {
+			editProps["override_icon_url"] = b.GetString("IconURL")
+		}
+		_, _, err := b.mc.Client.PatchPost(context.TODO(), typoID, &model.PostPatch{
+			Message: &newText,
+			Props:   editProps,
+		})
 		if err != nil {
 			b.Log.Errorf("test: PatchPost failed: %s", err)
 		}

@@ -468,9 +468,24 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
                 }
         }
 
-        // Edit message if we have an ID
+        // Edit message if we have an ID — use PatchPost to preserve override props.
         if msg.ID != "" {
-                return b.mc.EditMessage(msg.ID, msg.Text)
+                props := model.StringInterface{
+                        "from_webhook":           "true",
+                        "override_username":      strings.TrimSpace(msg.Username),
+                        "matterbridge_" + b.uuid: true,
+                }
+                if msg.Avatar != "" {
+                        props["override_icon_url"] = msg.Avatar
+                }
+                _, _, err := b.mc.Client.PatchPost(context.TODO(), msg.ID, &model.PostPatch{
+                        Message: &msg.Text,
+                        Props:   props,
+                })
+                if err != nil {
+                        return "", err
+                }
+                return msg.ID, nil
         }
 
         // Post normal message with override_username/icon so it appears as the

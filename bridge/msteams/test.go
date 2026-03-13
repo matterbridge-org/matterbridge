@@ -280,7 +280,7 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 	postReplyWithImages(rootID, "Image test: PNG", []testImage{
 		{name: "demo.png", contentType: "image/png", data: testdata.DemoPNG},
 	})
-	time.Sleep(time.Second)
+	time.Sleep(3 * time.Second)
 
 	// Step 13: GIF — hostedContents only supports JPG/PNG; Teams client uses SharePoint for GIFs.
 	postReply(rootID, "⚠️ Please manually check GIF file transmission from Teams to Mattermost — this test cannot upload files to your SharePoint.", nil)
@@ -295,7 +295,7 @@ func (b *Bmsteams) runTestSequence(channelName string) {
 		{name: "demo1.png", contentType: "image/png", data: testdata.DemoPNG},
 		{name: "demo2.png", contentType: "image/png", data: testdata.DemoPNG},
 	})
-	time.Sleep(time.Second)
+	time.Sleep(3 * time.Second)
 
 	// Step 16: Delete the marked message
 	if deleteID != "" {
