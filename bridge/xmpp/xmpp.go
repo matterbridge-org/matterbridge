@@ -142,7 +142,11 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 		}
 	}
 
-	// Post normal message.
+	// Post normal message, if it's not empty.
+	if msg.Text == "" {
+		return "", nil
+	}
+
 	b.Log.Debugf("=> Sending message %#v", msg)
 	if _, err := b.xc.Send(xmpp.Chat{
 		Type:   "groupchat",
