@@ -33,7 +33,7 @@ func (b *Bdiscord) maybeGetLocalAvatar(msg *config.Message) string {
 			continue
 		}
 
-		member, err := b.getGuildMemberByNick(msg.Username)
+		member, err := b.getGuildMemberByNick(msg.OriginalUsername)
 		if err != nil {
 			return ""
 		}
@@ -51,7 +51,7 @@ func (b *Bdiscord) webhookSendTextOnly(msg *config.Message, channelID string) (s
 			channelID,
 			&discordgo.WebhookParams{
 				Content:         msgPart,
-				Username:        msg.Username,
+				Username:        msg.OriginalUsername,
 				AvatarURL:       msg.Avatar,
 				AllowedMentions: b.getAllowedMentions(),
 			},
@@ -81,7 +81,7 @@ func (b *Bdiscord) webhookSendFilesOnly(msg *config.Message, channelID string) e
 		_, err := b.transmitter.Send(
 			channelID,
 			&discordgo.WebhookParams{
-				Username:        msg.Username,
+				Username:        msg.OriginalUsername,
 				AvatarURL:       msg.Avatar,
 				Files:           []*discordgo.File{&file},
 				Content:         content,
@@ -137,8 +137,8 @@ func (b *Bdiscord) handleEventWebhook(msg *config.Message, channelID string) (st
 	}
 
 	// discord username must be [0..32] max
-	if len(msg.Username) > 32 {
-		msg.Username = msg.Username[0:32]
+	if len(msg.OriginalUsername) > 32 {
+		msg.OriginalUsername = msg.OriginalUsername[0:32]
 	}
 
 	if msg.ID != "" {
@@ -155,7 +155,7 @@ func (b *Bdiscord) handleEventWebhook(msg *config.Message, channelID string) (st
 			// TODO: Optimize away noop-updates of un-edited messages
 			editErr = b.transmitter.Edit(channelID, msgIds[i], &discordgo.WebhookParams{
 				Content:         msgParts[i],
-				Username:        msg.Username,
+				Username:        msg.OriginalUsername,
 				AllowedMentions: b.getAllowedMentions(),
 			})
 			if editErr != nil {
