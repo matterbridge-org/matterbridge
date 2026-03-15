@@ -12,9 +12,9 @@ import (
 	"github.com/matterbridge-org/matterbridge/hook/rockethook"
 	"github.com/matterbridge-org/matterbridge/matterhook"
 	// Library even upstream no longer actively maintained, should be replaced:
-	"github.com/matterbridge/Rocket.Chat.Go.SDK/models"
-	"github.com/matterbridge/Rocket.Chat.Go.SDK/realtime"
-	"github.com/matterbridge/Rocket.Chat.Go.SDK/rest"
+	"github.com/RocketChat/Rocket.Chat.Go.SDK/models"
+	"github.com/RocketChat/Rocket.Chat.Go.SDK/realtime"
+	"github.com/RocketChat/Rocket.Chat.Go.SDK/rest"
 )
 
 type Brocketchat struct {

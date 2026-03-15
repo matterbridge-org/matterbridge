@@ -6,7 +6,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	// Library even upstream no longer actively maintained, should be replaced:
-	"github.com/matterbridge/Rocket.Chat.Go.SDK/models"
+	"github.com/RocketChat/Rocket.Chat.Go.SDK/models"
 )
 
 func (b *Brocketchat) handleRocket() {
