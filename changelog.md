@@ -60,6 +60,7 @@
   - attachment filenames without extension how have an extension added according to mimetype, even when they're not images ;
     when they are images, it's no longer assumed that they are PNG ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
+  - video attachments advertise their size properly ([#188](https://github.com/matterbridge-org/matterbridge/pull/188)
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
 - telegram
