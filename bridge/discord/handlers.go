@@ -211,7 +211,9 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	go func() {
 		count := 0
 		for _, attach := range m.Attachments {
-			err := b.AddAttachmentFromURL(&rmsg, attach.Filename, attach.ID, "", attach.URL)
+			// The URL isn't technically private, but it's short-lived so we
+			// strip it so other networks don't rely on it (attachment passed as bytes).
+			err := b.AddAttachmentFromProtectedURL(&rmsg, attach.Filename, attach.ID, "", attach.URL)
 			if err != nil {
 				b.Log.WithError(err).Warnf("Failed to download attachment %s", attach.Filename)
 				continue
