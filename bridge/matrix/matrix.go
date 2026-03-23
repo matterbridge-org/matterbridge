@@ -909,6 +909,10 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 				MsgType:  event.MsgVideo,
 				FileName: fi.Name,
 				URL:      id.ContentURIString(res.ContentURI.String()),
+				Info: &event.FileInfo{
+					MimeType: mtype,
+					Size:     len(*fi.Data),
+				},
 			}
 
 			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
