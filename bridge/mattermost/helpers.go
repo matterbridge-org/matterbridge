@@ -7,7 +7,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/matterbridge-org/matterbridge/matterhook"
-	"github.com/matterbridge/matterclient"
+	"github.com/matterbridge-org/matterclient"
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
