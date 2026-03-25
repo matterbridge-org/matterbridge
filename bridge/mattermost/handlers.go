@@ -145,32 +145,40 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 		}
 
         // Choose what to use as user nick Nickname/FullName/FirstName/LastName (or Username if neither is set)
-        if b.GetBool("UseNickName") {
-                if b.mc.GetNickName(rmsg.UserID) != "" {
-                        rmsg.Username = b.mc.GetNickName(rmsg.UserID)
-                }
-        } else if b.GetBool("UseFirstName") {
-                if b.mc.GetFirstName(rmsg.UserID) != "" {
-                        rmsg.Username = b.mc.GetFirstName(rmsg.UserID)
-                }
-        } else if b.GetBool("UseLastName") {
-                if b.mc.GetLastName(rmsg.UserID) != "" {
-                        rmsg.Username = b.mc.GetLastName(rmsg.UserID)
-                }
-        } else if b.GetBool("UseFullName") {
-                if b.mc.GetFirstName(rmsg.UserID) != "" && b.mc.GetLastName(rmsg.UserID) != "" {
-                        rmsg.Username = b.mc.GetFirstName(rmsg.UserID) + " " + b.mc.GetLastName(rmsg.UserID)
-                } else if b.mc.GetFirstName(rmsg.UserID) != "" {
-                        rmsg.Username = b.mc.GetFirstName(rmsg.UserID)
-                } else if b.mc.GetLastName(rmsg.UserID) != "" {
-                        rmsg.Username = b.mc.GetLastName(rmsg.UserID)
-                } else {
-                        rmsg.Username = ""
-                }
+        switch {
+        case b.GetBool("UseNickName"):
+            if nickname := b.mc.GetNickName(rmsg.UserID); nickname != "" {
+                rmsg.Username = nickname
+            }
+
+        case b.GetBool("UseFirstName"):
+            if firstname := b.mc.GetFirstName(rmsg.UserID); firstname != "" {
+                rmsg.Username = firstname
+            }
+
+        case b.GetBool("UseLastName"):
+            if lastname := b.mc.GetLastName(rmsg.UserID); lastname != "" {
+                rmsg.Username = lastname
+            }
+
+        case b.GetBool("UseFullName"):
+            first := b.mc.GetFirstName(rmsg.UserID)
+            last := b.mc.GetLastName(rmsg.UserID)
+
+            switch {
+            case first != "" && last != "":
+                rmsg.Username = first + " " + last
+            case first != "":
+                rmsg.Username = first
+            case last != "":
+                rmsg.Username = last
+            default:
+                rmsg.Username = "NoName"
+            }
         }
-		
-		messages <- rmsg
-	}
+
+        messages <- rmsg
+    }
 }
 
 func (b *Bmattermost) handleMatterHook(messages chan *config.Message) {
