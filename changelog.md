@@ -72,6 +72,7 @@
 - discord
   - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
     longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37), [#114](https://github.com/matterbridge-org/matterbridge/pull/114))
+  - all users in a guild are considered for name lookup instead of only a subset of 1000 ([#198](https://github.com/matterbridge-org/matterbridge/pull/198))
 - irc
   - when there are attachments in the message, the body is now sent instead of being discarded silently ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
   - when an attachment has no public URL, an error message is printed/logged encouraging the
