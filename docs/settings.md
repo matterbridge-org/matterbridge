@@ -35,6 +35,16 @@ Example:
 
 `EditSuffix=" (edited)"`
 
+## EditMaxDays
+Edits of messages older than this number of days are ignored. The default of 0 disables this.
+So far only works for discord.
+
+Setting: OPTIONAL, RELOADABLE \
+Format: int \
+Example: ignore edits of messages older than 2 weeks
+
+`EditMaxDays=14`
+
 ## IgnoreMessages
 Messages you want to ignore.\
 Messages matching these regex will be ignored and not sent to other bridges.\

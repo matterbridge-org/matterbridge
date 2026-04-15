@@ -2,6 +2,7 @@ package bdiscord
 
 import (
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
@@ -74,7 +75,13 @@ func (b *Bdiscord) messageUpdate(s *discordgo.Session, m *discordgo.MessageUpdat
 		return
 	}
 	// only when message is actually edited
-	if m.Message.EditedTimestamp != nil {
+	if m.EditedTimestamp != nil {
+		// message must have been edited within EditMaxDays
+		// (there is a discord glitch where old message edits get sent without user interaction)
+		if b.GetInt("EditMaxDays") != 0 && time.Since(*m.EditedTimestamp) >= time.Duration(b.GetInt("EditMaxDays"))*24*time.Hour {
+			return
+		}
+
 		b.Log.Debugf("Sending edit message")
 		m.Content += b.GetString("EditSuffix")
 		msg := &discordgo.MessageCreate{
