@@ -875,6 +875,10 @@ EditDisable=false
 # Example: " (edited)"
 EditSuffix=""
 
+# Edits of messages older than this number of days are ignored.
+# OPTIONAL (default 0 - disabled)
+EditMaxDays=0
+
 # IgnoreNicks mutes outgoing messages from certain users.
 # Messages from these users will not be transmitted to other bridges.
 # Regular expressions are also supported.
