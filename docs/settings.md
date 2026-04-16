@@ -4,7 +4,7 @@ On this page you will find information about global matterbridge settings. Most 
 
 > [!TIP]
 > Settings specific to a certain protocol can be found in the corresponding folder in the
-> [protocols/](protocols/) documentation folder. API settings for can be found in the
+> [protocols/](protocols/) documentation folder. API settings can be found in the
 > [api/](api/) documentation folder.
 
 # Info
@@ -37,7 +37,7 @@ Example:
 
 ## IgnoreMessages
 Messages you want to ignore.\
-Messages matching these regexp will be ignored and not sent to other bridges.\
+Messages matching these regex will be ignored and not sent to other bridges.\
 See https://regex-golang.appspot.com/assets/html/index.html for more regex info.
 
 Setting: OPTIONAL, RELOADABLE, ALL \
@@ -66,7 +66,7 @@ Example: add the label `mychat`
 `Label="mychat"`
 
 ## PrefixMessagesWithNick
-Whether to prefix messages from other bridges to with the sender's nick.
+Whether to prefix messages from other bridges with the sender's nick.
 Useful if username overrides for incoming webhooks isn't enabled.
  If you set PrefixMessagesWithNick to true, each message
 from other bridges will by default be prefixed by "bridge-" + nick. You can,
@@ -110,7 +110,7 @@ Example: this replaces cat => dog and sleep => awake
 
 ## ReplaceNicks
 Nicks you want to replace. \
-See `ReplaceMessages` for syntax
+See `ReplaceMessages` for the syntax
 
 Setting: OPTIONAL, RELOADABLE, ALL \
 Format: [ ["from1","to1"],["from2","to2"] ] \
@@ -188,7 +188,7 @@ Example: enable it
 ## LogFile
 
 LogFile defines the location of a file to write logs into, rather than stdout.
-Logging will still happen on stdout if the file cannot be open for #writing, or if the value is empty. 
+Logging will still happen on stdout if the file cannot be opened for #writing, or if the value is empty. 
 Note that the log won't roll, so you might want to use logrotate(8) with this feature.
 
 Setting: OPTIONAL, GENERAL \
@@ -199,7 +199,7 @@ Example:
 
 ## MediaDownloadBlacklist 
 Allows you to blacklist specific files from being downloaded.
-Filenames matching these regexp will not be download/uploaded to the mediaserver. \
+Filenames matching these regex will not be download/uploaded to the mediaserver. \
 You can use regex for this, see https://regex-golang.appspot.com/assets/html/index.html for more regex info
 
 Setting: OPTIONAL, RELOADABLE, GENERAL \
@@ -209,7 +209,7 @@ Example: do not upload html and htm extension
 `MediaDownloadBlacklist=[".html$",".htm$"]`
 
 ## MediaDownloadPath
-MediaDownloadPath is the filesystem path where the media file will be placed, instead of uploaded, for if Matterbridge has write access to the directory your webserver is serving. [More information](https://github.com/matterbridge-org/matterbridge/blob/master/docs/advanced/mediaserver.md)
+MediaDownloadPath is the filesystem path where the media file will be placed, instead of uploaded, if Matterbridge has write access to the directory your webserver is serving. [More information](https://github.com/matterbridge-org/matterbridge/blob/master/docs/advanced/mediaserver.md)
 
 Setting: OPTIONAL, RELOADABLE, GENERAL \
 Format: string \
@@ -223,7 +223,7 @@ media server or to other bridges.
 
 Setting: OPTIONAL, RELOADABLE, GENERAL \
 Format: int \
-Default: 10000000 (1 megabyte) \
+Default: 1000000 (1 megabyte) \
 Example:
 
 `MediaDownloadSize=1000000`
