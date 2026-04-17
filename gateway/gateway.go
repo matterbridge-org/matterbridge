@@ -291,6 +291,9 @@ func (gw *Gateway) ignoreTextEmpty(msg *config.Message) bool {
 	if msg.Text != "" {
 		return false
 	}
+	if msg.Event == config.EventReaction {
+		return false
+	}
 	if msg.Event == config.EventUserTyping {
 		return false
 	}
