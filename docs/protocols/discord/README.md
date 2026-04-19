@@ -32,6 +32,8 @@ See [account.md](account.md).
 
 [Creating a message](https://discordapp.com/developers/docs/resources/channel#create-message) via a user's API token (the basic configuration above) only lets Matterbridge post with the user/avatar that generated the token. But [executing a webhook](https://discordapp.com/developers/docs/resources/webhook#execute-webhook) can set any username and avatar URL.
 
+However, _replies_ [cannot spo](https://github.com/discord/discord-api-docs/issues/2251)[oof usernames](https://github.com/discord/discord-api-docs/discussions/3282), so unfortunately replies always fall back to embedding the sender's username with `RemoteNickFormat`.
+
 If you grant the bot the "Manage Webhooks" permission, it will automatically load and create webhooks in every bridged channel. You can even grant that permission on specific channels, if you don't want to give it global permission.
 
 1. Server Settings -> Roles
