@@ -118,6 +118,31 @@ func (b *Btelegram) getIds(channel string) (int64, int, error) {
 	return chatid, topicid, nil
 }
 
+// Send TODO: We process the message in the background,
+// but now we can't return the produced message IDs.
+//
+// Also, if there are several attachments, `SendMediaGroup` will
+// return several messages, but we currently only get 1 message ID
+// to store on matterbridge side. Unless the method returns a
+// sort of parent message which will aggregate all replies
+// (which may be the case, but if so is undocumented), we want
+// to map all telegram replies to any of those messages
+// back to the original message.
+//
+// We need to perform more logic somehow with new helpers/channels
+// Currently, the logic for saving message IDs is in gateway/handlers.go
+// in the `handleMessage` function, returning IDs to
+// `gateway/routeur.go:handleReceive` which in turn will
+// save all gateway produced message IDs to associate with the
+// original message ID being broadcast. It seems like there is no
+// gateway-specific association/typing in there so collisions
+// between networks is possible????
+//
+// So we probably want a new helper like `b.RegisterMessageID(string, []string)`
+// which individual bridges can call once they know an association should be
+// performed, and which should just silently ignore the case when `rmsg.ID`
+// (first argument) is an empty string. (ideally, we'd like to separate IDs
+// of different networks, but well let's not get ahead of ourselves).
 func (b *Btelegram) Send(msg config.Message) (string, error) {
 	b.Log.Debugf("=> Receiving %#v", msg)
 
@@ -135,9 +160,19 @@ func (b *Btelegram) Send(msg config.Message) (string, error) {
 		msg.Text = makeHTML(html.EscapeString(msg.Text))
 	}
 
+	// Perform blocking operations in the background
+	go b.SendBlocking(&msg, chatid, topicid)
+
+	// TODO: see big TODO above about message ID correctness
+	return "", nil
+}
+
+func (b *Btelegram) SendBlocking(msg *config.Message, chatid int64, topicid int) {
+	// TODO: Maybe still produce an error that can be logged by the Send method?
+
 	// Delete message
 	if msg.Event == config.EventMsgDelete {
-		return b.handleDelete(&msg, chatid)
+		_, _ = b.handleDelete(msg, chatid)
 	}
 
 	// Handle prefix hint for unthreaded messages.
@@ -153,20 +188,20 @@ func (b *Btelegram) Send(msg config.Message) (string, error) {
 
 	// Upload a file if it exists
 	if msg.Extra != nil {
-		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
+		for _, rmsg := range helper.HandleExtra(msg, b.General) {
 			if _, msgErr := b.sendMessage(chatid, topicid, rmsg.Username, rmsg.Text, parentID); msgErr != nil {
 				b.Log.Errorf("sendMessage failed: %s", msgErr)
 			}
 		}
 		// check if we have files to upload (from slack, telegram or mattermost)
 		if len(msg.Extra["file"]) > 0 {
-			return b.handleUploadFile(&msg, chatid, topicid, parentID)
+			_, _ = b.handleUploadFile(msg, chatid, topicid, parentID)
 		}
 	}
 
 	// edit the message if we have a msg ID
 	if msg.ID != "" {
-		return b.handleEdit(&msg, chatid)
+		_, _ = b.handleEdit(msg, chatid)
 	}
 
 	// Post normal message
@@ -174,10 +209,8 @@ func (b *Btelegram) Send(msg config.Message) (string, error) {
 	// Ignore empty text field needs for prevent double messages from whatsapp to telegram
 	// when sending media with text caption
 	if msg.Text != "" {
-		return b.sendMessage(chatid, topicid, msg.Username, msg.Text, parentID)
+		_, _ = b.sendMessage(chatid, topicid, msg.Username, msg.Text, parentID)
 	}
-
-	return "", nil
 }
 
 func (b *Btelegram) getFileDirectURL(id string) string {
