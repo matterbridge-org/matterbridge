@@ -5,7 +5,7 @@ import (
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
-	"github.com/matterbridge/matterclient"
+	"github.com/matterbridge-org/matterclient"
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
@@ -144,15 +144,41 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 			}
 		}
 
-		// Use nickname instead of username if defined
-		if !b.GetBool("useusername") {
-			if nick := b.mc.GetNickName(rmsg.UserID); nick != "" {
-				rmsg.Username = nick
-			}
-		}
+        // Choose what to use as user nick Nickname/FullName/FirstName/LastName (or Username if neither is set)
+        switch {
+        case b.GetBool("UseNickName"):
+            if nickname := b.mc.GetNickName(rmsg.UserID); nickname != "" {
+                rmsg.Username = nickname
+            }
 
-		messages <- rmsg
-	}
+        case b.GetBool("UseFirstName"):
+            if firstname := b.mc.GetFirstName(rmsg.UserID); firstname != "" {
+                rmsg.Username = firstname
+            }
+
+        case b.GetBool("UseLastName"):
+            if lastname := b.mc.GetLastName(rmsg.UserID); lastname != "" {
+                rmsg.Username = lastname
+            }
+
+        case b.GetBool("UseFullName"):
+            first := b.mc.GetFirstName(rmsg.UserID)
+            last := b.mc.GetLastName(rmsg.UserID)
+
+            switch {
+            case first != "" && last != "":
+                rmsg.Username = first + " " + last
+            case first != "":
+                rmsg.Username = first
+            case last != "":
+                rmsg.Username = last
+            default:
+                rmsg.Username = "NoName"
+            }
+        }
+
+        messages <- rmsg
+    }
 }
 
 func (b *Bmattermost) handleMatterHook(messages chan *config.Message) {

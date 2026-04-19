@@ -190,8 +190,8 @@ github.com/matterbridge/gozulipbot v0.0.0-20211023205727-a19d6c1f3b75 h1:GslZKF7
 github.com/matterbridge/gozulipbot v0.0.0-20211023205727-a19d6c1f3b75/go.mod h1:yAjnZ34DuDyPHMPHHjOsTk/FefW4JJjoMMCGt/8uuQA=
 github.com/matterbridge/logrus-prefixed-formatter v0.5.3-0.20200523233437-d971309a77ba h1:XleOY4IjAEIcxAh+IFwT5JT5Ze3RHiYz6m+4ZfZ0rc0=
 github.com/matterbridge/logrus-prefixed-formatter v0.5.3-0.20200523233437-d971309a77ba/go.mod h1:iXGEotOvwI1R1SjLxRc+BF5rUORTMtE0iMZBT2lxqAU=
-github.com/matterbridge/matterclient v0.0.0-20240817214420-3d4c3aef3dc1 h1:LHzlbT3VIcRFhSPwKpZfT2TU2rUzuA8liF57gSEBuaI=
-github.com/matterbridge/matterclient v0.0.0-20240817214420-3d4c3aef3dc1/go.mod h1:quMZkUhnTp/YfbJU6sCgD6qVSPgH1Uxig9/AjgJQHF8=
+github.com/matterbridge-org/matterclient v0.0.1 h1:0Wtcf3BrOfnmWV/05mta3lagEIZy03nZAMuXbBq6r0I=
+github.com/matterbridge-org/matterclient v0.0.1/go.mod h1:qT2nKnISsB0W9feG5a1C9o0Bnye8H7lwfDEnwCA0yCs=
 github.com/matterbridge/telegram-bot-api/v6 v6.5.0 h1:wCnHWvt4WGhfognQsuu2OnHyqENBdJRf2mReYTCXggQ=
 github.com/matterbridge/telegram-bot-api/v6 v6.5.0/go.mod h1:/hSLrs8h/xNsQglQXjwXJ92iZU8XfTGkYUQ7KVDWEVo=
 github.com/mattermost/go-i18n v1.11.1-0.20211013152124-5c415071e404 h1:Khvh6waxG1cHc4Cz5ef9n3XVCxRWpAKUtqg9PJl5+y8=
