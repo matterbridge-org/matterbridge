@@ -105,15 +105,6 @@ MessageQueue=30
 #OPTIONAL (default 400)
 MessageLength=400
 
-#Split messages on MessageLength instead of showing the <clipped message>
-#WARNING: this could lead to flooding
-#OPTIONAL (default false)
-MessageSplit=false
-
-#Message to show when a message is too big
-#Default "<clipped message>"
-MessageClipped="<clipped message>"
-
 #Delay in seconds to rejoin a channel when kicked
 #OPTIONAL (default 0)
 RejoinDelay=0

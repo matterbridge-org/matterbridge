@@ -93,17 +93,6 @@ messages will be dropped.
   MessageQueue=30
   ```
 
-## MessageSplit
-Split messages on `MessageLength` instead of showing the `<message clipped>`
-WARNING: this could lead to flooding
-
-- Setting: **OPTIONAL**, **RELOADABLE**
-- Format: *boolean*
-- Example:
-  ```toml
-  MessageSplit=true
-  ```
-
 ## Nick *
 Your nick on irc. 
 
