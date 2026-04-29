@@ -146,6 +146,14 @@ func (b *Bdiscord) Connect() error {
 		return err
 	}
 
+	customStatus := b.GetString("CustomStatus")
+	if customStatus != "" {
+		err = b.c.UpdateCustomStatus(customStatus)
+		if err != nil {
+			b.Log.Warnf("Error while setting custom activity status: %s", err)
+		}
+	}
+
 	// Legacy note: WebhookURL used to have an actual webhook URL that we would edit,
 	// but we stopped doing that due to Discord making rate limits more aggressive.
 	//

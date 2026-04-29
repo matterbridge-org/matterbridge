@@ -834,6 +834,9 @@ Token="Yourtokenhere"
 # Server (REQUIRED) is the ID or name of the guild to connect to, selected from the guilds the bot has been invited to
 Server="yourservername"
 
+# CustomStatus sets a custom activity message on connect, shown in Discord member lists and the bot's profile.
+CustomStatus="Bridging your chats"
+
 ## RELOADABLE SETTINGS
 ## All settings below can be reloaded by editing the file.
 ## They are also all optional.
