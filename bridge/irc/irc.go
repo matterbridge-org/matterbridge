@@ -15,7 +15,6 @@ import (
 	"github.com/lrstanley/girc"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
-	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	stripmd "github.com/writeas/go-strip-markdown"
 
 	// We need to import the 'data' package as an implicit dependency.
@@ -166,25 +165,11 @@ func (b *Birc) Send(msg config.Message) (string, error) {
 		return "", nil
 	}
 
-	var msgLines []string
 	if b.GetBool("StripMarkdown") {
 		msg.Text = stripmd.Strip(msg.Text)
 	}
 
-	if b.GetBool("MessageSplit") {
-		msgLines = helper.GetSubLines(msg.Text, b.MessageLength, b.GetString("MessageClipped"))
-	} else {
-		msgLines = helper.GetSubLines(msg.Text, 0, b.GetString("MessageClipped"))
-	}
-	for i := range msgLines {
-		if len(b.Local) >= b.MessageQueue {
-			b.Log.Debugf("flooding, dropping message (queue at %d)", len(b.Local))
-			return "", nil
-		}
-
-		msg.Text = msgLines[i]
-		b.Local <- msg
-	}
+	b.Local <- msg
 	return "", nil
 }
 

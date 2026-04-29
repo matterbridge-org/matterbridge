@@ -11,6 +11,7 @@
   - steam protocol has changed profoundly
   - keybase has been removed because we don't have a maintainer for it. See
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
+- irc: the `MessageSplit` and `MessageClipped` config options have been deprecated, because message splitting has been enabled by default upstream in girc; see [#190](https://github.com/matterbridge-org/matterbridge/issues/190#issuecomment-4230431653) for more information)
 - matrix: Change to mautrix.go for the matrix backend. See ([pr #79](https://github.com/matterbridge-org/matterbridge/pull/79)/[issue #60](https://github.com/matterbridge-org/matterbridge/issues/60)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
