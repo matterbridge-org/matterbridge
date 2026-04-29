@@ -133,6 +133,7 @@ type Protocol struct {
 	Charset                string   // irc
 	ClientID               string   // msteams
 	ColorNicks             bool     // only irc for now
+	CustomStatus           string   // discord
 	Debug                  bool     // general
 	DebugLevel             int      // only for irc now
 	DeviceID               string   // matrix

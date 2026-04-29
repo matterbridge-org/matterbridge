@@ -43,6 +43,7 @@
 - discord
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
   - New setting `EditMaxDays` to ignore edits of older messages. ([#199](https://github.com/matterbridge-org/matterbridge/pull/199))
+  - New setting `CustomStatus` to set the bridge bot's activity status message on Discord. ([#204](https://github.com/matterbridge-org/matterbridge/pull/204))
 - whatsapp
   - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
 - slack
