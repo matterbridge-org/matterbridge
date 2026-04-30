@@ -289,7 +289,7 @@ func (b *Bdiscord) memberAdd(s *discordgo.Session, m *discordgo.GuildMemberAdd) 
 
 	rmsg := config.Message{
 		Account:  b.Account,
-		Event:    config.EventJoinLeave,
+		Event:    config.EventJoin,
 		Username: "system",
 		Text:     username + " joins",
 	}
@@ -317,7 +317,7 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 
 	rmsg := config.Message{
 		Account:  b.Account,
-		Event:    config.EventJoinLeave,
+		Event:    config.EventLeave,
 		Username: "system",
 		Text:     username + " leaves",
 	}
