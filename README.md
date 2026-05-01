@@ -70,6 +70,7 @@ Questions or want to see the bridge in action? Join us on:
 - federated networks: [Jabber/XMPP][mb-xmpp], [Matrix][mb-matrix]
 - non-free centralized networks: [Discord][mb-discord]
 - self-hostable centralized networks: #matterbridge on `irc.f-hub.org:6697` or [Libera.chat][mb-irc]
+- Other: [Telegram](https://t.me/Matterbridge)
 
 ## Related projects
 
