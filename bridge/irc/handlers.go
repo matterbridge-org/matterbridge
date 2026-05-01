@@ -134,13 +134,9 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 		if b.GetBool("nosendjoinpart") {
 			return
 		}
-		msg := config.Message{Username: "system", Text: event.Source.Name + " " + strings.ToLower(event.Command) + "s", Channel: channel, Account: b.Account, Event: config.EventJoinLeave}
-		if b.GetBool("verbosejoinpart") {
-			b.Log.Debugf("<= Sending verbose JOIN_LEAVE event from %s to gateway", b.Account)
-			msg = config.Message{Username: "system", Text: event.Source.Name + " (" + event.Source.Ident + "@" + event.Source.Host + ") " + strings.ToLower(event.Command) + "s", Channel: channel, Account: b.Account, Event: config.EventJoinLeave}
-		} else {
-			b.Log.Debugf("<= Sending JOIN_LEAVE event from %s to gateway", b.Account)
-		}
+		text := formatJoinLeaveText(event, b.GetBool("verbosejoinpart"))
+		msg := config.Message{Username: "system", Text: text, Channel: channel, Account: b.Account, Event: config.EventJoinLeave}
+		b.Log.Debugf("<= Sending JOIN_LEAVE event from %s to gateway", b.Account)
 		b.Log.Debugf("<= Message is %#v", msg)
 		b.Remote <- msg
 		return
@@ -343,4 +339,22 @@ func (b *Birc) handleTopicWhoTime(client *girc.Client, event girc.Event) {
 		user += " [" + parts[1] + "]"
 	}
 	b.Log.Debugf("%s: Topic set by %s [%s]", event.Command, user, time.Unix(t, 0))
+}
+
+// formatJoinLeaveText renders a join/part/quit/kick event into a human-readable
+// system message. Special-cases KICK so the kicked nick (and reason, if any)
+// appear instead of just "<kicker> kicks".
+func formatJoinLeaveText(event girc.Event, verbose bool) string {
+	source := event.Source.Name
+	if verbose && event.Source.Ident != "" {
+		source += " (" + event.Source.Ident + "@" + event.Source.Host + ")"
+	}
+	if event.Command == "KICK" && len(event.Params) >= 2 {
+		text := source + " kicked " + event.Params[1]
+		if reason := event.Last(); reason != "" && reason != event.Params[1] {
+			text += " (" + reason + ")"
+		}
+		return text
+	}
+	return source + " " + strings.ToLower(event.Command) + "s"
 }
