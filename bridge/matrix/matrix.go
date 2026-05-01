@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -31,8 +30,6 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
-
-var Audio_MimeTypes = []string{"aac", "flac", "matroska", "mp4", "mpeg", "ogg", "opus", "vorbis", "wav"}
 
 var (
 	htmlTag            = regexp.MustCompile("</.*?>")
@@ -935,7 +932,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		if err != nil {
 			b.Log.Errorf("sendImage failed: %#v", err)
 		}
-	case strings.HasPrefix(mtype, "audio/") && func() bool { s, _ := strings.CutPrefix(mtype, "audio/"); return slices.Contains(Audio_MimeTypes, s) }():
+	case strings.Contains(mtype, "audio") && regexp.MustCompile(`(aac|flac|matroska|mp4|mpeg|ogg|opus|vorbis|wav)$`).MatchString(mtype): // god this is such a hack
 		b.Log.Debugf("sendAudio %s", res.ContentURI)
 		err = b.retry(func() error {
 			content := event.MessageEventContent{
