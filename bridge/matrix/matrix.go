@@ -501,7 +501,7 @@ func (b *Bmatrix) handleEdit(ev *event.Event, rmsg config.Message) bool {
 func (b *Bmatrix) handleReply(ev *event.Event, rmsg config.Message) bool {
 	relation := ev.Content.AsMessage().OptionalGetRelatesTo()
 
-	if relation == nil {
+	if relation == nil || relation.InReplyTo == nil || relation.InReplyTo.EventID == "" {
 		return false
 	}
 
