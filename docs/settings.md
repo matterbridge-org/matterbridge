@@ -249,3 +249,20 @@ Format: string \
 Example: 
 
 `MediaServerDownload="https://youserver.com/download"`
+
+## http_proxy
+
+Defines a matterbridge-wide HTTP proxy setting used when making HTTP requests. This is used when:
+
+- downloading remote HTTP attachments
+- connecting to HTTP APIs for protocols that support it:
+  - discord
+
+This setting is not used when connecting to the media server to upload attachments.
+
+- Setting: **OPTIONAL**
+- Format: *string*
+- Example:
+  ```toml
+  http_proxy="http://login:password@server.example.org:1234"
+  ```
