@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +82,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	}
 
 	e.GET("/api/health", b.handleHealthcheck)
+	e.GET("/api/gateways", b.handleGateways)
 	e.GET("/api/messages", b.handleMessages)
 	e.GET("/api/stream", b.handleStream)
 	e.GET("/api/websocket", b.handleWebsocket)
@@ -127,6 +129,40 @@ func (b *API) Send(msg config.Message) (string, error) {
 
 func (b *API) handleHealthcheck(c echo.Context) error {
 	return c.String(http.StatusOK, "OK")
+}
+
+func (b *API) handleGateways(c echo.Context) error {
+	type bridgeInfo struct {
+		Protocol string `json:"protocol"`
+		Account  string `json:"account"`
+		Channel  string `json:"channel,omitempty"`
+	}
+	type gwInfo struct {
+		Name    string       `json:"name"`
+		Bridges []bridgeInfo `json:"bridges"`
+	}
+	var gateways []gwInfo
+	for _, gw := range b.Bridge.Config.BridgeValues().Gateway {
+		if !gw.Enable {
+			continue
+		}
+		info := gwInfo{Name: gw.Name}
+		for _, br := range append(append(gw.In, gw.Out...), gw.InOut...) {
+			parts := strings.Split(br.Account, ".")
+			if len(parts) == 2 && parts[0] != "api" {
+				info.Bridges = append(info.Bridges, bridgeInfo{
+					Protocol: parts[0],
+					Account:  br.Account,
+					Channel:  br.Channel,
+				})
+			}
+		}
+		sort.Slice(info.Bridges, func(i, j int) bool {
+			return info.Bridges[i].Protocol < info.Bridges[j].Protocol
+		})
+		gateways = append(gateways, info)
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"gateways": gateways})
 }
 
 func (b *API) handlePostMessage(c echo.Context) error {
