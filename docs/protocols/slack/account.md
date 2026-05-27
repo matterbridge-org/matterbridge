@@ -74,7 +74,21 @@ You'll need to give your new Slack App, and thus the bot, the right permissions 
 
    <img alt="Bot Token scopes" width="589" height="606" alt="image" src="https://github.com/user-attachments/assets/c51062d1-ea01-4770-bdf1-d78c4ae3ee3e" />
 
-4. Scroll to the top of the same "OAuth & Permissions" page and click on the "Install to Workspace" (or "Reinstall to Workspace") button:
+4. Go to the "Event Subscriptions" using menu on the left, make sure that "Enable Events" is toggled on, scroll down and expand the "Subscribe to bot events" section, then subscribe to the following events:
+   - `channel_history_changed`
+   - `group_history_changed`
+   - `im_history_changed`
+   - `message.channels`
+   - `message.groups`
+   - `message.im`
+   - `message.mpim`
+   - `file_deleted`
+   - `member_joined_channel`
+   - `user_change`
+
+   <img alt="Event Subscriptions showing lists of subscribed events" width="945" height="852" src="https://github.com/user-attachments/assets/81d966d1-046b-41ac-a3b1-57dbec31a2b9" />
+
+5. Go back to "OAuth & Permissions" page and click on the "Install to Workspace" (or "Reinstall to Workspace") button near the top:
 
    <img alt="(re)Install the App" width="971" height="745" alt="image" src="https://github.com/user-attachments/assets/6fd5ea2f-f608-4e4f-a02b-a2fbd0d9fb98" />
 
@@ -82,7 +96,7 @@ You'll need to give your new Slack App, and thus the bot, the right permissions 
 
    <img alt="App install authorization" width="879" height="733" alt="image" src="https://github.com/user-attachments/assets/4ee40be3-2c32-401c-93cd-d7aeb1759f09" />
 
-5. Once the App has been installed, the top of the "OAuth & Permissions" page will show a "Bot User OAuth Token" Bot token with prefix `xoxb-`. You will use this in your Matterbridge configuration together with the App Token above:
+6. Once the App has been installed, the top of the "OAuth & Permissions" page will show a "Bot User OAuth Token" Bot token with prefix `xoxb-`. You will use this in your Matterbridge configuration together with the App Token above:
 
    <img alt="Bot User OAuth Token" width="692" height="343" alt="image" src="https://github.com/user-attachments/assets/5089acb5-6b1b-4a4e-b3ae-87d8bffecf2e" />
 
