@@ -254,9 +254,16 @@ func (b *Birc) doSend() {
 			}
 		} else {
 			if b.GetBool("Colornicks") {
-				checksum := crc32.ChecksumIEEE([]byte(msg.Username))
-				colorCode := checksum%14 + 2 // quick fix - prevent white or black color codes
-				username = fmt.Sprintf("\x03%02d%s\x0F", colorCode, msg.Username)
+				// Separate colors for different fields (label, proto, nick, etc)
+				userslice := strings.Fields(msg.Username)
+				slice1 := ""
+				username = ""
+				for i := 0; i < len(userslice); i++ {
+					slice1 = fmt.Sprintf("%s", userslice[i])
+					checksum := crc32.ChecksumIEEE([]byte(slice1))
+					colorCode := checksum%14 + 2 // prevent white or black color codes
+					username = username + fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
+				}
 			}
 			switch msg.Event {
 			case config.EventUserAction:
