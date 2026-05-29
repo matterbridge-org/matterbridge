@@ -257,7 +257,7 @@ func (b *Birc) doSend() {
 				// Separate colors for different fields (label, proto, nick, etc)
 				userslice := strings.Fields(msg.Username)
 				username = ""
-				for i := range len(userslice) {
+				for i := range userslice {
 					checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
 					colorCode := checksum%14 + 2 // prevent white or black color codes
 					username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
