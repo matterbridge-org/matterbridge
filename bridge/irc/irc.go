@@ -256,13 +256,11 @@ func (b *Birc) doSend() {
 			if b.GetBool("Colornicks") {
 				// Separate colors for different fields (label, proto, nick, etc)
 				userslice := strings.Fields(msg.Username)
-				slice1 := ""
 				username = ""
-				for i := 0; i < len(userslice); i++ {
-					slice1 = fmt.Sprintf("%s", userslice[i])
-					checksum := crc32.ChecksumIEEE([]byte(slice1))
+				for i := range len(userslice) {
+					checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
 					colorCode := checksum%14 + 2 // prevent white or black color codes
-					username = username + fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
+					username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
 				}
 			}
 			switch msg.Event {
