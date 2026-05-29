@@ -31,6 +31,8 @@
   - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
+- irc
+  - matterbridge when using the `Colornicks` setting now colors different parameters of the `RemoteNickFormat` settings individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#214](https://github.com/matterbridge-org/matterbridge/pull/214))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
