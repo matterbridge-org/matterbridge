@@ -446,7 +446,7 @@ func (b *Bxmpp) parseJID(remote string) (string, string) {
 	}
 	
 	s = strings.Index(remote, "@")
-	if s > 0 { // -1 means no localpart, 0 meas invalid empty localpart, anything else is the channel name
+	if s > 0 { // -1 means no localpart, 0 means invalid empty localpart, anything else is the channel name
 		rchan = remote[:s]
 	}
 	return rnick, rchan
