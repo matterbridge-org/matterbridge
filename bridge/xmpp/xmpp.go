@@ -431,29 +431,32 @@ func (b *Bxmpp) replaceAction(text string) (string, bool) {
 	return text, false
 }
 
-func (b *Bxmpp) parseNick(remote string) string {
-	s := strings.Split(remote, "@")
-	if len(s) > 1 {
-		s = strings.Split(s[1], "/")
-		if len(s) == 2 {
-			return s[1] // nick
+// inspired by splitString() in mellium's jid.go
+//
+// only supports MUC JID formats (i.e. channel@server/nick) where the server is the only required part for a valid JID
+// "@" and "/" are allowed in the nick.  would need reworking to support MIX format
+func (b *Bxmpp) parseJID(remote string) (string, string) {
+	rnick, rchan := "", ""
+	s := strings.Index(remote, "/")
+	if s != -1 { // nick field (resourcepart) exists
+		if s != len(remote)-1 { // nick isn't empty
+			rnick = remote[s+1:]
+			remote = remote[:s]
 		}
 	}
-	return ""
-}
-
-func (b *Bxmpp) parseChannel(remote string) string {
-	s := strings.Split(remote, "@")
-	if len(s) >= 2 {
-		return s[0] // channel
+	
+	s = strings.Index(remote, "@")
+	if s > 0 { // -1 means no localpart, 0 meas invalid empty localpart, anything else is the channel name
+		rchan = remote[:s]
 	}
-	return ""
+	return rnick, rchan
 }
 
 // skipMessage skips messages that need to be skipped
 func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 	// skip messages from ourselves
-	if b.parseNick(message.Remote) == b.GetString("Nick") {
+	rnick, _ := b.parseJID(message.Remote)
+	if rnick == b.GetString("Nick") {
 		return true
 	}
 
