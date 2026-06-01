@@ -83,6 +83,13 @@ func (b *Bxmpp) Connect() error {
 	return nil
 }
 
+func (b *Bxmpp) Connected() bool {
+	b.RLock()
+	conn := b.connected
+	b.RUnlock()
+	return conn
+}
+
 func (b *Bxmpp) Disconnect() error {
 	return nil
 }
@@ -445,7 +452,7 @@ func (b *Bxmpp) parseJID(remote string) (string, string) {
 			remote = remote[:s]
 		}
 	}
-	
+
 	s = strings.Index(remote, "@")
 	if s > 0 { // -1 means no localpart, 0 means invalid empty localpart, anything else is the channel name
 		rchan = remote[:s]
@@ -493,10 +500,4 @@ func (b *Bxmpp) setConnected(state bool) {
 	if err != nil {
 		b.Log.WithError(err).Warn("Failed to discover server items")
 	}
-}
-
-func (b *Bxmpp) Connected() bool {
-	b.RLock()
-	defer b.RUnlock()
-	return b.connected
 }
