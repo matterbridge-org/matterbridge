@@ -341,6 +341,8 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) stri
 	if dest.GetBool("StripNick") {
 		re := regexp.MustCompile("[^a-zA-Z0-9]+")
 		msg.Username = re.ReplaceAllString(msg.Username, "")
+	} else if dest.GetBool("Colornicks") { // Replace spaces with NBSP's to facilitate coloring the whole nick the same way
+		msg.Username = strings.ReplaceAll(msg.Username, " ", "\u00A0")
 	}
 	nick := dest.GetString("RemoteNickFormat")
 
