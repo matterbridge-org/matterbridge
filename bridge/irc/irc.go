@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	
+
 	"github.com/lrstanley/girc"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
