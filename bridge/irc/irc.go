@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/lrstanley/girc"
 	"github.com/matterbridge-org/matterbridge/bridge"
@@ -257,7 +256,7 @@ func (b *Birc) doSend() {
 			if b.GetBool("Colornicks") {
 				// Separate colors for different fields (label, proto, nick, etc)
 				userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
-					return unicode.IsSpace(r) && r != '\u00A0' // treat NBSP's as non-whitespace
+					return r == '\u0020' // split only on regular space; ignore NBSP, tab, newline
 				})
 				username = ""
 				for i := range userslice {
