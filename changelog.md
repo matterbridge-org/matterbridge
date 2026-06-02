@@ -67,6 +67,7 @@
   - audio attachments are properly now sent as `m.audio` for valid mimetypes ([#195](https://github.com/matterbridge-org/matterbridge/pull/195))
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
+  - xmpp JID's with "@" or "/" characters in the nick will now be parsed correctly ([#216](https://github.com/matterbridge-org/matterbridge/pull/216))
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
   - attachments of mixed types in the same message will be uploaded as documents
