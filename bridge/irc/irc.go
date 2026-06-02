@@ -11,7 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	"unicode"
+	
 	"github.com/lrstanley/girc"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -255,7 +256,9 @@ func (b *Birc) doSend() {
 		} else {
 			if b.GetBool("Colornicks") {
 				// Separate colors for different fields (label, proto, nick, etc)
-				userslice := strings.Fields(msg.Username)
+				userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
+					return unicode.IsSpace(r) && r != '\u00A0' // treat NBSP's as non-whitespace
+				})
 				username = ""
 				for i := range userslice {
 					checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
