@@ -254,9 +254,16 @@ func (b *Birc) doSend() {
 			}
 		} else {
 			if b.GetBool("Colornicks") {
-				checksum := crc32.ChecksumIEEE([]byte(msg.Username))
-				colorCode := checksum%14 + 2 // quick fix - prevent white or black color codes
-				username = fmt.Sprintf("\x03%02d%s\x0F", colorCode, msg.Username)
+				// Separate colors for different fields (label, proto, nick, etc)
+				userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
+					return r == '\u0020' // split only on regular space; ignore NBSP, tab, newline
+				})
+				username = ""
+				for i := range userslice {
+					checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
+					colorCode := checksum%14 + 2 // prevent white or black color codes
+					username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
+				}
 			}
 			switch msg.Event {
 			case config.EventUserAction:
