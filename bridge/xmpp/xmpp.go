@@ -452,6 +452,27 @@ func (b *Bxmpp) parseJID(remote string) (string, string) {
 	return rnick, rchan
 }
 
+// deprecated
+func (b *Bxmpp) parseNick(remote string) string {
+	s := strings.Split(remote, "@")
+	if len(s) > 1 {
+		s = strings.Split(s[1], "/")
+		if len(s) == 2 {
+			return s[1] // nick
+		}
+	}
+	return ""
+}
+
+// deprecated
+func (b *Bxmpp) parseChannel(remote string) string {
+	s := strings.Split(remote, "@")
+	if len(s) >= 2 {
+		return s[0] // channel
+	}
+	return ""
+}
+
 // skipMessage skips messages that need to be skipped
 func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 	// skip messages from ourselves
