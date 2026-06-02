@@ -23,6 +23,7 @@
 - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
+- irc: Destination bridges which have `Colornicks` set, and are not using `StripNick`, when receiving from bridges that allow spaces in the nickname (e.g. Discord, XMPP), will see those spaces in the nick replaced with non-breaking spaces.  This is to facilitate using any other regular whitespace characters as delimiters for the new `Colornicks` behavior ([#214](https://github.com/matterbridge-org/matterbridge/pull/214)).
 
 ## New Features
 
