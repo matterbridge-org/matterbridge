@@ -196,6 +196,7 @@ type Protocol struct {
 	ShowTopicChange        bool       // slack
 	ShowUserTyping         bool       // slack
 	ShowEmbeds             bool       // discord
+	SkipEncrypted          bool       // xmpp
 	SkipTLSVerify          bool       // IRC, mattermost
 	SkipVersionCheck       bool       // mattermost
 	StripNick              bool       // all protocols
