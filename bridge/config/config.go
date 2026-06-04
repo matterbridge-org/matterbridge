@@ -217,6 +217,7 @@ type Protocol struct {
 	UseUserName            bool       // discord, matrix, mattermost
 	UseInsecureURL         bool       // telegram
 	UserName               string     // IRC
+	UseRelayMsg            bool       // IRC
 	VerboseJoinPart        bool       // IRC
 	WebhookBindAddress     string     // mattermost, slack
 	WebhookURL             string     // mattermost, slack
