@@ -83,6 +83,7 @@
   - when an attachment has no public URL, an error message is printed/logged encouraging the
     matterbridge operator to enable the mediaserver, instead of producing an incoherent message
     ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
+  - prior to attempting automatic charset detection, check whether the message is valid UTF-8.  this should mostly fix ([#120](https://github.com/matterbridge-org/matterbridge/issues/120)) but some improvements are still needed.
 
 ## Upstream
 
