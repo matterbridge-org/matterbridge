@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/lrstanley/girc"
 	"github.com/matterbridge-org/matterbridge/bridge"
@@ -213,9 +214,12 @@ func (b *Birc) doConnect() {
 }
 
 // Sanitize nicks for RELAYMSG: replace IRC characters with special meanings with "-"
-func sanitizeNick(nick string) string {
+// This only gets called when UseRelayMsg is set, and the irc server also supports RELAYMSG.
+// The list of disallowed characters is given here:
+// https://github.com/jlu5/ircv3-specifications/blob/master/extensions/relaymsg.md
+func (b *Birc) sanitizeNick(nick string) string {
 	sanitize := func(r rune) rune {
-		if strings.ContainsRune("!+%@&#$:'\"?*,. ", r) {
+		if strings.ContainsRune("!+%@&#$:'\"?*,.", r) || unicode.IsSpace(r) { // include check for any whitespace
 			return '-'
 		}
 		return r
@@ -232,44 +236,58 @@ func (b *Birc) doSend() {
 		// Optional support for the proposed RELAYMSG extension, described at
 		// https://github.com/jlu5/ircv3-specifications/blob/master/extensions/relaymsg.md
 		// nolint:nestif
-		if (b.i.HasCapability("overdrivenetworks.com/relaymsg") || b.i.HasCapability("draft/relaymsg")) &&
-			b.GetBool("UseRelayMsg") {
-			username = sanitizeNick(username)
-			text := msg.Text
+		if b.GetBool("UseRelayMsg") { // Let's check this by itself first to avoid needlessly querying the irc lib on each msg, in case it takes out any locks
+			if b.i.HasCapability("overdrivenetworks.com/relaymsg") || b.i.HasCapability("draft/relaymsg") {
+				username = b.sanitizeNick(username)
+				text := msg.Text
 
-			// Work around girc chomping leading commas on single word messages?
-			if b.GetBool("DoubleColonPrefix") {
-				if strings.HasPrefix(text, ":") && !strings.ContainsRune(text, ' ') {
-					b.Log.Warn("This option may be deprecated in the future. If you are using it, please help us understand the usecase by commenting on this issue: https://github.com/matterbridge-org/matterbridge/issues/122")
+				// Work around girc chomping leading commas on single word messages?
+				if b.GetBool("DoubleColonPrefix") {
+					if strings.HasPrefix(text, ":") && !strings.ContainsRune(text, ' ') {
+						b.Log.Warn("This option may be deprecated in the future. If you are using it, please help us understand the usecase by commenting on this issue: https://github.com/matterbridge-org/matterbridge/issues/122")
 
-					text = ":" + text
+						text = ":" + text
+					}
+				} else {
+					b.Log.Debug("Leading colon workaround has been disabled; reenable it with `DoubleColonPrefix=true`.")
 				}
-			} else {
-				b.Log.Debug("Leading colon workaround has been disabled; reenable it with `DoubleColonPrefix=true`.")
-			}
 
-			if msg.Event == config.EventUserAction {
-				b.i.Cmd.SendRawf("RELAYMSG %s %s :\x01ACTION %s\x01", msg.Channel, username, text) //nolint:errcheck
-			} else {
-				b.Log.Debugf("Sending RELAYMSG to channel %s: nick=%s", msg.Channel, username)
-				b.i.Cmd.SendRawf("RELAYMSG %s %s :%s", msg.Channel, username, text) //nolint:errcheck
+				if msg.Event == config.EventUserAction {
+					err := b.i.Cmd.SendRawf("RELAYMSG %s %s :\x01ACTION %s\x01", msg.Channel, username, text)
+					if err != nil {
+						b.Log.Warn("The RELAYMSG ACTION command failed")
+					}
+				} else {
+					b.Log.Debugf("Sending RELAYMSG to channel %s: nick=%s", msg.Channel, username)
+					err := b.i.Cmd.SendRawf("RELAYMSG %s %s :%s", msg.Channel, username, text)
+					if err != nil {
+						b.Log.Warn("The RELAYMSG command failed")
+					}
+				}
+			} else { // We have UseRelayMsg set but lack the capability.  Log a warning
+				b.Log.Warn("WARNING!  UseRelayMsg was set, but the irc server does not support it.")
 			}
-		} else {
-			if b.GetBool("Colornicks") {
-				checksum := crc32.ChecksumIEEE([]byte(msg.Username))
-				colorCode := checksum%14 + 2 // quick fix - prevent white or black color codes
-				username = fmt.Sprintf("\x03%02d%s\x0F", colorCode, msg.Username)
+		} else if b.GetBool("Colornicks") { // If we aren't using UseRelayMsg, we might be using Colornicks.  The two can't both be used.
+			// Separate colors for different fields (label, proto, nick, etc)
+			userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
+				return r == '\u0020' // split only on regular space; ignore NBSP, tab, newline
+			})
+			username = ""
+			for i := range userslice {
+				checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
+				colorCode := checksum%14 + 2 // prevent white or black color codes
+				username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
 			}
-			switch msg.Event {
-			case config.EventUserAction:
-				b.i.Cmd.Action(msg.Channel, username+msg.Text)
-			case config.EventNoticeIRC:
-				b.Log.Debugf("Sending notice to channel %s", msg.Channel)
-				b.i.Cmd.Notice(msg.Channel, username+msg.Text)
-			default:
-				b.Log.Debugf("Sending to channel %s", msg.Channel)
-				b.i.Cmd.Message(msg.Channel, username+msg.Text)
-			}
+		}
+		switch msg.Event {
+		case config.EventUserAction:
+			b.i.Cmd.Action(msg.Channel, username+msg.Text)
+		case config.EventNoticeIRC:
+			b.Log.Debugf("Sending notice to channel %s", msg.Channel)
+			b.i.Cmd.Notice(msg.Channel, username+msg.Text)
+		default:
+			b.Log.Debugf("Sending to channel %s", msg.Channel)
+			b.i.Cmd.Message(msg.Channel, username+msg.Text)
 		}
 	}
 }
