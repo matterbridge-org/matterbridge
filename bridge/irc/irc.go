@@ -213,7 +213,7 @@ func (b *Birc) doConnect() {
 // Sanitize nicks for RELAYMSG: replace IRC characters with special meanings with "-"
 func sanitizeNick(nick string) string {
 	sanitize := func(r rune) rune {
-		if strings.ContainsRune("!+%@&#$:'\"?*,. ", r) || r == '\00A0' { // include check for NBSP
+		if strings.ContainsRune("!+%@&#$:'\"?*,. ", r) || r == '\u00A0' { // include check for NBSP
 			return '-'
 		}
 		return r
