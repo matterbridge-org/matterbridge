@@ -338,10 +338,10 @@ func (gw *Gateway) ignoreFilesComment(extra map[string][]interface{}, igMessages
 }
 
 func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) string {
-	if dest.GetBool("StripNick") {
+	if dest.GetBool("StripNick") { // Sanitize nick so that it contains nothing but alphanumeric characters
 		re := regexp.MustCompile("[^a-zA-Z0-9]+")
 		msg.Username = re.ReplaceAllString(msg.Username, "")
-	} else if dest.GetBool("Colornicks") { // Replace spaces with NBSP's to facilitate coloring the whole nick the same way
+	} else if dest.GetBool("Colornicks") { // If we didn't strip the nick, swap any spaces with NBSP's to prevent them being treated as delimiters
 		msg.Username = strings.ReplaceAll(msg.Username, " ", "\u00A0")
 	}
 	nick := dest.GetString("RemoteNickFormat")
