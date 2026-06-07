@@ -158,14 +158,6 @@ Example: enable it
 
 `SkipTLSVerify=true`
 
-## SkipEncrypted
-Do not relay encrypted messages (OTR, PGP, OMEMO). \
-Only supported by XMPP.
-
-Setting: OPTIONAL \
-Format: boolean \
-Example: enable it
-
 ## StripNick
 StripNick only allows alphanumerical nicks. See https://github.com/42wim/matterbridge/issues/285
 It will strip other characters from the nick
