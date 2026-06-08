@@ -25,7 +25,13 @@ func (b *Bwhatsapp) eventHandler(evt interface{}) {
 		b.handleNewsletterJoin(e)
 	case *events.NewsletterLeave:
 		b.handleNewsletterLeave(e)
+	case *events.JoinedGroup:
+		b.handleJoinedGroup(e)
 	}
+}
+
+func (b *Bwhatsapp) handleJoinedGroup(event *events.JoinedGroup) {
+	b.Log.Infof("Joined group: %s (%s)", event.JID, event.GroupName.Name)
 }
 
 func (b *Bwhatsapp) handleGroupInfo(event *events.GroupInfo) {
