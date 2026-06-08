@@ -135,6 +135,9 @@ func (b *Bwhatsapp) Connect() error {
 	if err != nil {
 		return errors.New("failed to get list of joined groups: " + err.Error())
 	}
+	for _, group := range b.joinedGroups {
+		b.Log.Infof("Joined group: %s (%s)", group.JID, group.Name)
+	}
 
 	b.subscribedNewsletters, err = b.wc.GetSubscribedNewsletters(context.Background())
 	if err != nil {
