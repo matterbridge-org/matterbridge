@@ -425,6 +425,13 @@ func (b *Bwhatsapp) PostAudioMessage(msg config.Message, filetype string) (strin
 func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
 	groupJID, _ := types.ParseJID(msg.Channel)
 
+	// WhatsApp channels (newsletters) are read-only for subscribers;
+	// only the channel owner can post. Silently skip to avoid 401 errors.
+	if groupJID.Server == types.NewsletterServer {
+		b.Log.Warnf("Cannot send to newsletter %s: subscribers cannot post to channels", groupJID)
+		return "", nil
+	}
+
 	extendedMsgID, _ := b.parseMessageID(msg.ID)
 	msg.ID = extendedMsgID.MessageID
 
