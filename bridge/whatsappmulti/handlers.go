@@ -445,7 +445,12 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 }
 
 func (b *Bwhatsapp) handleDelete(messageInfo *proto.ProtocolMessage) {
-	sender, _ := types.ParseJID(*messageInfo.Key.Participant)
+	var sender types.JID
+	if messageInfo.Key.Participant != nil {
+		sender, _ = types.ParseJID(*messageInfo.Key.Participant)
+	} else if messageInfo.Key.RemoteJID != nil {
+		sender, _ = types.ParseJID(*messageInfo.Key.RemoteJID)
+	}
 
 	rmsg := config.Message{
 		Account:  b.Account,
@@ -480,6 +485,8 @@ func (b *Bwhatsapp) handleNewsletterMessage(message *events.Message) {
 		b.handleNewsletterAudioMessage(senderJID, channel, newsletterName, message)
 	case msg.DocumentMessage != nil:
 		b.handleNewsletterDocumentMessage(senderJID, channel, newsletterName, message)
+	case msg.ProtocolMessage != nil && *msg.ProtocolMessage.Type == proto.ProtocolMessage_REVOKE:
+		b.handleDelete(msg.ProtocolMessage)
 	default:
 		b.Log.Debugf("Unhandled newsletter message type: %#v", msg)
 	}
@@ -675,17 +682,22 @@ func (b *Bwhatsapp) handleNewsletterJoin(event *events.NewsletterJoin) {
 	b.Lock()
 	defer b.Unlock()
 
+	name := event.ID.String()
+	if event.ThreadMeta != nil && event.ThreadMeta.Name != nil {
+		name = event.ThreadMeta.Name.Text
+	}
+
 	for i, nl := range b.subscribedNewsletters {
 		if nl.ID == event.ID {
 			b.subscribedNewsletters[i] = &event.NewsletterMetadata
-			b.newsletterNames[event.ID.String()] = event.ThreadMeta.Name.Text
+			b.newsletterNames[event.ID.String()] = name
 			return
 		}
 	}
 	b.subscribedNewsletters = append(b.subscribedNewsletters, &event.NewsletterMetadata)
-	b.newsletterNames[event.ID.String()] = event.ThreadMeta.Name.Text
+	b.newsletterNames[event.ID.String()] = name
 
-	b.Log.Infof("Subscribed to newsletter: %s (%s)", event.ThreadMeta.Name.Text, event.ID.String())
+	b.Log.Infof("Subscribed to newsletter: %s (%s)", name, event.ID.String())
 }
 
 func (b *Bwhatsapp) handleNewsletterLeave(event *events.NewsletterLeave) {

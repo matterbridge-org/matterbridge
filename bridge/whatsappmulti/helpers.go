@@ -142,6 +142,9 @@ func (b *Bwhatsapp) getNewsletterName(jid types.JID) string {
 }
 
 func (b *Bwhatsapp) listNewsletterJIDs() []string {
+	b.RLock()
+	defer b.RUnlock()
+
 	var jids []string
 	for _, nl := range b.subscribedNewsletters {
 		jids = append(jids, nl.ID.String())
