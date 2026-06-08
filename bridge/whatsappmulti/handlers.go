@@ -21,6 +21,10 @@ func (b *Bwhatsapp) eventHandler(evt interface{}) {
 		b.handleMessage(e)
 	case *events.GroupInfo:
 		b.handleGroupInfo(e)
+	case *events.NewsletterJoin:
+		b.handleNewsletterJoin(e)
+	case *events.NewsletterLeave:
+		b.handleNewsletterLeave(e)
 	}
 }
 
@@ -104,6 +108,12 @@ func (b *Bwhatsapp) handleMessage(message *events.Message) {
 	}
 
 	b.Log.Debugf("Receiving message %#v", msg)
+
+	// Route newsletter (channel) messages to a dedicated handler
+	if message.NewsletterMeta != nil {
+		b.handleNewsletterMessage(message)
+		return
+	}
 
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
@@ -449,4 +459,247 @@ func (b *Bwhatsapp) handleDelete(messageInfo *proto.ProtocolMessage) {
 	b.Log.Debugf("<= Sending message from %s to gateway", b.Account)
 	b.Log.Debugf("<= Message is %#v", rmsg)
 	b.Remote <- rmsg
+}
+
+func (b *Bwhatsapp) handleNewsletterMessage(message *events.Message) {
+	msg := message.Message
+	channel := message.Info.Chat
+	newsletterName := b.getNewsletterName(channel)
+	senderJID := channel
+
+	b.Log.Debugf("Receiving newsletter message from %s: %#v", channel, msg)
+
+	switch {
+	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
+		b.handleNewsletterTextMessage(senderJID, channel, newsletterName, message)
+	case msg.ImageMessage != nil:
+		b.handleNewsletterImageMessage(senderJID, channel, newsletterName, message)
+	case msg.VideoMessage != nil:
+		b.handleNewsletterVideoMessage(senderJID, channel, newsletterName, message)
+	case msg.AudioMessage != nil:
+		b.handleNewsletterAudioMessage(senderJID, channel, newsletterName, message)
+	case msg.DocumentMessage != nil:
+		b.handleNewsletterDocumentMessage(senderJID, channel, newsletterName, message)
+	default:
+		b.Log.Debugf("Unhandled newsletter message type: %#v", msg)
+	}
+}
+
+func (b *Bwhatsapp) handleNewsletterTextMessage(senderJID, channel types.JID, newsletterName string, message *events.Message) {
+	var text string
+	msg := message.Message
+
+	if msg.GetExtendedTextMessage() == nil {
+		text = msg.GetConversation()
+	} else {
+		text = msg.GetExtendedTextMessage().GetText()
+	}
+
+	rmsg := config.Message{
+		UserID:   senderJID.String(),
+		Username: newsletterName,
+		Text:     text,
+		Channel:  channel.String(),
+		Account:  b.Account,
+		Protocol: b.Protocol,
+		Extra:    make(map[string][]interface{}),
+		ID:       getMessageIdFormat(senderJID, message.Info.ID),
+	}
+
+	b.Log.Debugf("<= Sending newsletter message from %s on %s to gateway", newsletterName, b.Account)
+	b.Log.Debugf("<= Message is %#v", rmsg)
+
+	b.Remote <- rmsg
+}
+
+func (b *Bwhatsapp) handleNewsletterImageMessage(senderJID, channel types.JID, newsletterName string, msg *events.Message) {
+	imsg := msg.Message.GetImageMessage()
+
+	rmsg := config.Message{
+		UserID:   senderJID.String(),
+		Username: newsletterName,
+		Channel:  channel.String(),
+		Account:  b.Account,
+		Protocol: b.Protocol,
+		Extra:    make(map[string][]interface{}),
+		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
+	}
+
+	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
+	if err != nil {
+		b.Log.Errorf("Mimetype detection error: %s", err)
+		return
+	}
+
+	if fileExt[0] == ".jfif" {
+		fileExt[0] = ".jpg"
+	}
+	if fileExt[0] == ".jpe" {
+		fileExt[0] = ".jpg"
+	}
+
+	filename := fmt.Sprintf("%v%v", msg.Info.ID, fileExt[0])
+
+	b.Log.Debugf("Trying to download newsletter image %s with type %s", filename, imsg.GetMimetype())
+
+	data, err := b.wc.Download(context.Background(), imsg)
+	if err != nil {
+		b.Log.Errorf("Download newsletter image failed: %s", err)
+		return
+	}
+
+	helper.HandleDownloadData(b.Log, &rmsg, filename, imsg.GetCaption(), "", &data, b.General)
+
+	b.Log.Debugf("<= Sending newsletter message from %s on %s to gateway", newsletterName, b.Account)
+	b.Remote <- rmsg
+}
+
+func (b *Bwhatsapp) handleNewsletterVideoMessage(senderJID, channel types.JID, newsletterName string, msg *events.Message) {
+	imsg := msg.Message.GetVideoMessage()
+
+	rmsg := config.Message{
+		UserID:   senderJID.String(),
+		Username: newsletterName,
+		Channel:  channel.String(),
+		Account:  b.Account,
+		Protocol: b.Protocol,
+		Extra:    make(map[string][]interface{}),
+		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
+	}
+
+	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
+	if err != nil {
+		b.Log.Errorf("Mimetype detection error: %s", err)
+		return
+	}
+
+	if len(fileExt) == 0 {
+		fileExt = append(fileExt, ".mp4")
+	}
+
+	fileExtIndex := 0
+	for i, n := range fileExt {
+		if ".mp4" == n {
+			fileExtIndex = i
+			break
+		}
+	}
+
+	filename := fmt.Sprintf("%v%v", msg.Info.ID, fileExt[fileExtIndex])
+
+	b.Log.Debugf("Trying to download newsletter video %s with type %s", filename, imsg.GetMimetype())
+
+	data, err := b.wc.Download(context.Background(), imsg)
+	if err != nil {
+		b.Log.Errorf("Download newsletter video failed: %s", err)
+		return
+	}
+
+	helper.HandleDownloadData(b.Log, &rmsg, filename, imsg.GetCaption(), "", &data, b.General)
+
+	b.Log.Debugf("<= Sending newsletter message from %s on %s to gateway", newsletterName, b.Account)
+	b.Remote <- rmsg
+}
+
+func (b *Bwhatsapp) handleNewsletterAudioMessage(senderJID, channel types.JID, newsletterName string, msg *events.Message) {
+	imsg := msg.Message.GetAudioMessage()
+
+	rmsg := config.Message{
+		UserID:   senderJID.String(),
+		Username: newsletterName,
+		Channel:  channel.String(),
+		Account:  b.Account,
+		Protocol: b.Protocol,
+		Extra:    make(map[string][]interface{}),
+		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
+	}
+
+	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
+	if err != nil {
+		b.Log.Errorf("Mimetype detection error: %s", err)
+		return
+	}
+
+	if len(fileExt) == 0 {
+		fileExt = append(fileExt, ".ogg")
+	}
+
+	filename := fmt.Sprintf("%v%v", msg.Info.ID, fileExt[0])
+
+	b.Log.Debugf("Trying to download newsletter audio %s with type %s", filename, imsg.GetMimetype())
+
+	data, err := b.wc.Download(context.Background(), imsg)
+	if err != nil {
+		b.Log.Errorf("Download newsletter audio failed: %s", err)
+		return
+	}
+
+	helper.HandleDownloadData(b.Log, &rmsg, filename, "audio message", "", &data, b.General)
+
+	b.Log.Debugf("<= Sending newsletter message from %s on %s to gateway", newsletterName, b.Account)
+	b.Remote <- rmsg
+}
+
+func (b *Bwhatsapp) handleNewsletterDocumentMessage(senderJID, channel types.JID, newsletterName string, msg *events.Message) {
+	imsg := msg.Message.GetDocumentMessage()
+
+	rmsg := config.Message{
+		UserID:   senderJID.String(),
+		Username: newsletterName,
+		Channel:  channel.String(),
+		Account:  b.Account,
+		Protocol: b.Protocol,
+		Extra:    make(map[string][]interface{}),
+		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
+	}
+
+	filename := imsg.GetFileName()
+
+	b.Log.Debugf("Trying to download newsletter document %s with type %s", filename, imsg.GetMimetype())
+
+	data, err := b.wc.Download(context.Background(), imsg)
+	if err != nil {
+		b.Log.Errorf("Download newsletter document failed: %s", err)
+		return
+	}
+
+	helper.HandleDownloadData(b.Log, &rmsg, filename, imsg.GetCaption(), "", &data, b.General)
+
+	b.Log.Debugf("<= Sending newsletter message from %s on %s to gateway", newsletterName, b.Account)
+	b.Remote <- rmsg
+}
+
+func (b *Bwhatsapp) handleNewsletterJoin(event *events.NewsletterJoin) {
+	b.Log.Debugf("Joined newsletter: %#v", event)
+
+	b.Lock()
+	defer b.Unlock()
+
+	for i, nl := range b.subscribedNewsletters {
+		if nl.ID == event.ID {
+			b.subscribedNewsletters[i] = &event.NewsletterMetadata
+			b.newsletterNames[event.ID.String()] = event.ThreadMeta.Name.Text
+			return
+		}
+	}
+	b.subscribedNewsletters = append(b.subscribedNewsletters, &event.NewsletterMetadata)
+	b.newsletterNames[event.ID.String()] = event.ThreadMeta.Name.Text
+
+	b.Log.Infof("Subscribed to newsletter: %s (%s)", event.ThreadMeta.Name.Text, event.ID.String())
+}
+
+func (b *Bwhatsapp) handleNewsletterLeave(event *events.NewsletterLeave) {
+	b.Log.Debugf("Left newsletter: %#v", event)
+
+	b.Lock()
+	defer b.Unlock()
+
+	for i, nl := range b.subscribedNewsletters {
+		if nl.ID == event.ID {
+			b.subscribedNewsletters = append(b.subscribedNewsletters[:i], b.subscribedNewsletters[i+1:]...)
+			delete(b.newsletterNames, event.ID.String())
+			b.Log.Infof("Unsubscribed from newsletter: %s", event.ID.String())
+			return
+		}
+	}
 }

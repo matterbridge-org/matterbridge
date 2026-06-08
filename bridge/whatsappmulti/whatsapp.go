@@ -32,12 +32,14 @@ const (
 type Bwhatsapp struct {
 	*bridge.Config
 
-	startedAt    time.Time
-	wc           *whatsmeow.Client
-	contacts     map[types.JID]types.ContactInfo
-	users        map[string]types.ContactInfo
-	userAvatars  map[string]string
-	joinedGroups []*types.GroupInfo
+	startedAt            time.Time
+	wc                   *whatsmeow.Client
+	contacts             map[types.JID]types.ContactInfo
+	users                map[string]types.ContactInfo
+	userAvatars          map[string]string
+	joinedGroups         []*types.GroupInfo
+	subscribedNewsletters []*types.NewsletterMetadata
+	newsletterNames      map[string]string
 }
 
 type Replyable struct {
@@ -56,8 +58,9 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	b := &Bwhatsapp{
 		Config: cfg,
 
-		users:       make(map[string]types.ContactInfo),
-		userAvatars: make(map[string]string),
+		users:           make(map[string]types.ContactInfo),
+		userAvatars:     make(map[string]string),
+		newsletterNames: make(map[string]string),
 	}
 
 	return b
@@ -129,6 +132,16 @@ func (b *Bwhatsapp) Connect() error {
 		return errors.New("failed to get list of joined groups: " + err.Error())
 	}
 
+	b.subscribedNewsletters, err = b.wc.GetSubscribedNewsletters(context.Background())
+	if err != nil {
+		b.Log.Warnf("Failed to get subscribed newsletters: %v", err)
+	} else {
+		for _, nl := range b.subscribedNewsletters {
+			b.newsletterNames[nl.ID.String()] = nl.ThreadMeta.Name.Text
+		}
+		b.Log.Infof("Found %d subscribed newsletters", len(b.subscribedNewsletters))
+	}
+
 	b.startedAt = time.Now()
 
 	// map all the users
@@ -168,19 +181,32 @@ func (b *Bwhatsapp) Disconnect() error {
 	return nil
 }
 
-// JoinChannel Join a WhatsApp group specified in gateway config as channel='number-id@g.us' or channel='Channel name'
+// JoinChannel Join a WhatsApp group or channel specified in gateway config as channel='number-id@g.us',
+// channel='number-id@newsletter', or channel='Channel name'
 // Required implementation of the Bridger interface
 // https://github.com/42wim/matterbridge/blob/2cfd880cdb0df29771bf8f31df8d990ab897889d/bridge/bridge.go#L11-L16
 func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 	byJid := isGroupJid(channel.Name)
 
-	// verify if we are member of the given group
+	// verify if we are member of the given group or newsletter
 	if byJid {
 		gJID, err := types.ParseJID(channel.Name)
 		if err != nil {
 			return err
 		}
 
+		// Newsletter (channel) JID
+		if gJID.Server == types.NewsletterServer {
+			for _, nl := range b.subscribedNewsletters {
+				if nl.ID == gJID {
+					return nil
+				}
+			}
+			return fmt.Errorf("not subscribed to newsletter %s. Subscribed newsletters: %v",
+				channel.Name, b.listNewsletterJIDs())
+		}
+
+		// Group JID
 		for _, group := range b.joinedGroups {
 			if group.JID == gJID {
 				return nil
@@ -196,13 +222,34 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 		}
 	}
 
+	if len(foundGroups) == 0 {
+		// Check newsletters by name
+		foundNewsletters := []string{}
+		for _, nl := range b.subscribedNewsletters {
+			if nl.ThreadMeta.Name.Text == channel.Name {
+				foundNewsletters = append(foundNewsletters, nl.ID.String())
+			}
+		}
+		if len(foundNewsletters) == 1 {
+			return fmt.Errorf("newsletter name might change. Please configure gateway with channel=\"%v\" instead of channel=\"%v\"", foundNewsletters[0], channel.Name)
+		}
+		if len(foundNewsletters) > 1 {
+			return fmt.Errorf("there is more than one newsletter with name '%s'. Please specify one of JIDs as channel name: %v", channel.Name, foundNewsletters)
+		}
+	}
+
 	switch len(foundGroups) {
 	case 0:
 		// didn't match any group - print out possibilites
+		b.Log.Infof("Available groups:")
 		for _, group := range b.joinedGroups {
 			b.Log.Infof("%s %s", group.JID, group.Name)
 		}
-		return fmt.Errorf("please specify group's JID from the list above instead of the name '%s'", channel.Name)
+		b.Log.Infof("Available newsletters:")
+		for _, nl := range b.subscribedNewsletters {
+			b.Log.Infof("%s %s", nl.ID.String(), nl.ThreadMeta.Name.Text)
+		}
+		return fmt.Errorf("please specify group or newsletter JID from the list above instead of the name '%s'", channel.Name)
 	case 1:
 		return fmt.Errorf("group name might change. Please configure gateway with channel=\"%v\" instead of channel=\"%v\"", foundGroups[0], channel.Name)
 	default:
