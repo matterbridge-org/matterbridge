@@ -142,6 +142,7 @@ func (b *Bwhatsapp) Connect() error {
 	} else {
 		for _, nl := range b.subscribedNewsletters {
 			b.newsletterNames[nl.ID.String()] = nl.ThreadMeta.Name.Text
+			b.Log.Infof("Subscribed newsletter: %s (%s)", nl.ID.String(), nl.ThreadMeta.Name.Text)
 		}
 		b.Log.Infof("Found %d subscribed newsletters", len(b.subscribedNewsletters))
 	}
