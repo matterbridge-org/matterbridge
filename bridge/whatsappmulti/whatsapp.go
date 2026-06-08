@@ -428,22 +428,29 @@ func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
 	// WhatsApp channels (newsletters) are read-only for subscribers;
 	// only the channel owner or admin can post. Check role before sending.
 	if groupJID.Server == types.NewsletterServer {
-		found := false
+		b.RLock()
+		found, canSend := false, false
 		for _, nl := range b.subscribedNewsletters {
 			if nl.ID == groupJID {
 				found = true
-				if nl.ViewerMeta != nil && nl.ViewerMeta.Role == "guest" {
-					b.Log.Warnf("Cannot send to newsletter %s: role is guest (read-only)", groupJID)
-					return "", nil
+				if nl.ViewerMeta != nil &&
+					(nl.ViewerMeta.Role == types.NewsletterRoleAdmin ||
+						nl.ViewerMeta.Role == types.NewsletterRoleOwner) {
+					canSend = true
 				}
 				break
 			}
 		}
+		b.RUnlock()
+
 		if !found {
 			b.Log.Warnf("Cannot send to unknown newsletter %s: not in subscribed list", groupJID)
 			return "", nil
 		}
-		// admin or owner — allow sending
+		if !canSend {
+			b.Log.Warnf("Cannot send to newsletter %s: role does not have write permission", groupJID)
+			return "", nil
+		}
 	}
 
 	extendedMsgID, _ := b.parseMessageID(msg.ID)
