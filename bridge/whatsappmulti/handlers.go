@@ -682,9 +682,9 @@ func (b *Bwhatsapp) handleNewsletterJoin(event *events.NewsletterJoin) {
 	b.Lock()
 	defer b.Unlock()
 
-	name := event.ID.String()
-	if event.ThreadMeta != nil && event.ThreadMeta.Name != nil {
-		name = event.ThreadMeta.Name.Text
+	name := event.ThreadMeta.Name.Text
+	if name == "" {
+		name = event.ID.String()
 	}
 
 	for i, nl := range b.subscribedNewsletters {
