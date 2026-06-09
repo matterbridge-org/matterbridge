@@ -31,6 +31,7 @@
   - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
+  - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages

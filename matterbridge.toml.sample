@@ -1643,7 +1643,7 @@ RemoteNickFormat="{NICK}"
 #The string "{GATEWAY}" (case sensitive) will be replaced by the origin gateway name that is replicating the message.
 #The string "{CHANNEL}" (case sensitive) will be replaced by the origin channel name used by the bridge
 #The string "{TENGO}" (case sensitive) will be replaced by the output of the RemoteNickFormat script under [tengo]
-#OPTIONAL (default empty)
+#OPTIONAL (default "[{PROTOCOL}] <{NICK}> ")
 RemoteNickFormat="[{PROTOCOL}] <{NICK}> "
 
 #StripNick only allows alphanumerical nicks. See https://github.com/42wim/matterbridge/issues/285
