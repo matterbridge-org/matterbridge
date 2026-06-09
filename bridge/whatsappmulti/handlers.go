@@ -223,6 +223,7 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: senderName,
+		Text:     imsg.GetCaption(),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -287,6 +288,7 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: senderName,
+		Text:     imsg.GetCaption(),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -353,6 +355,7 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: senderName,
+		Text:     "audio message",
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -411,6 +414,7 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: senderName,
+		Text:     imsg.GetCaption(),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -531,6 +535,7 @@ func (b *Bwhatsapp) handleNewsletterImageMessage(senderJID, channel types.JID, n
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: newsletterName,
+		Text:     imsg.GetCaption(),
 		Channel:  channel.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -573,6 +578,7 @@ func (b *Bwhatsapp) handleNewsletterVideoMessage(senderJID, channel types.JID, n
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: newsletterName,
+		Text:     imsg.GetCaption(),
 		Channel:  channel.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -620,6 +626,7 @@ func (b *Bwhatsapp) handleNewsletterAudioMessage(senderJID, channel types.JID, n
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: newsletterName,
+		Text:     "audio message",
 		Channel:  channel.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -659,6 +666,7 @@ func (b *Bwhatsapp) handleNewsletterDocumentMessage(senderJID, channel types.JID
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
 		Username: newsletterName,
+		Text:     imsg.GetCaption(),
 		Channel:  channel.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
