@@ -425,10 +425,14 @@ github.com/zfjagann/golang-ring v0.0.0-20220330170733-19bcea1b6289 h1:dEdcEes8Ak
 github.com/zfjagann/golang-ring v0.0.0-20220330170733-19bcea1b6289/go.mod h1:0MsIttMJIF/8Y7x0XjonJP7K99t3sR6bjj4m5S4JmqU=
 go.mau.fi/libsignal v0.2.1 h1:vRZG4EzTn70XY6Oh/pVKrQGuMHBkAWlGRC22/85m9L0=
 go.mau.fi/libsignal v0.2.1/go.mod h1:iVvjrHyfQqWajOUaMEsIfo3IqgVMrhWcPiiEzk7NgoU=
+go.mau.fi/libsignal v0.2.2 h1:QV+XdzQkm3x3aSG7FcqfGSZuFXz83pRZPBFaPygHbOU=
+go.mau.fi/libsignal v0.2.2/go.mod h1:CRlIQg2J8uYTfDFvNoO8/KcZjs5cey0vbc6oj/bssY0=
 go.mau.fi/util v0.9.9 h1:ujDeXCo07HBor5oQLyO1tHklupmqVmPgasc53d7q/NE=
 go.mau.fi/util v0.9.9/go.mod h1:pqt4Vcrt+5gcH/CgrHZg11qSx+b34o6mknGzOEA6waY=
 go.mau.fi/whatsmeow v0.0.0-20260516102357-8d3700152a69 h1:rRcG2I1LVQ11kH2+KSYxNeFNZXp1oKA5Yxmagsf5bks=
 go.mau.fi/whatsmeow v0.0.0-20260516102357-8d3700152a69/go.mod h1:SY+3c678dbtckGZF16M+sfEW8ZxTb9xkaKwhXueF5yE=
+go.mau.fi/whatsmeow v0.0.0-20260609091626-4e622162b959 h1:5MpMyxG2lGLgnN0zKfD6fnDBvyGXoOlruLK34tV281w=
+go.mau.fi/whatsmeow v0.0.0-20260609091626-4e622162b959/go.mod h1:9hto2r5yVE5yyNTRrZErKNSflGBKxIplUVXAD3EJFDE=
 go.opencensus.io v0.18.0/go.mod h1:vKdFvxhtzZ9onBp9VKHK8z/sRpBMnKAsufL7wlDrCOA=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
 go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=
