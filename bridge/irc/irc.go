@@ -156,11 +156,6 @@ func (b *Birc) Send(msg config.Message) (string, error) {
 		b.Command(&msg)
 	}
 
-	// convert to specified charset
-	if err := b.handleCharset(&msg); err != nil {
-		return "", err
-	}
-
 	// handle files, return if we're done here
 	if ok := b.handleFiles(&msg); ok {
 		return "", nil
@@ -183,6 +178,13 @@ func (b *Birc) Send(msg config.Message) (string, error) {
 		}
 
 		msg.Text = msgLines[i]
+
+		// convert to specified charset
+		err := b.handleCharset(&msg)
+		if err != nil {
+			b.Log.Warn("Error converting to charset")
+		}
+
 		b.Local <- msg
 	}
 	return "", nil

@@ -23,6 +23,7 @@
 - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
+- irc: Charset for irc bridges will now be set to a default of "UTF-8", to avoid mojibake when attempting to automatically guess the incoming charset.  If you want to try autodetecting, you will need to set this to "autodetect" for the irc bridge.  Ideally, you will know which charset to set and won't have to try to guess.  Even with autodetection set, UTF-8 will be checked first before trying anything else, then fall back to latin-1 if the autodetection fails.  This should mostly address ([#120](https://github.com/matterbridge-org/matterbridge/issues/120))
 
 ## New Features
 
@@ -49,7 +50,7 @@
   - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
 - slack
   - added support for using socket mode Events API to receive messages for bridging instead of RTM.
-    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).  
+    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).
     note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
 
 ## Bugfixes
@@ -83,7 +84,6 @@
   - when an attachment has no public URL, an error message is printed/logged encouraging the
     matterbridge operator to enable the mediaserver, instead of producing an incoherent message
     ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
-  - prior to attempting automatic charset detection, check whether the message is valid UTF-8.  this should mostly fix ([#120](https://github.com/matterbridge-org/matterbridge/issues/120)) but some improvements are still needed.
 
 ## Upstream
 
