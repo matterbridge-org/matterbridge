@@ -82,6 +82,8 @@
   - when an attachment has no public URL, an error message is printed/logged encouraging the
     matterbridge operator to enable the mediaserver, instead of producing an incoherent message
     ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
+- whatsappmulti
+  - a script has been added (`contrib/whatsmeow-backport.bash`) which modifies the most recent whatsmeow version to accept golang 1.24, by taking the most recent commits from its dependencies prior to their own upgrades to 1.25.  This should allow for more versatility in packaging a release, and fixes ([#220](https://github.com/matterbridge-org/matterbridge/issues/220))
 
 ## Upstream
 
