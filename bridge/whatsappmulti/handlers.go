@@ -693,23 +693,24 @@ func (b *Bwhatsapp) handleNewsletterDocumentMessage(senderJID, channel types.JID
 func (b *Bwhatsapp) handleNewsletterJoin(event *events.NewsletterJoin) {
 	b.Log.Debugf("Joined newsletter: %#v", event)
 
-	b.Lock()
-	defer b.Unlock()
-
 	name := event.ThreadMeta.Name.Text
 	if name == "" {
 		name = event.ID.String()
 	}
 
+	b.Lock()
 	for i, nl := range b.subscribedNewsletters {
 		if nl.ID == event.ID {
 			b.subscribedNewsletters[i] = &event.NewsletterMetadata
 			b.newsletterNames[event.ID.String()] = name
+			b.Unlock()
+			b.Log.Infof("Subscribed to newsletter: %s (%s)", name, event.ID.String())
 			return
 		}
 	}
 	b.subscribedNewsletters = append(b.subscribedNewsletters, &event.NewsletterMetadata)
 	b.newsletterNames[event.ID.String()] = name
+	b.Unlock()
 
 	b.Log.Infof("Subscribed to newsletter: %s (%s)", name, event.ID.String())
 }
@@ -718,14 +719,14 @@ func (b *Bwhatsapp) handleNewsletterLeave(event *events.NewsletterLeave) {
 	b.Log.Debugf("Left newsletter: %#v", event)
 
 	b.Lock()
-	defer b.Unlock()
-
 	for i, nl := range b.subscribedNewsletters {
 		if nl.ID == event.ID {
 			b.subscribedNewsletters = append(b.subscribedNewsletters[:i], b.subscribedNewsletters[i+1:]...)
 			delete(b.newsletterNames, event.ID.String())
+			b.Unlock()
 			b.Log.Infof("Unsubscribed from newsletter: %s", event.ID.String())
 			return
 		}
 	}
+	b.Unlock()
 }

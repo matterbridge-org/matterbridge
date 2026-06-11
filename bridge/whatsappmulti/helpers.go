@@ -134,8 +134,9 @@ func isGroupJid(identifier string) bool {
 
 func (b *Bwhatsapp) getNewsletterName(jid types.JID) string {
 	b.RLock()
-	defer b.RUnlock()
-	if name, ok := b.newsletterNames[jid.String()]; ok {
+	name, ok := b.newsletterNames[jid.String()]
+	b.RUnlock()
+	if ok {
 		return name
 	}
 	return "Unknown Channel"
@@ -143,12 +144,11 @@ func (b *Bwhatsapp) getNewsletterName(jid types.JID) string {
 
 func (b *Bwhatsapp) listNewsletterJIDs() []string {
 	b.RLock()
-	defer b.RUnlock()
-
-	var jids []string
-	for _, nl := range b.subscribedNewsletters {
-		jids = append(jids, nl.ID.String())
+	jids := make([]string, len(b.subscribedNewsletters))
+	for i, nl := range b.subscribedNewsletters {
+		jids[i] = nl.ID.String()
 	}
+	b.RUnlock()
 	return jids
 }
 

@@ -195,7 +195,9 @@ func (b *Bwhatsapp) Disconnect() error {
 // https://github.com/42wim/matterbridge/blob/2cfd880cdb0df29771bf8f31df8d990ab897889d/bridge/bridge.go#L11-L16
 func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 	b.RLock()
-	defer b.RUnlock()
+	subscribedNewsletters := b.subscribedNewsletters
+	joinedGroups := b.joinedGroups
+	b.RUnlock()
 
 	byJid := isGroupJid(channel.Name)
 
@@ -208,7 +210,7 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 
 		// Newsletter (channel) JID
 		if gJID.Server == types.NewsletterServer {
-			for _, nl := range b.subscribedNewsletters {
+			for _, nl := range subscribedNewsletters {
 				if nl.ID == gJID {
 					return nil
 				}
@@ -218,7 +220,7 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 		}
 
 		// Group JID
-		for _, group := range b.joinedGroups {
+		for _, group := range joinedGroups {
 			if group.JID == gJID {
 				return nil
 			}
@@ -227,7 +229,7 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 
 	foundGroups := []string{}
 
-	for _, group := range b.joinedGroups {
+	for _, group := range joinedGroups {
 		if group.Name == channel.Name {
 			foundGroups = append(foundGroups, group.Name)
 		}
@@ -236,7 +238,7 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 	if len(foundGroups) == 0 {
 		// Check newsletters by name
 		foundNewsletters := []string{}
-		for _, nl := range b.subscribedNewsletters {
+		for _, nl := range subscribedNewsletters {
 			if nl.ThreadMeta.Name.Text == channel.Name {
 				foundNewsletters = append(foundNewsletters, nl.ID.String())
 			}
@@ -253,11 +255,11 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 	case 0:
 		// didn't match any group - print out possibilites
 		b.Log.Infof("Available groups:")
-		for _, group := range b.joinedGroups {
+		for _, group := range joinedGroups {
 			b.Log.Infof("%s %s", group.JID, group.Name)
 		}
 		b.Log.Infof("Available newsletters:")
-		for _, nl := range b.subscribedNewsletters {
+		for _, nl := range subscribedNewsletters {
 			b.Log.Infof("%s %s", nl.ID.String(), nl.ThreadMeta.Name.Text)
 		}
 		return fmt.Errorf("please specify group or newsletter JID from the list above instead of the name '%s'", channel.Name)
