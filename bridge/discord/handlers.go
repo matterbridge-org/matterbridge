@@ -146,7 +146,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		return
 	}
 
-	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".webp", UserID: m.Author.Username, ID: m.ID, Extra: make(map[string][]interface{})}
+	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".webp", UserID: "@" + m.Author.Username, ID: m.ID, Extra: make(map[string][]interface{})}
 
 	b.Log.Debugf("== Receiving event %#v", m.Message)
 
