@@ -125,6 +125,7 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 	if event.Command == "QUIT" {
 		if event.Source.Name == b.Nick && strings.Contains(event.Last(), "Ping timeout") {
 			b.Log.Infof("%s reconnecting ..", b.Account)
+			b.authDone = false
 			b.Remote <- config.Message{Username: "system", Text: "reconnect", Channel: channel, Account: b.Account, Event: config.EventFailure}
 			return
 		}
@@ -143,6 +144,18 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 		b.Log.Debugf("<= Message is %#v", msg)
 		b.Remote <- msg
 		return
+	} else { // Unless we generate another event first, channel join is the first chance to find our current prefix
+		user := event.Source.Ident
+		host := event.Source.Host
+		if host == "" {
+			b.Log.Debugf("empty host after %s joined %s?", b.Nick, channel)
+			return
+		}
+		b.MessagePrefix = len(b.Nick) + len(user) + len(host) + 6 // 6 bytes for ':', '!', '@', ' ' and a trailing CRLF
+		// Work around girc using max prefix length instead of actual prefix length
+		if (defaultMaxPrefix + b.maxLen - b.MessagePrefix) > b.MessageLength { // Server supports extended lines
+			b.MessageLength = b.maxLen
+		}
 	}
 	b.Log.Debugf("handle %#v", event)
 }
@@ -172,14 +185,14 @@ func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 	i.Handlers.Clear(girc.RPL_ISUPPORT)
 
 	i.Handlers.AddBg("PRIVMSG", b.handlePrivMsg)
-	i.Handlers.Add(girc.RPL_TOPICWHOTIME, b.handleTopicWhoTime)
+	i.Handlers.AddBg(girc.RPL_TOPICWHOTIME, b.handleTopicWhoTime)
 	i.Handlers.AddBg(girc.NOTICE, b.handleNotice)
 	i.Handlers.AddBg("JOIN", b.handleJoinPart)
 	i.Handlers.AddBg("PART", b.handleJoinPart)
 	i.Handlers.AddBg("QUIT", b.handleJoinPart)
 	i.Handlers.AddBg("KICK", b.handleJoinPart)
-	i.Handlers.Add("INVITE", b.handleInvite)
-	i.Handlers.Add(girc.RPL_ISUPPORT, b.handleISupport)
+	i.Handlers.AddBg("INVITE", b.handleInvite)
+	i.Handlers.AddBg(girc.RPL_ISUPPORT, b.handleISupport)
 }
 
 func (b *Birc) handleNickServ() {
@@ -222,6 +235,8 @@ func (b *Birc) handleOther(client *girc.Client, event girc.Event) {
 func (b *Birc) handleOtherAuth(client *girc.Client, event girc.Event) {
 	b.handleNickServ()
 	b.handleRunCommands()
+	b.maxLen = b.i.MaxEventLength() // Set this one time per (re)connect
+
 	// we are now fully connected
 	// only send on first connection
 	if b.FirstConnection {
@@ -257,12 +272,21 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 		rmsg.Event = config.EventNoticeIRC
 	}
 
-	// trailing param is message content.  we'll treat it as a byte slice first, convert to utf-8 if needed, then do our own version of StripAction
+	// trailing param is message content.
+	// we'll treat it as a byte slice first, convert to utf-8 if needed, then do our own version of StripAction
 	rmsg.Text = event.Params[len(event.Params)-1]
 
-	// start detecting the charset
 	mycharset := b.GetString("Charset")
-	if mycharset == "autodetect" && !utf8.ValidString(rmsg.Text) { // check for valid utf-8 before any other checks
+
+	switch mycharset {
+	case "utf8", utf8charset:
+		break
+	case "gbk", "gb18030", "gb2312", "big5", "euc-kr", "euc-jp", "shift-jis", "iso-2022-jp":
+		rmsg.Text = toUTF8(mycharset, rmsg.Text)
+	case "autodetect": // start detecting the charset.  fixes #120 (mostly)
+		if utf8.ValidString(rmsg.Text) { // check for valid utf-8 before any other checks
+			break
+		}
 		// detect what were sending so that we convert it to utf-8
 		detector := chardet.NewTextDetector()
 		result, err := detector.DetectBest([]byte(rmsg.Text))
@@ -276,14 +300,7 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 		if result.Confidence < 80 {
 			mycharset = "ISO-8859-1"
 		}
-	} else {
-		mycharset = utf8charset // fixes #120 (mostly)
-	}
-	switch mycharset {
-	case "gbk", "gb18030", "gb2312", "big5", "euc-kr", "euc-jp", "shift-jis", "iso-2022-jp":
-		rmsg.Text = toUTF8(mycharset, rmsg.Text)
-	case "utf8", utf8charset:
-		break
+		fallthrough
 	default:
 		r, err := charset.NewReader(mycharset, strings.NewReader(rmsg.Text))
 		if err != nil {
