@@ -159,9 +159,10 @@ type Protocol struct {
 	MediaConvertWebPToPNG  bool       // telegram
 	MessageDelay           int        // IRC, time in millisecond to wait between messages
 	MessageFormat          string     // telegram
-	MessageLength          int        // IRC, max length of a message allowed
+	MessageLength          int        // IRC, max length of a message allowed, defaults to 512 (counting CRLF)
+	MessagePrefix          int        // IRC, current length of message prefix for bot, not configurable
 	MessageQueue           int        // IRC, size of message queue for flood control
-	MessageSplit           bool       // IRC, split long messages with newlines on MessageLength instead of clipping
+	MessageSplit           bool       // IRC, split long messages, default true.  If set false, let the irc library handle splitting
 	MessageSplitMaxCount   int        // discord, split long messages into at most this many messages instead of clipping (MessageLength=1950 cannot be configured)
 	Muc                    string     // xmpp
 	MxID                   string     // matrix
@@ -340,45 +341,10 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 	return mycfg
 }
 
-// detectConfigType detects JSON and YAML formats, defaults to TOML.
-func detectConfigType(cfgfile string) string {
-	fileExt := filepath.Ext(cfgfile)
-	switch fileExt {
-	case ".json":
-		return "json"
-	case ".yaml", ".yml":
-		return "yaml"
-	}
-	return "toml"
-}
-
 // NewConfigFromString instantiates a new configuration based on the specified string.
 func NewConfigFromString(rootLogger *logrus.Logger, input []byte) Config {
 	logger := rootLogger.WithFields(logrus.Fields{"prefix": "config"})
 	return newConfigFromString(logger, input, "toml")
-}
-
-func newConfigFromString(logger *logrus.Entry, input []byte, cfgtype string) *config {
-	viper.SetConfigType(cfgtype)
-	viper.SetDefault("General.RemoteNickFormat", "[{PROTOCOL}] <{NICK}> ") // fixes #162
-	viper.SetDefault("General.Charset", "utf-8")                           // fixes #120 (it's irc-only, but shouldn't hurt to put it here)
-	viper.SetEnvPrefix("matterbridge")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
-	viper.AutomaticEnv()
-
-	if err := viper.ReadConfig(bytes.NewBuffer(input)); err != nil {
-		logger.Fatalf("Failed to parse the configuration: %s", err)
-	}
-
-	cfg := &BridgeValues{}
-	if err := viper.Unmarshal(cfg); err != nil {
-		logger.Fatalf("Failed to load the configuration: %s", err)
-	}
-	return &config{
-		logger: logger,
-		v:      viper.GetViper(),
-		cv:     cfg,
-	}
 }
 
 func (c *config) BridgeValues() *BridgeValues {
@@ -454,28 +420,6 @@ func (c *config) IsFilenameBlacklisted(filename string) bool {
 	return false
 }
 
-func (c *config) compileMediaDownloadBlackListRegexes() {
-	regexes := []*regexp.Regexp{}
-
-	// TODO: apparently c.cv.General does not get updated when config reloads
-	// see https://github.com/matterbridge-org/matterbridge/issues/57
-	// for _, regex := range c.cv.General.MediaDownloadBlackList {
-	for _, regex := range c.v.GetStringSlice("general.MediaDownloadBlackList") {
-		c.logger.Debugf("Found blacklist regex %s", regex)
-
-		re, err := regexp.Compile(regex)
-		if err != nil {
-			c.logger.Errorf("incorrect regexp %s for MediaDownloadBlackList", regex)
-			continue
-		}
-
-		regexes = append(regexes, re)
-	}
-
-	c.MediaDownloadBlackListRegexes = &regexes
-	c.logger.Debug("Successfully applied new `MediaDownloadBlackList` regexes")
-}
-
 func GetIconURL(msg *Message, iconURL string) string {
 	info := strings.Split(msg.Account, ".")
 	protocol := info[0]
@@ -531,4 +475,64 @@ func (c *TestConfig) GetStringSlice2D(key string) ([][]string, bool) {
 		return val.([][]string), true
 	}
 	return c.Config.GetStringSlice2D(key)
+}
+
+func (c *config) compileMediaDownloadBlackListRegexes() {
+	regexes := []*regexp.Regexp{}
+
+	// TODO: apparently c.cv.General does not get updated when config reloads
+	// see https://github.com/matterbridge-org/matterbridge/issues/57
+	// for _, regex := range c.cv.General.MediaDownloadBlackList {
+	for _, regex := range c.v.GetStringSlice("general.MediaDownloadBlackList") {
+		c.logger.Debugf("Found blacklist regex %s", regex)
+
+		re, err := regexp.Compile(regex)
+		if err != nil {
+			c.logger.Errorf("incorrect regexp %s for MediaDownloadBlackList", regex)
+			continue
+		}
+
+		regexes = append(regexes, re)
+	}
+
+	c.MediaDownloadBlackListRegexes = &regexes
+	c.logger.Debug("Successfully applied new `MediaDownloadBlackList` regexes")
+}
+
+// detectConfigType detects JSON and YAML formats, defaults to TOML.
+func detectConfigType(cfgfile string) string {
+	fileExt := filepath.Ext(cfgfile)
+	switch fileExt {
+	case ".json":
+		return "json"
+	case ".yaml", ".yml":
+		return "yaml"
+	}
+	return "toml"
+}
+
+func newConfigFromString(logger *logrus.Entry, input []byte, cfgtype string) *config {
+	viper.SetConfigType(cfgtype)
+	viper.SetDefault("General.RemoteNickFormat", "[{PROTOCOL}] <{NICK}> ") // fixes #162
+	viper.SetDefault("General.Charset", "utf-8")                           // fixes #120 (it's irc-only, but shouldn't hurt to put it here)
+	viper.SetDefault("General.MessageSplit", true)                         // fixes #190 (irc-only, but should be fine here.  Override it to prefer the girc split function)
+	viper.SetEnvPrefix("matterbridge")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	viper.AutomaticEnv()
+
+	err := viper.ReadConfig(bytes.NewBuffer(input))
+	if err != nil {
+		logger.Fatalf("Failed to parse the configuration: %s", err)
+	}
+
+	cfg := &BridgeValues{}
+	err = viper.Unmarshal(cfg)
+	if err != nil {
+		logger.Fatalf("Failed to load the configuration: %s", err)
+	}
+	return &config{
+		logger: logger,
+		v:      viper.GetViper(),
+		cv:     cfg,
+	}
 }
