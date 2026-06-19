@@ -23,6 +23,9 @@
 - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
+- discord: Attachments are now passed as raw bytes and reuploaded either to the mediaserver, or to the destination bridges,
+  as discord CDN URLs are short-lived and people from other bridges would complain about broken URLs; this means IRC users will
+  no longer receive discord attachments as URLs unless a mediaserver is configured ([#170](https://github.com/matterbridge-org/matterbridge/pull/170))
 
 ## New Features
 
