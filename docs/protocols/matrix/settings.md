@@ -140,7 +140,7 @@ Shows the username instead of the displayname
 
 ## UseMSC4144
 
-Use MSC4144 to set nick per-message. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144.
+Use MSC4144 to set nick per-message. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144. At the moment this is an open proposal and is subject to change. Clients that don't support this will display e.g. `Nick: msg` with the nick in bold.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
 - Format: *boolean*
