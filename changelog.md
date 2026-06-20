@@ -33,7 +33,7 @@
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
   - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - matrix
-  - Supports MSC4144/puppeting ([#232](https://github.com/matterbridge-org/matterbridge/pulls/232)). See also [MSC4144](https://github.com/matrix-org/matrix-spec-proposals/pulls/4144).
+  - Supports MSC4144/puppeting ([#232](https://github.com/matterbridge-org/matterbridge/pulls/232)). See also [MSC4144](https://github.com/matrix-org/matrix-spec-proposals/pulls/4144). Note that this is useless unless you have a client that can display these. Clients that don't will fall back to displaying e.g. `Nick: msg`.
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
