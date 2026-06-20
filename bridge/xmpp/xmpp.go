@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jpillora/backoff"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -29,10 +30,12 @@ type UploadBufferEntry struct {
 type Bxmpp struct {
 	*bridge.Config
 
-	startTime time.Time
-	xc        *xmpp.Client
-	xmppMap   map[string]string
-	connected bool
+	startTime    time.Time
+	xc           *xmpp.Client
+	xmppMap      map[string]string
+	connected    bool
+	stanzaIDs    *lru.Cache[string, string]     // stanzaID -> ID
+	replyHeaders *lru.Cache[string, xmpp.Reply] // ID -> Reply{stanzaID, to}
 	sync.RWMutex
 
 	avatarAvailability map[string]bool
@@ -58,12 +61,23 @@ type Bxmpp struct {
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
+	stanzaIDs, err := lru.New[string, string](5000)
+	if err != nil {
+		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
+	}
+	replyHeaders, err := lru.New[string, xmpp.Reply](5000)
+	if err != nil {
+		cfg.Log.Fatalf("Could not create LRU cache: %v", err)
+	}
+
 	return &Bxmpp{
 		Config:             cfg,
 		xmppMap:            make(map[string]string),
 		avatarAvailability: make(map[string]bool),
 		avatarMap:          make(map[string]string),
 		httpUploadBuffer:   make(map[string]*UploadBufferEntry),
+		stanzaIDs:          stanzaIDs,
+		replyHeaders:       replyHeaders,
 	}
 }
 
@@ -142,19 +156,46 @@ func (b *Bxmpp) Send(msg config.Message) (string, error) {
 		}
 	}
 
+	// XEP-0461: populate reply fields if this message is a reply.
+	var reply *xmpp.Reply
+	var reactions *xmpp.Reactions
+	if msg.ParentValid() {
+		// either a Reaction or a Reply
+		//
+		if msg.Event == config.EventReaction {
+			b.Log.Debugf("relaying a Reaction; the reactions are %#v", msg.Reactions)
+			if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
+				reactions = &xmpp.Reactions{
+					ID:        _reply.ID,
+					Reactions: msg.Reactions,
+				}
+			}
+
+			// XXX TODO: XEP-0444 says an update requires a *full* update for all reactions from a given user.
+			// since the bridge is the source of ALL reactions for all users on the other side,
+			// it needs to track what has been sent and *resend all of them*
+			// also it's going to lose past reactions messages...
+		} else {
+			if _reply, ok := b.replyHeaders.Get(msg.ParentID); ok {
+				reply = &_reply
+			}
+		}
+	}
+
 	// Post normal message.
 	b.Log.Debugf("=> Sending message %#v", msg)
+	// Generate a dummy ID because to avoid collision with other internal messages
+	msgID := xid.New().String()
 	if _, err := b.xc.Send(xmpp.Chat{
-		Type:   "groupchat",
-		Remote: msg.Channel + "@" + b.GetString("Muc"),
-		Text:   msg.Username + msg.Text,
+		Type:      "groupchat",
+		Remote:    msg.Channel + "@" + b.GetString("Muc"),
+		Text:      msg.Username + msg.Text,
+		OriginID:  msgID,
+		Reply:     reply,
+		Reactions: reactions,
 	}); err != nil {
 		return "", err
 	}
-
-	// Generate a dummy ID because to avoid collision with other internal messages
-	// However this does not provide proper Edits/Replies integration on XMPP side.
-	msgID := xid.New().String()
 	return msgID, nil
 }
 
@@ -300,6 +341,13 @@ func (b *Bxmpp) handleXMPP() error {
 			if v.Type == "groupchat" {
 				b.Log.Debugf("== Receiving %#v", v)
 
+				if v.StanzaID.ID != "" {
+					// Here the stanza-id has been set by the server and can be used to provide replies
+					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
+					b.stanzaIDs.Add(v.StanzaID.ID, v.ID)
+					b.replyHeaders.Add(v.ID, xmpp.Reply{ID: v.StanzaID.ID, To: v.Remote})
+				}
+
 				// Skip invalid messages.
 				if b.skipMessage(v) {
 					continue
@@ -320,18 +368,42 @@ func (b *Bxmpp) handleXMPP() error {
 					avatar = getAvatar(b.avatarMap, v.Remote, b.General)
 				}
 
+				// If there was a <reply>, map the StanzaID to the local matterbridge message ID
+				// so we can inform the other bridges of this message has a parent
+				var parentID string
+				var parentText string
+				if v.Reply != nil {
+					if _parentID, ok := b.stanzaIDs.Get(v.Reply.ID); ok {
+						parentID = _parentID
+					}
+
+					// TODO: ignore XMPP quote and rely on a cross-bridge message cache (see https://github.com/matterbridge-org/matterbridge/issues/142)
+					parentText = v.Reply.Quote
+				}
+
+				// If there was a <reactions> // ....
+				var reactions []string
+				if v.Reactions != nil {
+					if _parentID, ok := b.stanzaIDs.Get(v.Reactions.ID); ok {
+						parentID = _parentID
+						b.Log.Debugf("Got reactions: %#v", v.Reactions)
+						reactions = append(reactions, v.Reactions.Reactions...) // XXX is the append() necessary?
+						event = config.EventReaction
+					}
+				}
+
 				rmsg := config.Message{
-					Username: b.parseNick(v.Remote),
-					Text:     v.Text,
-					Channel:  b.parseChannel(v.Remote),
-					Account:  b.Account,
-					Avatar:   avatar,
-					UserID:   v.Remote,
-					// Here the stanza-id has been set by the server and can be used to provide replies
-					// as explained in XEP-0461 https://xmpp.org/extensions/xep-0461.html#business-id
-					ID:    v.StanzaID.ID,
-					Event: event,
-					Extra: make(map[string][]any),
+					Username:   b.parseNick(v.Remote),
+					Text:       v.Text,
+					Channel:    b.parseChannel(v.Remote),
+					Account:    b.Account,
+					Avatar:     avatar,
+					UserID:     v.Remote,
+					ID:         v.ID,
+					Event:      event,
+					ParentID:   parentID,
+					ParentText: parentText,
+					Reactions:  reactions,
 				}
 
 				// Check if we have an action event.
@@ -458,7 +530,7 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 	}
 
 	// skip empty messages
-	if message.Text == "" {
+	if message.Text == "" && message.Reactions == nil {
 		return true
 	}
 
