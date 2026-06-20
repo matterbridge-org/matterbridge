@@ -137,3 +137,14 @@ Shows the username instead of the displayname
   ```toml
   UseUserName=true
   ```
+
+## UseMSC4144
+
+Use MSC4144 to set nick per-message. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  UseMSC4144=true
+  ```
