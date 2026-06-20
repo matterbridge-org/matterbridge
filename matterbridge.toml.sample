@@ -1372,7 +1372,8 @@ ShowJoinPart=false
 SpoofUsername=false
 
 #Use MSC4144 to set nick per-message, like IRC RELAYMSG. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144
-#This has less support scross clients but makes less API requests compared to SpoofUsername
+#This has less support scross clients but makes less API requests compared to SpoofUsername.
+#Clients that don't support this will display e.g. Nick: msg, with the nick in bold
 #OPTIONAL (default false)
 UseMSC4144=false
 
