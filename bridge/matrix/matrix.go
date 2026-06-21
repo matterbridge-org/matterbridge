@@ -941,7 +941,7 @@ func (b *Bmatrix) handleUploadFiles(msg *config.Message, roomID id.RoomID) (stri
 		formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
 
 		// TODO: message ID
-		_, err := b.endNormalMessage(roomID, body, formattedBody, username, msg)
+		_, err := b.sendNormalMessage(roomID, body, formattedBody, username, msg)
 		if err != nil {
 			// Assume if there was an error sending a simple text message,
 			// sending the attachments will not be possible.
@@ -1209,8 +1209,6 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, user
 		if b.GetBool("UseMSC4144") {
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
-			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
-			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
 			content := event.MessageEventContent{
 				MsgType: event.MsgText,
 				Body:    body,
