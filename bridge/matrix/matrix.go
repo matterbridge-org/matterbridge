@@ -320,6 +320,11 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					FormattedBody: formattedBody,
 					Format:        event.FormatHTML,
 					MsgType:       event.MsgText,
+					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+						ID:          msg.UserID,
+						Displayname: username.plain,
+						HasFallback: true,
+					},
 				},
 				RelatesTo: &event.RelatesTo{
 					EventID: id.EventID(msg.ID),
