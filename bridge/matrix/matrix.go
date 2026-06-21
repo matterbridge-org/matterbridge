@@ -941,7 +941,7 @@ func (b *Bmatrix) handleUploadFiles(msg *config.Message, roomID id.RoomID) (stri
 		formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
 
 		// TODO: message ID
-		_, err := b.sendNormalMessage(roomID, body, formattedBody)
+		_, err := b.endNormalMessage(roomID, body, formattedBody, username, msg)
 		if err != nil {
 			// Assume if there was an error sending a simple text message,
 			// sending the attachments will not be possible.
