@@ -466,48 +466,6 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 
 		return resp.EventID.String(), err
 	}
-
-	if b.GetBool("UseMSC4144") {
-		body, _ = strings.CutPrefix(body, username.plain)
-		body = username.plain + ": " + body
-		formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
-		formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
-
-		content := event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Body:          body,
-			FormattedBody: formattedBody,
-			Format:        event.FormatHTML,
-			BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-				ID:          msg.UserID,
-				Displayname: username.plain,
-				HasFallback: true,
-			},
-		}
-
-		content.AddPerMessageProfileFallback()
-
-		if b.GetBool("HTMLDisable") {
-			content.Format = ""
-			content.FormattedBody = ""
-		}
-
-		var (
-			resp *mautrix.RespSendEvent
-			err  error
-		)
-
-		err = b.retry(func() error {
-			resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
-
-			return err
-		})
-		if err != nil {
-			return "", err
-		}
-
-		return resp.EventID.String(), err
-	}
 	// Send a normal message
 	msgID, err := b.sendNormalMessage(roomID, body, formattedBody, username, &msg)
 	if err != nil {
