@@ -1206,8 +1206,24 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string) (str
 	)
 
 	err = b.retry(func() error {
-		resp, err = b.mc.SendText(context.TODO(), roomID, body)
-
+		if b.GetBool("UseMSC4144") {
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
+			content := event.MessageEventContent{
+				MsgType: event.MsgText,
+				Body:    body,
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID,
+					Displayname: username.plain,
+					HasFallback: true,
+				},
+			}
+			resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)	
+		} else {
+			resp, err = b.mc.SendText(context.TODO(), roomID, body)
+		}
 		return err
 	})
 	if err != nil {
@@ -1224,11 +1240,30 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 	)
 
 	err = b.retry(func() error {
-		content := event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Body:          body,
-			FormattedBody: formattedBody,
-			Format:        event.FormatHTML,
+		var content event.MessageEventContent
+		if b.GetBool("UseMSC4144") {
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
+			content = event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID,
+					Displayname: username.plain,
+					HasFallback: true,
+				},
+			}
+		} else {
+			content = event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+			}
 		}
 
 		resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
