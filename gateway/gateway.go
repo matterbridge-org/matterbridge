@@ -476,6 +476,7 @@ func (gw *Gateway) SendMessage(
 
 	msg.Channel = channel.Name
 	msg.Avatar = gw.modifyAvatar(rmsg, dest)
+	msg.OriginalUsername = msg.Username
 	msg.Username = gw.modifyUsername(rmsg, dest)
 
 	// exclude file delete event as the msg ID here is the native file ID that needs to be deleted
