@@ -1220,7 +1220,7 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string) (str
 					HasFallback: true,
 				},
 			}
-			resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)	
+			resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
 		} else {
 			resp, err = b.mc.SendText(context.TODO(), roomID, body)
 		}
