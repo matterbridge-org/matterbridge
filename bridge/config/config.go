@@ -361,6 +361,7 @@ func NewConfigFromString(rootLogger *logrus.Logger, input []byte) Config {
 func newConfigFromString(logger *logrus.Entry, input []byte, cfgtype string) *config {
 	viper.SetConfigType(cfgtype)
 	viper.SetDefault("General.RemoteNickFormat", "[{PROTOCOL}] <{NICK}> ") // fixes #162
+	viper.SetDefault("General.Charset", "utf-8")                           // fixes #120 (it's irc-only, but shouldn't hurt to put it here)
 	viper.SetEnvPrefix("matterbridge")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	viper.AutomaticEnv()
