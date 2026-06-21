@@ -509,7 +509,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		return resp.EventID.String(), err
 	}
 	// Send a normal message
-	msgID, err := b.sendNormalMessage(roomID, body, formattedBody, username, *msg)
+	msgID, err := b.sendNormalMessage(roomID, body, formattedBody, username, &msg)
 	if err != nil {
 		return "", err
 	}
