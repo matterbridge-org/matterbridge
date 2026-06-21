@@ -509,7 +509,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		return resp.EventID.String(), err
 	}
 	// Send a normal message
-	msgID, err := b.sendNormalMessage(roomID, body, formattedBody, username, *config.Message(msg))
+	msgID, err := b.sendNormalMessage(roomID, body, formattedBody, username, config.Message(msg))
 	if err != nil {
 		return "", err
 	}
@@ -1189,7 +1189,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	b.Log.Debugf("result: %#v", res)
 }
 
-func (b *Bmatrix) sendNormalMessage(roomID id.RoomID, body string, formattedBody string, username *matrixUsername, msg *config.Message) (string, error) {
+func (b *Bmatrix) sendNormalMessage(roomID id.RoomID, body string, formattedBody string, username *matrixUsername, msg config.Message) (string, error) {
 	if b.GetBool("HTMLDisable") {
 		// Send a plain text message if html is disabled
 		return b.sendNormalMessagePlaintext(roomID, body, username, msg)
@@ -1199,7 +1199,7 @@ func (b *Bmatrix) sendNormalMessage(roomID id.RoomID, body string, formattedBody
 	}
 }
 
-func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, username *matrixUsername, msg *config.Message) (string, error) {
+func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, username *matrixUsername, msg config.Message) (string, error) {
 	var (
 		resp *mautrix.RespSendEvent
 		err  error
@@ -1231,7 +1231,7 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, user
 	return resp.EventID.String(), err
 }
 
-func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formattedBody string, username *matrixUsername, msg *config.Message) (string, error) {
+func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formattedBody string, username *matrixUsername, msg config.Message) (string, error) {
 	var (
 		resp *mautrix.RespSendEvent
 		err  error
