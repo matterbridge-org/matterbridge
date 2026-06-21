@@ -966,28 +966,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	sp := strings.Split(fi.Name, ".")
 	mtype := mime.TypeByExtension("." + sp[len(sp)-1])
 	// image and video uploads send no username, we have to do this ourself here #715
-	if b.GetBool("UseMSC4144") {
-		err := b.retry(func() error {
-			content := event.MessageEventContent{
-				MsgType:       event.MsgText,
-				Body:          username.plain + ": " + fi.Comment,
-				FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Comment,
-				Format:        event.FormatHTML,
-				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
-					Displayname: username.plain,
-					HasFallback: true,
-				},
-			}
-
-			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
-
-			return err2
-		})
-		if err != nil {
-			b.Log.Errorf("file comment failed: %#v", err)
-		}
-	} else {
+	if !b.GetBool("UseMSC4144") {
 		err := b.retry(func() error {
 			content := event.MessageEventContent{
 				MsgType:       event.MsgText,
