@@ -13,10 +13,11 @@ import (
 // sends a EVENT_AVATAR_DOWNLOAD message to the gateway if successful.
 // logs an error message if it fails
 func (b *Bxmpp) handleDownloadAvatar(avatar xmpp.AvatarData) {
+	_, rchan := b.parseJID(avatar.From)
 	rmsg := config.Message{
 		Username: "system",
 		Text:     "avatar",
-		Channel:  b.parseChannel(avatar.From),
+		Channel:  rchan,
 		Account:  b.Account,
 		UserID:   avatar.From,
 		Event:    config.EventAvatarDownload,
