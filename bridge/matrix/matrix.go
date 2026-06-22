@@ -1028,9 +1028,10 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		var img event.MessageEventContent
 		if b.GetBool("UseMSC4144") {
 			img = event.MessageEventContent{
-				MsgType: event.MsgImage,
-				Body:    username.plain + ": " + fi.Name,
-				URL:     id.ContentURIString(res.ContentURI.String()),
+				MsgType:  event.MsgImage,
+				Body:     username.plain + ": " + fi.Name,
+				FileName: fi.Name,
+				URL:      id.ContentURIString(res.ContentURI.String()),
 				Info: &event.FileInfo{
 					MimeType: mtype,
 					Size:     len(*fi.Data),
