@@ -990,7 +990,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
-					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+					Body:          username.plain + ": " + fi.Name,
 				}
 
 				content.AddPerMessageProfileFallback()
@@ -1028,7 +1029,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		if b.GetBool("UseMSC4144") {
 			img = event.MessageEventContent{
 				MsgType: event.MsgImage,
-				Body:    fi.Name,
+				Body:    username.plain + ": " + fi.Name,
 				URL:     id.ContentURIString(res.ContentURI.String()),
 				Info: &event.FileInfo{
 					MimeType: mtype,
@@ -1042,7 +1043,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					HasFallback: true,
 				},
 				Format:        event.FormatHTML,
-				FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
+				FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
 			}
 
 			img.AddPerMessageProfileFallback()
@@ -1093,7 +1094,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
-					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+					Body:          username.plain + ": " + fi.Name,
 				}
 
 				content.AddPerMessageProfileFallback()
@@ -1133,7 +1135,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
-					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+					Body:          username.plain + ": " + fi.Name,
 				}
 
 				content.AddPerMessageProfileFallback()
