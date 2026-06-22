@@ -989,6 +989,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						Displayname: username.plain,
 						HasFallback: true,
 					},
+					Format:        event.FormatHTML,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
 				}
 
 				content.AddPerMessageProfileFallback()
@@ -1039,6 +1041,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					Displayname: username.plain,
 					HasFallback: true,
 				},
+				Format:        event.FormatHTML,
+				FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
 			}
 
 			img.AddPerMessageProfileFallback()
@@ -1088,6 +1092,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						Displayname: username.plain,
 						HasFallback: true,
 					},
+					Format:        event.FormatHTML,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
 				}
 
 				content.AddPerMessageProfileFallback()
@@ -1126,6 +1132,8 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						Displayname: username.plain,
 						HasFallback: true,
 					},
+					Format:        event.FormatHTML,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>",
 				}
 
 				content.AddPerMessageProfileFallback()
