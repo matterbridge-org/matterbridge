@@ -23,6 +23,7 @@
 - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
+- irc: Charset for irc bridges will now be set to a default of "UTF-8", to avoid mojibake when attempting to automatically guess the incoming charset.  If you want to try autodetecting, you will need to set this to "autodetect" for the irc bridge.  Ideally, you will know which charset to set and won't have to try to guess.  Even with autodetection set, UTF-8 will be checked first before trying anything else, then fall back to latin-1 if the autodetection fails.  This should mostly address ([#120](https://github.com/matterbridge-org/matterbridge/issues/120))
 
 ## New Features
 
@@ -31,6 +32,7 @@
   - new HTTP helpers are common to all bridges, and allow overriding specific settings ([#59](https://github.com/matterbridge-org/matterbridge/pull/59))
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
+  - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
@@ -42,11 +44,13 @@
   - Can now receive and download OOB attachments from XMPP channels to share with other bridges ([#23](https://github.com/matterbridge-org/matterbridge/pull/23/))
 - discord
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
-  - whatsapp
-    - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
+  - New setting `EditMaxDays` to ignore edits of older messages. ([#199](https://github.com/matterbridge-org/matterbridge/pull/199))
+  - New setting `CustomStatus` to set the bridge bot's activity status message on Discord. ([#204](https://github.com/matterbridge-org/matterbridge/pull/204))
+- whatsapp
+  - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
 - slack
   - added support for using socket mode Events API to receive messages for bridging instead of RTM.
-    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).  
+    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).
     note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
 
 ## Bugfixes
@@ -62,8 +66,10 @@
     when they are images, it's no longer assumed that they are PNG ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - video attachments advertise their size properly ([#188](https://github.com/matterbridge-org/matterbridge/pull/188)
+  - audio attachments are properly now sent as `m.audio` for valid mimetypes ([#195](https://github.com/matterbridge-org/matterbridge/pull/195))
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
+  - xmpp JID's with "@" or "/" characters in the nick will now be parsed correctly ([#216](https://github.com/matterbridge-org/matterbridge/pull/216))
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
   - attachments of mixed types in the same message will be uploaded as documents
@@ -72,6 +78,8 @@
 - discord
   - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
     longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37), [#114](https://github.com/matterbridge-org/matterbridge/pull/114))
+  - all users in a guild are considered for name lookup instead of only a subset of 1000 ([#198](https://github.com/matterbridge-org/matterbridge/pull/198))
+  - discord now sets `{USERID}` in a `RemoteNickFormat` to the username rather than the actual user ID ([#225](https://github.com/matterbridge-org/matterbridge/pull/225))
 - irc
   - when there are attachments in the message, the body is now sent instead of being discarded silently ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
   - when an attachment has no public URL, an error message is printed/logged encouraging the

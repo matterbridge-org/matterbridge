@@ -47,7 +47,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: go fmt ./... (go version ${{ matrix.go-version }})
-        run: test -z "$(go fmt ./...)"
+        run: go fmt ./...; git status && git diff --exit-code
       - name: go test -tags goolm ./... (go version ${{ matrix.go-version }})
         run: go test -tags goolm ./...
   build-upload:
@@ -72,8 +72,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Build/upload matterbridge for ${{ matrix.platform.goos }}-${{ matrix.arch }}
+        env:
+          GOOS: ${{ matrix.platform.goos }}
+          GOARCH: ${{ matrix.arch }}
         run: |
-          CGO_ENABLED=0 GOOS=${{ matrix.platform.goos }} GOARCH=${{ matrix.arch }} go build -tags goolm -ldflags "-s -X github.com/matterbridge-org/matterbridge/version.GitHash=$(git log --pretty=format:'%h' -n 1)" -o matterbridge
+          CGO_ENABLED=0 go build -tags goolm -ldflags "-s -X github.com/matterbridge-org/matterbridge/version.GitHash=$(git log --pretty=format:'%h' -n 1)" -o matterbridge
       - name: Upload matterbridge-${{ matrix.name }}-${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         with:

@@ -1,7 +1,7 @@
 # Matrix
 
 - Status: ???
-- Maintainers: @poVoq
+- Maintainers: @josephcrowell @poVoq
 - Features: ???
 
 > [!WARNING]

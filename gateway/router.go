@@ -41,11 +41,12 @@ func NewRouter(rootLogger *logrus.Logger, cfg config.Config, bridgeMap map[strin
 
 	for idx := range gwconfigs {
 		entry := &gwconfigs[idx]
-		if !entry.Enable {
-			continue
-		}
 		if entry.Name == "" {
 			return nil, fmt.Errorf("%s", "Gateway without name found")
+		}
+		if !entry.Enable {
+			r.logger.Warnf("Gateway %s defined but disabled", entry.Name)
+			continue
 		}
 		if _, ok := r.Gateways[entry.Name]; ok {
 			return nil, fmt.Errorf("Gateway with name %s already exists", entry.Name)

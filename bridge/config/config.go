@@ -133,12 +133,14 @@ type Protocol struct {
 	Charset                string   // irc
 	ClientID               string   // msteams
 	ColorNicks             bool     // only irc for now
+	CustomStatus           string   // discord
 	Debug                  bool     // general
 	DebugLevel             int      // only for irc now
 	DeviceID               string   // matrix
 	DisableWebPagePreview  bool     // telegram
 	EditSuffix             string   // mattermost, slack, discord, telegram
 	EditDisable            bool     // mattermost, slack, discord, telegram
+	EditMaxDays            int      // discord
 	HTMLDisable            bool     // matrix
 	IconURL                string   // mattermost, slack
 	IgnoreFailureOnStart   bool     // general
@@ -359,6 +361,8 @@ func NewConfigFromString(rootLogger *logrus.Logger, input []byte) Config {
 
 func newConfigFromString(logger *logrus.Entry, input []byte, cfgtype string) *config {
 	viper.SetConfigType(cfgtype)
+	viper.SetDefault("General.RemoteNickFormat", "[{PROTOCOL}] <{NICK}> ") // fixes #162
+	viper.SetDefault("General.Charset", "utf-8")                           // fixes #120 (it's irc-only, but shouldn't hurt to put it here)
 	viper.SetEnvPrefix("matterbridge")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	viper.AutomaticEnv()

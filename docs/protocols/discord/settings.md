@@ -30,6 +30,18 @@ permission.
   Token="YOUR_TOKEN_HERE"
   ```
 
+## CustomStatus
+
+Custom activity status message to set when connecting the bot to Discord. This
+will be shown in member lists on Discord, as well as the bot's profile.
+
+- Setting: **OPTIONAL**
+- Format: *string*
+- Example:
+  ```toml
+  CustomStatus="Bridging your chats"
+  ```
+
 ## AllowMention
 
 AllowMention controls which mentions are allowed.

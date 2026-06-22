@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/lrstanley/girc"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -19,16 +20,25 @@ import (
 	_ "github.com/paulrosania/go-charset/data"
 )
 
+const utf8charset = "utf-8"
+
+// this handler actually gets called when sending out to an IRC bridge, not when receiving a privmsg via the irc library.
+// refer to handlePrivMsg() for the latter (including attempted autodetection when no charset is specified)
+//
+// If we received the message from another IRC bridge, the text should have already been converted to UTF-8.
+// If from any other bridge type, no conversion is needed, as all other supported bridge types use UTF-8 exclusively.
+//
+// TODO: rework this using x/text/transform and x/text/encoding packages instead of go-charset
 func (b *Birc) handleCharset(msg *config.Message) error {
-	if b.GetString("Charset") != "" {
+	if b.GetString("Charset") != "autodetect" {
 		switch b.GetString("Charset") {
-		case "gbk", "gb18030", "gb2312", "big5", "euc-kr", "euc-jp", "shift-jis", "iso-2022-jp":
-			msg.Text = toUTF8(b.GetString("Charset"), msg.Text)
+		case "utf8", utf8charset:
+			break
 		default:
 			buf := new(bytes.Buffer)
 			w, err := charset.NewWriter(b.GetString("Charset"), buf)
 			if err != nil {
-				b.Log.Errorf("charset to utf-8 conversion failed: %s", err)
+				b.Log.Errorf("utf-8 to charset conversion failed: %s", err)
 				return err
 			}
 			fmt.Fprint(w, msg.Text)
@@ -137,6 +147,13 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 	b.Log.Debugf("handle %#v", event)
 }
 
+func (b *Birc) handleISupport(client *girc.Client, event girc.Event) {
+	if result, ok := client.GetServerOption("BOT"); ok {
+		b.Log.Debugf("Server supports BOT: %s", result)
+		client.Send(&girc.Event{Command: girc.MODE, Params: []string{b.Nick, "+" + result}})
+	}
+}
+
 func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 	b.Log.Debug("Registering callbacks")
 	i := b.i
@@ -152,6 +169,7 @@ func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 	i.Handlers.Clear("QUIT")
 	i.Handlers.Clear("KICK")
 	i.Handlers.Clear("INVITE")
+	i.Handlers.Clear(girc.RPL_ISUPPORT)
 
 	i.Handlers.AddBg("PRIVMSG", b.handlePrivMsg)
 	i.Handlers.Add(girc.RPL_TOPICWHOTIME, b.handleTopicWhoTime)
@@ -161,6 +179,7 @@ func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 	i.Handlers.AddBg("QUIT", b.handleJoinPart)
 	i.Handlers.AddBg("KICK", b.handleJoinPart)
 	i.Handlers.Add("INVITE", b.handleInvite)
+	i.Handlers.Add(girc.RPL_ISUPPORT, b.handleISupport)
 }
 
 func (b *Birc) handleNickServ() {
@@ -238,12 +257,12 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 		rmsg.Event = config.EventNoticeIRC
 	}
 
-	// strip action, we made an event if it was an action
-	rmsg.Text += event.StripAction()
+	// trailing param is message content.  we'll treat it as a byte slice first, convert to utf-8 if needed, then do our own version of StripAction
+	rmsg.Text = event.Params[len(event.Params)-1]
 
 	// start detecting the charset
 	mycharset := b.GetString("Charset")
-	if mycharset == "" {
+	if mycharset == "autodetect" && !utf8.ValidString(rmsg.Text) { // check for valid utf-8 before any other checks
 		// detect what were sending so that we convert it to utf-8
 		detector := chardet.NewTextDetector()
 		result, err := detector.DetectBest([]byte(rmsg.Text))
@@ -257,10 +276,14 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 		if result.Confidence < 80 {
 			mycharset = "ISO-8859-1"
 		}
+	} else {
+		mycharset = utf8charset // fixes #120 (mostly)
 	}
 	switch mycharset {
 	case "gbk", "gb18030", "gb2312", "big5", "euc-kr", "euc-jp", "shift-jis", "iso-2022-jp":
-		rmsg.Text = toUTF8(b.GetString("Charset"), rmsg.Text)
+		rmsg.Text = toUTF8(mycharset, rmsg.Text)
+	case "utf8", utf8charset:
+		break
 	default:
 		r, err := charset.NewReader(mycharset, strings.NewReader(rmsg.Text))
 		if err != nil {
@@ -270,6 +293,12 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 
 		output, _ := io.ReadAll(r)
 		rmsg.Text = string(output)
+	}
+
+	// let's make sure only to modify the message text AFTER the possible utf-8 conversion.
+	// strip action, we made an event if it was an action
+	if event.IsAction() {
+		rmsg.Text = rmsg.Text[8 : len(rmsg.Text)-1]
 	}
 
 	b.Log.Debugf("<= Sending message from %s on %s to gateway", event.Params[0], b.Account)

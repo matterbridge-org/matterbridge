@@ -146,6 +146,14 @@ func (b *Bdiscord) Connect() error {
 		return err
 	}
 
+	customStatus := b.GetString("CustomStatus")
+	if customStatus != "" {
+		err = b.c.UpdateCustomStatus(customStatus)
+		if err != nil {
+			b.Log.Warnf("Error while setting custom activity status: %s", err)
+		}
+	}
+
 	// Legacy note: WebhookURL used to have an actual webhook URL that we would edit,
 	// but we stopped doing that due to Discord making rate limits more aggressive.
 	//
@@ -206,21 +214,28 @@ func (b *Bdiscord) Connect() error {
 	// Obtaining guild members and initializing nickname mapping.
 	b.membersMutex.Lock()
 	defer b.membersMutex.Unlock()
-	members, err := b.c.GuildMembers(b.guildID, "", 1000)
-	if err != nil {
-		b.Log.Error("Error obtaining server members: ", err)
-		return err
-	}
-	for _, member := range members {
-		if member == nil {
-			b.Log.Warnf("Skipping missing information for a user.")
-			continue
+	after := ""
+	for {
+		members, err := b.c.GuildMembers(b.guildID, after, 1000)
+		if err != nil {
+			b.Log.Error("Error obtaining server members: ", err)
+			return err
 		}
-		b.userMemberMap[member.User.ID] = member
-		b.nickMemberMap[member.User.Username] = member
-		if member.Nick != "" {
-			b.nickMemberMap[member.Nick] = member
+		if len(members) == 0 {
+			break
 		}
+		for _, member := range members {
+			if member == nil {
+				b.Log.Warnf("Skipping missing information for a user.")
+				continue
+			}
+			b.userMemberMap[member.User.ID] = member
+			b.nickMemberMap[member.User.Username] = member
+			if member.Nick != "" {
+				b.nickMemberMap[member.Nick] = member
+			}
+		}
+		after = members[len(members)-1].User.ID
 	}
 
 	b.c.AddHandler(b.messageCreate)

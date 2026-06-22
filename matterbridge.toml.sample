@@ -47,7 +47,10 @@ SkipTLSVerify=true
 Bind=""
 
 #If you know your charset, you can specify it manually.
-#Otherwise it tries to detect this automatically. Select one below
+#Otherwise, the default is UTF-8.  If you want to attempt to detect this automatically,
+#set it to "autodetect".
+# You can choose one of the following:
+#
 # "iso-8859-2:1987", "iso-8859-9:1989", "866", "latin9", "iso-8859-10:1992", "iso-ir-109", "hebrew",
 # "cp932", "iso-8859-15", "cp437", "utf-16be", "iso-8859-3:1988", "windows-1251", "utf16", "latin6",
 # "latin3", "iso-8859-1:1987", "iso-8859-9", "utf-16le", "big5", "cp819", "asmo-708", "utf-8",
@@ -58,10 +61,10 @@ Bind=""
 # "windows-1252", "l2", "koi8-r", "iso8859-1", "latin1", "ecma-114", "iso-ir-110", "elot-928",
 # "iso-ir-126", "iso-8859-1", "iso-ir-127", "cp850", "cyrillic", "greek8", "windows-1250", "iso-latin-1",
 # "l5", "ibm866", "cp866", "ms-kanji", "ibm850", "ecma-118", "iso-ir-101", "ibm819", "l1", "iso-8859-6:1987",
-# "latin5", "ascii", "sjis", "iso-8859-10", "iso-8859-4", "iso-8859-4:1988", "shift-jis
-# The select charset will be converted to utf-8 when sent to other bridges.
-#OPTIONAL (default "")
-Charset=""
+# "latin5", "ascii", "sjis", "iso-8859-10", "iso-8859-4", "iso-8859-4:1988", "shift-jis, "autodetect"
+# The selected charset will be converted to utf-8 when sent to other bridges.
+#OPTIONAL (default "utf-8")
+Charset="utf-8"
 
 #Your nick on irc.
 #REQUIRED
@@ -838,6 +841,9 @@ Token="Yourtokenhere"
 # Server (REQUIRED) is the ID or name of the guild to connect to, selected from the guilds the bot has been invited to
 Server="yourservername"
 
+# CustomStatus sets a custom activity message on connect, shown in Discord member lists and the bot's profile.
+CustomStatus="Bridging your chats"
+
 ## RELOADABLE SETTINGS
 ## All settings below can be reloaded by editing the file.
 ## They are also all optional.
@@ -878,6 +884,10 @@ EditDisable=false
 # EditSuffix specifies the message to be appended to every edited message
 # Example: " (edited)"
 EditSuffix=""
+
+# Edits of messages older than this number of days are ignored.
+# OPTIONAL (default 0 - disabled)
+EditMaxDays=0
 
 # IgnoreNicks mutes outgoing messages from certain users.
 # Messages from these users will not be transmitted to other bridges.
@@ -1640,7 +1650,7 @@ RemoteNickFormat="{NICK}"
 #The string "{GATEWAY}" (case sensitive) will be replaced by the origin gateway name that is replicating the message.
 #The string "{CHANNEL}" (case sensitive) will be replaced by the origin channel name used by the bridge
 #The string "{TENGO}" (case sensitive) will be replaced by the output of the RemoteNickFormat script under [tengo]
-#OPTIONAL (default empty)
+#OPTIONAL (default "[{PROTOCOL}] <{NICK}> ")
 RemoteNickFormat="[{PROTOCOL}] <{NICK}> "
 
 #StripNick only allows alphanumerical nicks. See https://github.com/42wim/matterbridge/issues/285

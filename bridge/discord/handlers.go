@@ -2,6 +2,7 @@ package bdiscord
 
 import (
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
@@ -74,7 +75,13 @@ func (b *Bdiscord) messageUpdate(s *discordgo.Session, m *discordgo.MessageUpdat
 		return
 	}
 	// only when message is actually edited
-	if m.Message.EditedTimestamp != nil {
+	if m.EditedTimestamp != nil {
+		// message must have been edited within EditMaxDays
+		// (there is a discord glitch where old message edits get sent without user interaction)
+		if b.GetInt("EditMaxDays") != 0 && time.Since(*m.EditedTimestamp) >= time.Duration(b.GetInt("EditMaxDays"))*24*time.Hour {
+			return
+		}
+
 		b.Log.Debugf("Sending edit message")
 		m.Content += b.GetString("EditSuffix")
 		msg := &discordgo.MessageCreate{
@@ -139,7 +146,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		return
 	}
 
-	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: m.Author.ID, ID: m.ID, Extra: make(map[string][]interface{})}
+	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: "@" + m.Author.Username, ID: m.ID, Extra: make(map[string][]interface{})} // here we use .jpg over .webp for wider support across bridges and clients in general. discord automatically converts as needed anyhow.
 
 	b.Log.Debugf("== Receiving event %#v", m.Message)
 

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
+
+var Audio_MimeTypes = []string{"aac", "flac", "matroska", "mp4", "mpeg", "ogg", "opus", "vorbis", "wav"}
 
 var (
 	htmlTag            = regexp.MustCompile("</.*?>")
@@ -498,7 +501,7 @@ func (b *Bmatrix) handleEdit(ev *event.Event, rmsg config.Message) bool {
 func (b *Bmatrix) handleReply(ev *event.Event, rmsg config.Message) bool {
 	relation := ev.Content.AsMessage().OptionalGetRelatesTo()
 
-	if relation == nil {
+	if relation == nil || relation.InReplyTo == nil || relation.InReplyTo.EventID == "" {
 		return false
 	}
 
@@ -931,6 +934,31 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		})
 		if err != nil {
 			b.Log.Errorf("sendImage failed: %#v", err)
+		}
+	case func() bool {
+		if strings.HasPrefix(mtype, "audio/") {
+			s, _ := strings.CutPrefix(mtype, "audio/")
+			return slices.Contains(Audio_MimeTypes, s)
+		} else {
+			return false
+		}
+	}():
+		b.Log.Debugf("sendAudio %s", res.ContentURI)
+		err = b.retry(func() error {
+			content := event.MessageEventContent{
+				MsgType:  event.MsgAudio,
+				FileName: fi.Name,
+				URL:      id.ContentURIString(res.ContentURI.String()),
+				Info: &event.FileInfo{
+					MimeType: mtype,
+					Size:     len(*fi.Data),
+				},
+			}
+			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
+			return err2
+		})
+		if err != nil {
+			b.Log.Errorf("sendAudio failed: %#v", err)
 		}
 	default:
 		b.Log.Debugf("sendFile %s", res.ContentURI)
