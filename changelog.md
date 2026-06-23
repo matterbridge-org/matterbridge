@@ -61,6 +61,7 @@
 - general
   - when downloading a file attachment from a remote HTTP server, matterbridge will now error if
     the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
+  - fix for upstream issue 42wim#2043 by github user adbenitez's [fork](https://github.com/adbenitez/matterbridge/tree/adb/issue-2043) which will prevent per-destination message modifications for one bridge, such as for `StripNick` or `ColorNicks`, from being incorrectly applied to the original message that will be sent to other bridges which may not be using such settings
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - attachment body is treated as attachment caption and will no longer produce bogus text messages on other bridges ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
