@@ -37,6 +37,7 @@
   - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - irc
   - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
+  - irc bridges now handle server connections, channel joins, and messages asynchronously.  performance has been enhanced by moving all calls to the `girc` library to outside of the main goroutine which calls `Send()`, thus avoiding unnecessary locks. Thanks go to github user cjdelisle for the async inspiration ([#230](https://github.com/matterbridge-org/matterbridge/pull/230))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
