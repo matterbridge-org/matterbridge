@@ -24,6 +24,7 @@
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
 - irc: Charset for irc bridges will now be set to a default of "UTF-8", to avoid mojibake when attempting to automatically guess the incoming charset.  If you want to try autodetecting, you will need to set this to "autodetect" for the irc bridge.  Ideally, you will know which charset to set and won't have to try to guess.  Even with autodetection set, UTF-8 will be checked first before trying anything else, then fall back to latin-1 if the autodetection fails.  This should mostly address ([#120](https://github.com/matterbridge-org/matterbridge/issues/120))
+- irc: Destination bridges which have `Colornicks` set, and are not using `StripNick` nor `UseRelayMsg`, when receiving from bridges that allow spaces in the nickname (e.g. Discord, XMPP), will see those spaces in the nick replaced with non-breaking spaces.  This is to facilitate using spaces as delimiters for the new `Colornicks` behavior ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
 
 ## New Features
 
@@ -35,6 +36,8 @@
   - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - matrix
   - Supports MSC4144/puppeting ([#232](https://github.com/matterbridge-org/matterbridge/pulls/232)). See also [MSC4144](https://github.com/matrix-org/matrix-spec-proposals/pulls/4144). Note that this is useless unless you have a client that can display these. Clients that don't will fall back to displaying e.g. `Nick: msg`.
+- irc
+  - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
@@ -60,6 +63,7 @@
 - general
   - when downloading a file attachment from a remote HTTP server, matterbridge will now error if
     the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
+  - fix for upstream issue 42wim#2043 by github user adbenitez's [fork](https://github.com/adbenitez/matterbridge/tree/adb/issue-2043) which will prevent per-destination message modifications for one bridge, such as for `StripNick` or `ColorNicks`, from being incorrectly applied to the original message that will be sent to other bridges which may not be using such settings
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - attachment body is treated as attachment caption and will no longer produce bogus text messages on other bridges ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
