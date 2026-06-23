@@ -216,8 +216,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		if b.GetBool("UseMSC4144") {
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
-			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
-			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
 			content = event.MessageEventContent{
 				MsgType:       event.MsgEmote,
 				Body:          body,
@@ -308,8 +308,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		if b.GetBool("UseMSC4144") {
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
-			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
-			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
 			content = event.MessageEventContent{
 				Body:          "* " + body,
 				FormattedBody: "<b>*</b> " + formattedBody,
@@ -413,8 +413,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		if b.GetBool("UseMSC4144") {
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
-			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
-			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
 
 			content = event.MessageEventContent{
 				MsgType:       event.MsgText,
@@ -990,7 +990,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
-					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 					Body:          username.plain + ": " + fi.Name,
 				}
 
@@ -1044,7 +1044,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					HasFallback: true,
 				},
 				Format:        event.FormatHTML,
-				FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+				FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 			}
 
 			img.AddPerMessageProfileFallback()
@@ -1095,7 +1095,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
-					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 					Body:          username.plain + ": " + fi.Name,
 				}
 
@@ -1136,7 +1136,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
-					FormattedBody: "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + fi.Name,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 					Body:          username.plain + ": " + fi.Name,
 				}
 
@@ -1217,8 +1217,8 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 		if b.GetBool("UseMSC4144") {
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
-			formattedBody, _ = strings.CutPrefix(formattedBody, username.plain)
-			formattedBody = "<strong data-mx-profile-fallback>" + username.plain + ": </strong>" + formattedBody
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
 			content = event.MessageEventContent{
 				MsgType:       event.MsgText,
 				Body:          body,
