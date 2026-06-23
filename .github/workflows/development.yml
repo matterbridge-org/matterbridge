@@ -13,6 +13,7 @@ permissions:
   pull-requests: read
 jobs:
   lint:
+    if: ${{ github.repository == 'matterbridge-org/matterbridge' }}
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +34,38 @@ jobs:
         with:
           version: v2.1
           args: --build-tags=goolm --config=.golangci-incremental.yaml
+  lint_personal_fork:
+    if: ${{ github.repository != 'matterbridge-org/matterbridge' }}
+    name: golangci-lint (personal fork branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: "git remote add upstream https://github.com/matterbridge-org/matterbridge"
+      # - run: "git fetch upstream master"
+      # - run: "git branch __ci_upstream_master FETCH_HEAD"
+      - run: "git fetch upstream master"
+      # We only compare with the most recent common ancestor. Otherwise, code that was removed
+      # upstream but does not conflict (and therefore will not appear in Github PR UI)
+      #  will trigger new linter errors downstream (false positive).
+      # - run: echo "COMMON_ANCESTOR=$(git merge-base __ci_upstream_master ${{ github.ref }})" >> $GITHUB_ENV
+      # - run: echo "COMMON_ANCESTOR=$(git merge-base __ci_upstream_master ${{ github.ref }})"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 1.24.x
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          # Maybe only-new-issues works with a simple unshallow?
+          # only-new-issues: true
+          version: v2.1
+          skip-cache: true
+          args: --build-tags=goolm --new-from-rev=upstream/master
+          # Compare to upstream's master branch.
+          # It looks like Github Actions partial clones don't really like comparing
+          # with previous commit overwritten by a force push, which in any case does
+          # not really make sense when working on a feature branch.
+          # args: >-
+          #   --build-tags=goolm --new-from-rev=${{ env.COMMON_ANCESTOR }}
   test:
     strategy:
       matrix:
@@ -51,6 +84,8 @@ jobs:
       - name: go test -tags goolm ./... (go version ${{ matrix.go-version }})
         run: go test -tags goolm ./...
   build-upload:
+    # Dont build artifacts for downstream branches not tracked by a PR
+    if: ${{ github.event_name == 'pull_request' || github.repository == 'matterbridge-org/matterbridge' }}
     # Uploading artifacts only if lint/test succeeded
     needs: [ "lint", "test" ]
     strategy:
