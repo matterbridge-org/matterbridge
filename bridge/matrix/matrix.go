@@ -1260,10 +1260,12 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 func (b *Bmatrix) handleAvatar(url string) id.ContentURIString {
 	resp, err := http.Get(url)
 	if err != nil {
+		b.Log.Debugf("HTTP GET for avater error: %#v", err)
 		return ""
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		b.Log.Debugf("HTTP GET for avater error: status code %#v", resp.StatusCode)
 		return ""
 	}
 	sp := strings.Split(url, ".")
@@ -1276,6 +1278,7 @@ func (b *Bmatrix) handleAvatar(url string) id.ContentURIString {
 
 	res, err := b.mc.UploadMedia(context.TODO(), media)
 	if err != nil {
+		b.Log.Debugf("error uploading avatar to matrix homeserver: %#v", err)
 		return ""
 	}
 	return id.ContentURIString(res.ContentURI.String())
