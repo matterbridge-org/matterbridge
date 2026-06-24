@@ -229,8 +229,6 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					HasFallback: true,
 				},
 			}
-
-			content.AddPerMessageProfileFallback()
 		} else {
 			content = event.MessageEventContent{
 				MsgType:       event.MsgEmote,
@@ -336,8 +334,6 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					HasFallback: true,
 				},
 			}
-
-			content.AddPerMessageProfileFallback()
 		} else {
 			content = event.MessageEventContent{
 				Body:          "* " + body,
@@ -433,8 +429,6 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					HasFallback: true,
 				},
 			}
-
-			content.AddPerMessageProfileFallback()
 		} else {
 			content = event.MessageEventContent{
 				MsgType:       event.MsgText,
@@ -993,8 +987,6 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 					Body:          username.plain + ": " + fi.Name,
 				}
-
-				content.AddPerMessageProfileFallback()
 			} else {
 				content = event.MessageEventContent{
 					MsgType:  event.MsgVideo,
@@ -1098,8 +1090,6 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 					Body:          username.plain + ": " + fi.Name,
 				}
-
-				content.AddPerMessageProfileFallback()
 			} else {
 				content = event.MessageEventContent{
 					MsgType:  event.MsgAudio,
@@ -1139,8 +1129,6 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
 					Body:          username.plain + ": " + fi.Name,
 				}
-
-				content.AddPerMessageProfileFallback()
 			} else {
 				content = event.MessageEventContent{
 					MsgType:  event.MsgFile,
