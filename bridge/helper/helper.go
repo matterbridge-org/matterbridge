@@ -138,6 +138,55 @@ func GetSubLines(message string, maxLineLength int, clippingMessage string) []st
 	return lines
 }
 
+// GetSubLinesWords splits messages in newline-delimited lines. If maxLineLength is
+// specified as non-zero GetSubLinesWords will also clip long lines to the maximum
+// length and insert a warning marker that the line was clipped. It tries to respect word boundaries.
+func GetSubLinesWords(message string, maxLineLength int, clippingMessage string) []string {
+	if clippingMessage == "" {
+		clippingMessage = " <clipped message>"
+	}
+
+	var lines []string
+	for line := range strings.SplitSeq(strings.TrimSpace(message), "\n") {
+		if line == "" {
+			// Prevent sending empty messages, so we'll skip this line
+			// if it has no content.
+			continue
+		}
+
+		if maxLineLength == 0 || len([]byte(line)) <= maxLineLength {
+			lines = append(lines, line)
+			continue
+		}
+
+		clipMsgLen := len([]byte(clippingMessage))
+		idx := 0
+
+		for idx < (len(line)) {
+			endofline := idx + maxLineLength - clipMsgLen
+			if endofline >= (len(line)) {
+				lines = append(lines, line[idx:])
+				break
+			}
+			linesegment := line[idx:endofline]
+			splitMidWord := false
+
+			lastword := strings.LastIndex(linesegment, " ")
+			if lastword == -1 { // No space found, so cut at a rune
+				lastword = len(linesegment)
+				splitMidWord = true
+			}
+			linesegment = linesegment[:lastword]
+			idx += lastword
+			if !splitMidWord {
+				idx++ // Skip over the space we found
+			}
+			lines = append(lines, linesegment+clippingMessage)
+		}
+	}
+	return lines
+}
+
 // HandleExtra manages the supplementary details stored inside a message's 'Extra' field map.
 func HandleExtra(msg *config.Message, general *config.Protocol) []config.Message {
 	extra := msg.Extra

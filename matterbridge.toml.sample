@@ -103,15 +103,14 @@ MessageDelay=1300
 #OPTIONAL (default 30)
 MessageQueue=30
 
-#Maximum length of message sent to irc server. If it exceeds
-#<clipped message> will be add to the message.
-#OPTIONAL (default 400)
-MessageLength=400
+#Maximum length of message (including bot's nick, username, host, channel, etc) sent to irc server.
+#Longer messages will have <clipped message> added, and multiple lines will be sent.
+#OPTIONAL (default 512, can be overridden by a LINELEN setting received from server)
+MessageLength=512
 
-#Split messages on MessageLength instead of showing the <clipped message>
-#WARNING: this could lead to flooding
-#OPTIONAL (default false)
-MessageSplit=false
+#Split messages on MessageLength instead of relying on the irc library to do it
+#OPTIONAL (default true)
+MessageSplit=true
 
 #Message to show when a message is too big
 #Default "<clipped message>"
