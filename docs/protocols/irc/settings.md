@@ -5,11 +5,12 @@
 
 ## Charset
 
-If you know your charset, you can specify it manually. Otherwise it tries to detect this automatically.
+If you know your charset, you can specify it manually.  Set to "autodetect" to try to detect this automatically.
  
-The selected charset will be converted to utf-8 when sent to other bridges.
+The selected charset will be converted to utf-8 when sent to other, non-irc bridges.
 
 - Setting: **OPTIONAL**
+- Default: "utf-8"
 - Format: *string*
 - Example:
   ```toml
@@ -68,15 +69,16 @@ Delay in milliseconds between each message send to the IRC server.
 
 ## MessageLength
 
-Maximum length of message sent to irc server. If it exceeds
-`<message clipped>` will be add to the message.
+Maximum length of message sent to irc server, including bot nick, user and hostname, channel name, formatted remote nick, etc.
+If it exceeds, `<message clipped>` will be added to the message and multiple lines will be sent.
+Can be overridden if the IRC server sets the LINELEN token in an ISUPPORT message.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
-- Default: *400*
+- Default: *512*
 - Format: *int*
 - Example:
   ```toml
-  MessageLength=400
+  MessageLength=512
   ```
 
 ## MessageQueue
@@ -94,10 +96,10 @@ messages will be dropped.
   ```
 
 ## MessageSplit
-Split messages on `MessageLength` instead of showing the `<message clipped>`
-WARNING: this could lead to flooding
+Split messages on `MessageLength` instead of relying on the irc library to do it.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
+- Default: *true*
 - Format: *boolean*
 - Example:
   ```toml

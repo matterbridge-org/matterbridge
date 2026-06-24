@@ -31,11 +31,18 @@ type Birc struct {
 	connected                                 chan error
 	Local                                     chan config.Message // local queue for flood control
 	FirstConnection, authDone                 bool
+	maxLen                                    int // MaxEventLength setting queried from girc, set after connecting
 	MessageDelay, MessageQueue, MessageLength int
-	channels                                  map[string]bool
+	MessagePrefix                             int                     // subtracted from MessageLength, set on channel join
+	channels                                  map[string]bool         // list of channel names we tried to join, in case we need an invite
+	channelsChan                              chan config.ChannelInfo // for async irc channel joins
 
 	*bridge.Config
 }
+
+// Work around girc using max prefix length instead of actual prefix length
+// we do the check to extend b.MessageLength when the server supports it, in handleJoinPart in handlers.go
+const defaultMaxPrefix = 30 + 18 + 63 + 4 // from girc's event.go
 
 func New(cfg *bridge.Config) bridge.Bridger {
 	b := &Birc{}
@@ -56,7 +63,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		b.MessageQueue = b.GetInt("MessageQueue")
 	}
 	if b.GetInt("MessageLength") == 0 {
-		b.MessageLength = 400
+		b.MessageLength = 512 // default per RFC 2812
 	} else {
 		b.MessageLength = b.GetInt("MessageLength")
 	}
@@ -79,6 +86,7 @@ func (b *Birc) Connect() error {
 	}
 
 	b.Local = make(chan config.Message, b.MessageQueue+10)
+	b.channelsChan = make(chan config.ChannelInfo, b.MessageQueue+10)
 	b.Log.Infof("Connecting %s", b.GetString("Server"))
 
 	i, err := b.getClient()
@@ -93,52 +101,46 @@ func (b *Birc) Connect() error {
 		}
 	}
 
-	i.Handlers.Add(girc.RPL_WELCOME, b.handleNewConnection)
-	i.Handlers.Add(girc.RPL_ENDOFMOTD, b.handleOtherAuth)
-	i.Handlers.Add(girc.ERR_NOMOTD, b.handleOtherAuth)
-	i.Handlers.Add(girc.ALL_EVENTS, b.handleOther)
+	i.Handlers.AddBg(girc.RPL_WELCOME, b.handleNewConnection)
+	i.Handlers.AddBg(girc.RPL_ENDOFMOTD, b.handleOtherAuth)
+	i.Handlers.AddBg(girc.ERR_NOMOTD, b.handleOtherAuth)
+	i.Handlers.AddBg(girc.ALL_EVENTS, b.handleOther)
 	b.i = i
 
+	go b.doJoin()
+	go b.doSend()
 	go b.doConnect()
 
-	err = <-b.connected
-	if err != nil {
-		return fmt.Errorf("connection failed %s", err)
-	}
-	b.Log.Info("Connection succeeded")
-	b.FirstConnection = false
-	if b.GetInt("DebugLevel") == 0 {
-		i.Handlers.Clear(girc.ALL_EVENTS)
-	}
-	go b.doSend()
+	go func() {
+		// Block until something happens...
+		<-b.connected
+
+		b.Log.Info("Connection succeeded for bridge " + b.Account)
+		b.FirstConnection = false
+		if b.GetInt("DebugLevel") == 0 {
+			b.i.Handlers.Clear(girc.ALL_EVENTS)
+		}
+	}()
+
 	return nil
 }
 
 func (b *Birc) Disconnect() error {
 	b.i.Close()
 	close(b.Local)
+	close(b.channelsChan)
+	b.authDone = false
 	return nil
 }
 
 func (b *Birc) JoinChannel(channel config.ChannelInfo) error {
-	b.channels[channel.Name] = true
-	// need to check if we have nickserv auth done before joining channels
-	for {
-		if b.authDone {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if channel.Options.Key != "" {
-		b.Log.Debugf("using key %s for channel %s", channel.Options.Key, channel.Name)
-		b.i.Cmd.JoinKey(channel.Name, channel.Options.Key)
-	} else {
-		b.i.Cmd.Join(channel.Name)
-	}
+	b.channelsChan <- channel
 	return nil
 }
 
 func (b *Birc) Send(msg config.Message) (string, error) {
+	// Note: charset handling for an irc destination bridge has been moved to doSend()
+
 	// ignore delete messages
 	if msg.Event == config.EventMsgDelete {
 		return "", nil
@@ -146,14 +148,17 @@ func (b *Birc) Send(msg config.Message) (string, error) {
 
 	b.Log.Debugf("=> Receiving %#v", msg)
 
+	// Don't make requests to the irc library in the main thread, as it might take out a lock for ages.
+	// Instead, let's check b.authDone in doSend()
+	//
 	// we can be in between reconnects #385
-	if !b.i.IsConnected() {
-		b.Log.Error("Not connected to server, dropping message")
-		return "", nil
-	}
+	// if !b.i.IsConnected() {
+	//	b.Log.Error("Not connected to server, dropping message")
+	//	return "", nil
+	// }
 
 	// Execute a command
-	if strings.HasPrefix(msg.Text, "!") {
+	if strings.HasPrefix(msg.Text, "!") && msg.Event != config.EventNoticeIRC { // irc bots aren't supposed to respond to notices
 		b.Command(&msg)
 	}
 
@@ -162,50 +167,111 @@ func (b *Birc) Send(msg config.Message) (string, error) {
 		return "", nil
 	}
 
-	var msgLines []string
 	if b.GetBool("StripMarkdown") {
 		msg.Text = stripmd.Strip(msg.Text)
 	}
 
-	if b.GetBool("MessageSplit") {
-		msgLines = helper.GetSubLines(msg.Text, b.MessageLength, b.GetString("MessageClipped"))
-	} else {
-		msgLines = helper.GetSubLines(msg.Text, 0, b.GetString("MessageClipped"))
-	}
-	for i := range msgLines {
-		if len(b.Local) >= b.MessageQueue {
-			b.Log.Debugf("flooding, dropping message (queue at %d)", len(b.Local))
-			return "", nil
+	prefix := b.MessagePrefix + len(msg.Username) + len(msg.Channel)
+
+	// account for spaces, command names, and other padding
+	// TODO: make these len()'s into constants?  But the go compiler does that anyway, so no performance loss here
+	switch {
+	case b.GetBool("UseRelayMsg"):
+		switch msg.Event {
+		case config.EventUserAction:
+			prefix += len("RELAYMSG   :\x01ACTION \x01")
+		default:
+			prefix += len("RELAYMSG   :")
 		}
+	case msg.Event == config.EventUserAction:
+		prefix += len("PRIVMSG  :\x01ACTION \x01")
+	case msg.Event == config.EventNoticeIRC:
+		prefix += len("NOTICE  :")
+	default:
+		prefix += len("PRIVMSG  :")
+	}
 
-		msg.Text = msgLines[i]
+	if b.GetBool("Colornicks") {
+		// Separate colors for different fields (label, proto, nick, etc)
+		userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
+			return r == '\u0020' // split only on regular space; ignore NBSP, tab, newline
+		})
+		username := ""
 
-		// convert to specified charset
-		err := b.handleCharset(&msg)
-		if err != nil {
-			b.Log.Warn("Error converting to charset")
+		for i := range userslice {
+			checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
+			colorCode := checksum%14 + 2 // prevent white or black color codes
+			username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
+			prefix += 5 // we've just added four bytes and a space
+		}
+		msg.Username = username
+	}
+
+	// TODO: Implement ircv3 draft/multiline capabilities, unless girc gets to it first, in which case maybe let it be handled there.
+	// note that b.MessageLength will still correspond to the LINELEN token from RPL_ISUPPORT, which still defaults to 512,
+	// even when draft/multiline is enabled.  That includes any message tags.
+	//
+	// For now, we'll repurpose the MessageSplit setting to hand off the whole message to girc when set to false.
+	if b.GetBool("MessageSplit") {
+		msgLines := helper.GetSubLinesWords(msg.Text, b.MessageLength-prefix, b.GetString("MessageClipped"))
+		for i := range msgLines {
+			if len(b.Local) >= b.MessageQueue {
+				b.Log.Debugf("flooding, dropping message (queue at %d)", len(b.Local))
+				return "", nil
+			}
+
+			msg.Text = msgLines[i]
+
+			b.Local <- msg
+		}
+	} else { // Not splitting messages.  Hopefully girc does it, or else the server might silently drop it
+		if len(msg.Text)+prefix > (b.maxLen + defaultMaxPrefix) {
+			b.Log.Warn("Warning: Large message possibly dropped instead of sent")
 		}
 
 		b.Local <- msg
 	}
+	// TODO: support for ircv3 msgid's
 	return "", nil
+}
+
+func (b *Birc) doJoin() {
+	rate := time.Millisecond * time.Duration(b.MessageDelay)
+	throttle := time.NewTicker(rate)
+	for channel := range b.channelsChan {
+		for !b.authDone { // need to check if we have nickserv auth done before joining channels
+			time.Sleep(time.Second)
+		}
+		b.channels[channel.Name] = true
+		<-throttle.C
+		if channel.Options.Key != "" {
+			b.Log.Debugf("using key %s for channel %s", channel.Options.Key, channel.Name)
+			b.i.Cmd.JoinKey(channel.Name, channel.Options.Key)
+		} else {
+			b.i.Cmd.Join(channel.Name)
+		}
+	}
 }
 
 func (b *Birc) doConnect() {
 	for {
-		if err := b.i.Connect(); err != nil {
+		// TODO: support connecting using a proxy
+		// Since we're doing connections and joins asynchronously now, we can afford a generous timeout here
+		err := b.i.DialerConnect(&net.Dialer{Timeout: 500 * time.Second})
+		if err != nil {
 			b.Log.Errorf("disconnect: error: %s", err)
 			if b.FirstConnection {
-				b.connected <- err
-				return
+				// try again
+				continue
 			}
 		} else {
 			b.Log.Info("disconnect: client requested quit")
 		}
-		b.Log.Info("reconnecting in 30 seconds...")
-		time.Sleep(30 * time.Second)
+		b.authDone = false
+		b.Log.Info(b.Account + " reconnecting in 60 seconds...")
+		time.Sleep(60 * time.Second) // Sleep 60 seconds so as not to regress 42wim#267
 		b.i.Handlers.Clear(girc.RPL_WELCOME)
-		b.i.Handlers.Add(girc.RPL_WELCOME, func(client *girc.Client, event girc.Event) {
+		b.i.Handlers.AddBg(girc.RPL_WELCOME, func(client *girc.Client, event girc.Event) {
 			b.Remote <- config.Message{Username: "system", Text: "rejoin", Channel: "", Account: b.Account, Event: config.EventRejoinChannels}
 			// set our correct nick on reconnect if necessary
 			b.Nick = event.Source.Name
@@ -231,6 +297,17 @@ func (b *Birc) doSend() {
 	rate := time.Millisecond * time.Duration(b.MessageDelay)
 	throttle := time.NewTicker(rate)
 	for msg := range b.Local {
+		if !b.authDone {
+			// If we're not logged in yet, discard the message
+			continue
+		}
+
+		// convert to specified charset
+		err := b.handleCharset(&msg)
+		if err != nil {
+			b.Log.Warn("Error converting to charset")
+		}
+
 		<-throttle.C
 		username := msg.Username
 		// Optional support for the proposed RELAYMSG extension, described at
@@ -238,6 +315,7 @@ func (b *Birc) doSend() {
 		// nolint:nestif
 		if b.GetBool("UseRelayMsg") { // Let's check this by itself first to avoid needlessly querying the irc lib on each msg, in case it takes out any locks
 			if b.i.HasCapability("overdrivenetworks.com/relaymsg") || b.i.HasCapability("draft/relaymsg") {
+				// TODO: make an exportable SanitizeNick and call it from the gateway instead of here
 				username = b.sanitizeNick(username)
 				text := msg.Text
 
@@ -253,41 +331,59 @@ func (b *Birc) doSend() {
 				}
 
 				if msg.Event == config.EventUserAction {
-					err := b.i.Cmd.SendRawf("RELAYMSG %s %s :\x01ACTION %s\x01", msg.Channel, username, text)
-					if err != nil {
-						b.Log.Warn("The RELAYMSG ACTION command failed")
+					if !b.GetBool("MessageSplit") {
+						err := b.i.Cmd.SendRawf("RELAYMSG %s %s :\x01ACTION %s\x01", msg.Channel, username, text)
+						if err != nil {
+							b.Log.Warn("Error in SendRawf")
+						}
+					} else {
+						cmdline := fmt.Sprintf("RELAYMSG %s %s :\x01ACTION %s\x01\r\n", msg.Channel, username, text)
+						err := b.i.Cmd.SendRawNoSplit(cmdline)
+						if err != nil {
+							b.Log.Warn("Error in SendRawNoSplit")
+						}
 					}
 				} else {
 					b.Log.Debugf("Sending RELAYMSG to channel %s: nick=%s", msg.Channel, username)
-					err := b.i.Cmd.SendRawf("RELAYMSG %s %s :%s", msg.Channel, username, text)
-					if err != nil {
-						b.Log.Warn("The RELAYMSG command failed")
+					if !b.GetBool("MessageSplit") {
+						err := b.i.Cmd.SendRawf("RELAYMSG %s %s :%s", msg.Channel, username, text)
+						if err != nil {
+							b.Log.Warn("Error in SendRawf")
+						}
+					} else {
+						cmdline := fmt.Sprintf("RELAYMSG %s %s :%s\r\n", msg.Channel, username, text)
+						err := b.i.Cmd.SendRawNoSplit(cmdline)
+						if err != nil {
+							b.Log.Warn("Error in SendRawNoSplit")
+						}
 					}
 				}
 			} else { // We have UseRelayMsg set but lack the capability.  Log a warning
 				b.Log.Warn("WARNING!  UseRelayMsg was set, but the irc server does not support it.")
 			}
-		} else if b.GetBool("Colornicks") { // If we aren't using UseRelayMsg, we might be using Colornicks.  The two can't both be used.
-			// Separate colors for different fields (label, proto, nick, etc)
-			userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
-				return r == '\u0020' // split only on regular space; ignore NBSP, tab, newline
-			})
-			username = ""
-			for i := range userslice {
-				checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
-				colorCode := checksum%14 + 2 // prevent white or black color codes
-				username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
-			}
 		}
+		var cmdline string
 		switch msg.Event {
 		case config.EventUserAction:
-			b.i.Cmd.Action(msg.Channel, username+msg.Text)
+			cmdline = fmt.Sprintf("PRIVMSG %s :\x01ACTION %s\x01", msg.Channel, username+msg.Text)
+			b.Log.Debugf("Sending action to channel %s", msg.Channel)
 		case config.EventNoticeIRC:
+			cmdline = fmt.Sprintf("NOTICE %s :%s", msg.Channel, username+msg.Text)
 			b.Log.Debugf("Sending notice to channel %s", msg.Channel)
-			b.i.Cmd.Notice(msg.Channel, username+msg.Text)
 		default:
+			cmdline = fmt.Sprintf("PRIVMSG %s :%s", msg.Channel, username+msg.Text)
 			b.Log.Debugf("Sending to channel %s", msg.Channel)
-			b.i.Cmd.Message(msg.Channel, username+msg.Text)
+		}
+		if !b.GetBool("MessageSplit") {
+			err := b.i.Cmd.SendRaw(cmdline)
+			if err != nil {
+				b.Log.Warn("Error in SendRaw")
+			}
+		} else {
+			err := b.i.Cmd.SendRawNoSplit(cmdline + "\r\n")
+			if err != nil {
+				b.Log.Warn("Error in SendRawNoSplit")
+			}
 		}
 	}
 }
@@ -352,6 +448,11 @@ func (b *Birc) getClient() (*girc.Client, error) {
 		Debug:         debug,
 		SupportedCaps: map[string][]string{"overdrivenetworks.com/relaymsg": nil, "draft/relaymsg": nil},
 	})
+
+	if !b.GetBool("MessageSplit") { // Don't risk sending huge messages that girc ends up splitting too fast
+		i.Config.AllowFlood = false
+	}
+
 	return i, nil
 }
 

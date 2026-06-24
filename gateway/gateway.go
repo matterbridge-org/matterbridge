@@ -455,7 +455,7 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
 	if dest.GetBool("StripNick") { // Sanitize nick so that it contains nothing but alphanumeric characters
 		re := regexp.MustCompile("[^a-zA-Z0-9]+")
 		msg.Username = re.ReplaceAllString(msg.Username, "")
-	} else if dest.Protocol == "irc" && !dest.GetBool("UseRelayMsg") && dest.GetBool("Colornicks") {
+	} else if dest.Protocol == ircProtocol && !dest.GetBool("UseRelayMsg") && dest.GetBool("Colornicks") {
 		// Colornicks is currently only available for IRC, but it's not compatible with Relaymsg.
 		// If we didn't strip the nick, then swap any spaces with NBSP's.
 		// This is only needed for the Colornicks setting to function.
