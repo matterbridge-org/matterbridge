@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"regexp"
 	"slices"
@@ -1257,18 +1258,26 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 	return resp.EventID.String(), err
 }
 
-func (b *Bmatrix) handleAvatar(url string) id.ContentURIString {
-	resp, err := http.Get(url)
+func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
+	u, err := url.Parse(urlS)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
-		b.Log.Debugf("HTTP GET for avater error: %#v", err)
+		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
 		return ""
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b.Log.Debugf("HTTP GET for avater error: status code %#v", resp.StatusCode)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			b.Log.Debugf("Error closing HTTP body: %#v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		b.Log.Debugf("HTTP GET for avatar error: status code %#v", resp.StatusCode)
 		return ""
 	}
-	sp := strings.Split(url, ".")
+	sp := strings.Split(urlS, ".")
 	mtype := mime.TypeByExtension("." + sp[len(sp)-1])
 	media := mautrix.ReqUploadMedia{
 		Content:       resp.Body,
