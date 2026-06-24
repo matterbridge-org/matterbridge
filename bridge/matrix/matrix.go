@@ -218,6 +218,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 			body = username.plain + ": " + body
 			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
 			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
 			content = event.MessageEventContent{
 				MsgType:       event.MsgEmote,
 				Body:          body,
@@ -226,6 +227,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 					ID:          msg.UserID,
 					Displayname: username.plain,
+					AvatarURL:   &avatar,
 					HasFallback: true,
 				},
 			}
@@ -308,6 +310,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 			body = username.plain + ": " + body
 			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
 			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
 			content = event.MessageEventContent{
 				Body:          "* " + body,
 				FormattedBody: "<b>*</b> " + formattedBody,
@@ -321,6 +324,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 						ID:          msg.UserID,
 						Displayname: username.plain,
+						AvatarURL:   &avatar,
 						HasFallback: true,
 					},
 				},
@@ -331,6 +335,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 					ID:          msg.UserID,
 					Displayname: username.plain,
+					AvatarURL:   &avatar,
 					HasFallback: true,
 				},
 			}
@@ -411,6 +416,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 			body = username.plain + ": " + body
 			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
 			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
 
 			content = event.MessageEventContent{
 				MsgType:       event.MsgText,
@@ -426,6 +432,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 					ID:          msg.UserID,
 					Displayname: username.plain,
+					AvatarURL:   &avatar,
 					HasFallback: true,
 				},
 			}
@@ -970,6 +977,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		err = b.retry(func() error {
 			var content event.MessageEventContent
 			if b.GetBool("UseMSC4144") {
+				avatar := b.handleAvatar(msg.Avatar)
 				content = event.MessageEventContent{
 					MsgType:  event.MsgVideo,
 					FileName: fi.Name,
@@ -981,6 +989,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 						ID:          msg.UserID,
 						Displayname: username.plain,
+						AvatarURL:   &avatar,
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
@@ -1019,6 +1028,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 
 		var img event.MessageEventContent
 		if b.GetBool("UseMSC4144") {
+			avatar := b.handleAvatar(msg.Avatar)
 			img = event.MessageEventContent{
 				MsgType:  event.MsgImage,
 				Body:     username.plain + ": " + fi.Name,
@@ -1033,6 +1043,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 					ID:          msg.UserID,
 					Displayname: username.plain,
+					AvatarURL:   &avatar,
 					HasFallback: true,
 				},
 				Format:        event.FormatHTML,
@@ -1073,6 +1084,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		err = b.retry(func() error {
 			var content event.MessageEventContent
 			if b.GetBool("UseMSC4144") {
+				avatar := b.handleAvatar(msg.Avatar)
 				content = event.MessageEventContent{
 					MsgType:  event.MsgAudio,
 					FileName: fi.Name,
@@ -1084,6 +1096,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 						ID:          msg.UserID,
 						Displayname: username.plain,
+						AvatarURL:   &avatar,
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
@@ -1112,6 +1125,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		err = b.retry(func() error {
 			var content event.MessageEventContent
 			if b.GetBool("UseMSC4144") {
+				avatar := b.handleAvatar(msg.Avatar)
 				content = event.MessageEventContent{
 					MsgType:  event.MsgFile,
 					FileName: fi.Name,
@@ -1123,6 +1137,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 						ID:          msg.UserID,
 						Displayname: username.plain,
+						AvatarURL:   &avatar,
 						HasFallback: true,
 					},
 					Format:        event.FormatHTML,
@@ -1170,6 +1185,7 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, user
 
 	err = b.retry(func() error {
 		if b.GetBool("UseMSC4144") {
+			avatar := b.handleAvatar(msg.Avatar)
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
 			content := event.MessageEventContent{
@@ -1178,6 +1194,7 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, user
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 					ID:          msg.UserID,
 					Displayname: username.plain,
+					AvatarURL:   &avatar,
 					HasFallback: true,
 				},
 			}
@@ -1207,6 +1224,7 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 			body = username.plain + ": " + body
 			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
 			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
 			content = event.MessageEventContent{
 				MsgType:       event.MsgText,
 				Body:          body,
@@ -1215,6 +1233,7 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
 					ID:          msg.UserID,
 					Displayname: username.plain,
+					AvatarURL:   &avatar,
 					HasFallback: true,
 				},
 			}
@@ -1236,4 +1255,28 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 	}
 
 	return resp.EventID.String(), err
+}
+
+func (b *Bmatrix) handleAvatar(url string) id.ContentURIString {
+	resp, err := http.Get(url)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return ""
+	}
+	sp := strings.Split(url, ".")
+	mtype := mime.TypeByExtension("." + sp[len(sp)-1])
+	media := mautrix.ReqUploadMedia{
+		Content:       resp.Body,
+		ContentType:   mtype,
+		ContentLength: resp.ContentLength,
+	}
+
+	res, err := b.mc.UploadMedia(context.TODO(), media)
+	if err != nil {
+		return ""
+	}
+	return id.ContentURIString(res.ContentURI.String())
 }
