@@ -175,7 +175,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 	// if we have embedded content add it to text
 	if b.GetBool("ShowEmbeds") && m.Message.Embeds != nil {
 		for _, embed := range m.Message.Embeds {
-			rmsg.Text += handleEmbed(embed)
+			rmsg.Text += b.handleEmbed(embed)
 		}
 	}
 
@@ -326,28 +326,27 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 	b.Remote <- rmsg
 }
 
-func handleEmbed(embed *discordgo.MessageEmbed) string {
-	var t []string
+func (b *Bdiscord) handleEmbed(embed *discordgo.MessageEmbed) string {
 	var result string
 
-	t = append(t, embed.Title)
-	t = append(t, embed.Description)
-	t = append(t, embed.URL)
+	result = b.GetString("EmbedFormat")
 
-	i := 0
-	for _, e := range t {
-		if e == "" {
-			continue
-		}
-
-		i++
-		if i == 1 {
-			result += " embed: " + e
-			continue
-		}
-
-		result += " - " + e
+	if result == "" {
+		result = " embed: {TITLE} - {DESCRIPTION} - {URL}"
 	}
+
+	result = strings.ReplaceAll(result, "{URL}", embed.URL)
+	result = strings.ReplaceAll(result, "{TITLE}", embed.Title)
+	result = strings.ReplaceAll(result, "{DESCRIPTION}", embed.Description)
+	result = strings.ReplaceAll(result, "{TIME}", embed.Timestamp)
+	// todo: make these work without making the entire thing panic
+	// result = strings.ReplaceAll(result, "{FOOTER}", embed.Footer.Text)
+	// result = strings.ReplaceAll(result, "{IMAGE}", embed.Image.URL)
+	// result = strings.ReplaceAll(result, "{THUMBNAIL}", embed.Thumbnail.URL)
+	// result = strings.ReplaceAll(result, "{VIDEO}", embed.Video.URL)
+	// result = strings.ReplaceAll(result, "{PROVIDER}", embed.Provider.URL)
+	// result = strings.ReplaceAll(result, "{AUTHOR}", embed.Author.Name)
+	// result = strings.ReplaceAll(result, "{AUTHORURL}", embed.Author.URL)
 
 	if result != "" {
 		result += "\n"

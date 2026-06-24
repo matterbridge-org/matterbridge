@@ -72,6 +72,18 @@ Shows title, description and URL of embedded messages (sent by other bots)
   ShowEmbeds=true
   ```
 
+## EmbedFormat
+
+Sets the format of the embeds attached to Discord messages sent by users (e.g. YouTube videos).
+The only available placeholders are `{TITLE}`, `{URL}`, `{DESCRIPTION}`, and `{TIME}` (the title, page url, description, and timestamp respectively). If a parameter isn't in the originating embed it is simply omitted.
+
+- Setting: **OPTIONAL** (default `" embed: {TITLE} - {DESCRIPTION} - {URL}"`), **RELOADABLE**
+- Format: *string*
+- Example:
+  ```toml
+  EmbedFormat="\n# {TITLE} ({URL})\n{DESCRIPTION}\n{TIME}"
+  ```
+
 ## UseUserName
 
 Shows the username instead of the server nickname
