@@ -1260,15 +1260,23 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 
 func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
 	u, err := url.Parse(urlS)
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	client := &http.Client{}
-	resp, err := client.Do(req)
 	if err != nil {
+		b.Log.Debugf("URL parse for avatar error: %#v", err)
+		return ""
+	}
+	req, err2 := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err2 != nil {
+		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
+		return ""
+	}
+	client := &http.Client{}
+	resp, err3 := client.Do(req)
+	if err3 != nil {
 		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
 		return ""
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
+		if err4 := resp.Body.Close(); err4 != nil {
 			b.Log.Debugf("Error closing HTTP body: %#v", err)
 		}
 	}()
@@ -1285,8 +1293,8 @@ func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
 		ContentLength: resp.ContentLength,
 	}
 
-	res, err := b.mc.UploadMedia(context.TODO(), media)
-	if err != nil {
+	res, err5 := b.mc.UploadMedia(context.TODO(), media)
+	if err5 != nil {
 		b.Log.Debugf("error uploading avatar to matrix homeserver: %#v", err)
 		return ""
 	}
