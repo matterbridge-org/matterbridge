@@ -9,4 +9,5 @@ import (
 
 func init() {
 	FullMap["irc"] = birc.New
+	SanitizeNickSupport["irc"] = struct{}{}
 }
