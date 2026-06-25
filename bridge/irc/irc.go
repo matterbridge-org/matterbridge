@@ -358,6 +358,7 @@ func (b *Birc) doSend() {
 						}
 					}
 				}
+				continue // fix for #235
 			} else { // We have UseRelayMsg set but lack the capability.  Log a warning
 				b.Log.Warn("WARNING!  UseRelayMsg was set, but the irc server does not support it.")
 			}
