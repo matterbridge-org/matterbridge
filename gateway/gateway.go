@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/d5/tengo/v2"
 	"github.com/d5/tengo/v2/stdlib"
@@ -13,6 +14,7 @@ import (
 	"github.com/kyokomi/emoji/v2"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
+	"github.com/matterbridge-org/matterbridge/gateway/bridgemap"
 	"github.com/matterbridge-org/matterbridge/internal"
 	"github.com/sirupsen/logrus"
 )
@@ -457,10 +459,11 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
 		msg.Username = re.ReplaceAllString(msg.Username, "")
 	} else if dest.Protocol == ircProtocol && !dest.GetBool("UseRelayMsg") && dest.GetBool("Colornicks") {
 		// Colornicks is currently only available for IRC, but it's not compatible with Relaymsg.
-		// If we didn't strip the nick, then swap any spaces with NBSP's.
+		// If we didn't strip the nick, then we'll swap any spaces with NBSP's.
 		// This is only needed for the Colornicks setting to function.
 		msg.Username = strings.ReplaceAll(msg.Username, " ", "\u00A0")
 	}
+
 	nick := dest.GetString("RemoteNickFormat")
 
 	// loop to replace nicks
@@ -477,7 +480,11 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
 		msg.Username = re.ReplaceAllString(msg.Username, replace)
 	}
 
-	if len(msg.Username) > 0 {
+	if dest.GetBool("UseRelayMsg") && !dest.GetBool("Colornicks") && len(msg.Username) > 0 && strings.Contains(nick, "{NOPINGNICK}") {
+		nick = strings.ReplaceAll(nick, "{NOPINGNICK}", msg.Username)
+
+		gw.logger.Warnf("{NOPINGNICK} in RemoteNickFormat is incompatible with UseRelayMsg, falling back to {NICK} on %s", dest.Account)
+	} else {
 		// fix utf-8 issue #193
 		i := 0
 		for index := range msg.Username {
@@ -502,7 +509,55 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
 		gw.logger.Errorf("modifyUsernameTengo error: %s", err)
 	}
 	nick = strings.ReplaceAll(nick, "{TENGO}", tengoNick)
+
 	msg.Username = nick
+
+	_, ok := bridgemap.SanitizeNickSupport[dest.Protocol] // irc only, for now.  other bridges can be added to gateway/bridgemap/ files
+	if !ok {
+		return // No further sanitizing supported
+	}
+
+	fallbacknick := "unknown" // TODO: Make a config setting to change this, or maybe just drop the message instead of sending.
+
+	switch dest.Protocol {
+	case ircProtocol: // Check that we actually want to sanitize the nick - for irc, that's only needed for RelayMsg
+		if dest.GetBool("Colornicks") || !dest.GetBool("UseRelayMsg") {
+			// Colornicks and RelayMsg are mutually exclusive settings
+			return
+		}
+
+		mysep := dest.GetString("RelayMsgSep")
+		if mysep == "" {
+			gw.logger.Debugf("Got empty RelayMsgSep for %s", dest.Account)
+
+			mysep = "/" // Forward-slash and tilde are the defaults for Ergo and go-discord-irc
+			// This guess will hopefully get overwritten with a proper value from the server.
+			// dest.SetString("RelayMsgSep", mysep)
+		} // It's possible that we just recently connected and haven't finished cap negotiation.
+		// Best practice is to include the correct separator(s) in RemoteNickFormat
+		if !strings.ContainsAny(msg.Username, mysep) {
+			// A separator char is not optional.  Maybe a slash will work
+			proto, _ := utf8.DecodeRuneInString(br.Protocol) // get first rune in string
+			sepr, _ := utf8.DecodeRuneInString(mysep)
+			fallbacknick += string(sepr) + string(proto)
+			msg.Username += string(sepr) + string(proto)
+			gw.logger.Debugf("No matching separators in RemoteNickFormat, trying to guess.\n >> Currently relaying pre-sanitized nick: %s", msg.Username)
+		}
+
+		goto SANITIZE
+
+	default:
+		gw.logger.Debugf("This shouldn't happen")
+	}
+
+SANITIZE:
+	err = dest.SanitizeNick(msg)
+
+	if err != nil || msg.Username == "" { // We got an error, switch to the fallback nick.
+		gw.logger.Errorf("SanitizeNick error on %s: %s", dest.Account, err)
+
+		msg.Username = fallbacknick
+	}
 }
 
 func (gw *Gateway) modifyAvatar(msg *config.Message, dest *bridge.Bridge) {

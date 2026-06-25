@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
+	"github.com/fsnotify/fsnotify" // TODO: lock viper for writing when the config file changes, as that is not concurrency safe
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -132,6 +132,7 @@ type Protocol struct {
 	Buffer                 int      // api
 	Charset                string   // irc
 	ClientID               string   // msteams
+	Casemapping            string   // IRC, auto-configured setting for allowable characters in nicks, not configurable
 	ColorNicks             bool     // only irc for now
 	CustomStatus           string   // discord
 	Debug                  bool     // general
@@ -187,6 +188,7 @@ type Protocol struct {
 	RealName               string     // IRC
 	RecoveryKey            string     // matrix
 	RejoinDelay            int        // IRC
+	RelayMsgSep            string     // IRC, autodetected, required separator char(s) in relayed nicks, not configurable
 	ReplaceMessages        [][]string // all protocols
 	ReplaceNicks           [][]string // all protocols
 	RemoteNickFormat       string     // all protocols
@@ -292,6 +294,7 @@ type Config interface {
 	GetStringSlice(key string) ([]string, bool)
 	GetStringSlice2D(key string) ([][]string, bool)
 	IsFilenameBlacklisted(filename string) bool
+	SetVal(key string, value any)
 }
 
 type config struct {
@@ -338,6 +341,7 @@ func NewConfig(rootLogger *logrus.Logger, cfgfile string) Config {
 	viper.OnConfigChange(func(e fsnotify.Event) {
 		logger.Println("Config file changed:", e.Name)
 	})
+
 	return mycfg
 }
 
@@ -356,44 +360,71 @@ func (c *config) Viper() *viper.Viper {
 }
 
 func (c *config) IsKeySet(key string) bool {
+	defer c.handlePanic()
+
 	c.RLock()
-	defer c.RUnlock()
-	return c.v.IsSet(key)
+	isset := c.v.IsSet(key)
+	c.RUnlock()
+
+	return isset
 }
 
 func (c *config) GetBool(key string) (bool, bool) {
+	defer c.handlePanic()
+
 	c.RLock()
-	defer c.RUnlock()
-	return c.v.GetBool(key), c.v.IsSet(key)
+	mykey := c.v.GetBool(key)
+	isset := c.v.IsSet(key)
+	c.RUnlock()
+
+	return mykey, isset
 }
 
 func (c *config) GetInt(key string) (int, bool) {
+	defer c.handlePanic()
+
 	c.RLock()
-	defer c.RUnlock()
-	return c.v.GetInt(key), c.v.IsSet(key)
+	mykey := c.v.GetInt(key)
+	isset := c.v.IsSet(key)
+	c.RUnlock()
+
+	return mykey, isset
 }
 
 func (c *config) GetString(key string) (string, bool) {
+	defer c.handlePanic()
+
 	c.RLock()
-	defer c.RUnlock()
-	return c.v.GetString(key), c.v.IsSet(key)
+	mykey := c.v.GetString(key)
+	isset := c.v.IsSet(key)
+	c.RUnlock()
+
+	return mykey, isset
 }
 
 func (c *config) GetStringSlice(key string) ([]string, bool) {
+	defer c.handlePanic()
+
 	c.RLock()
-	defer c.RUnlock()
-	return c.v.GetStringSlice(key), c.v.IsSet(key)
+	mykey := c.v.GetStringSlice(key)
+	isset := c.v.IsSet(key)
+	c.RUnlock()
+
+	return mykey, isset
 }
 
 func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
-	c.RLock()
-	defer c.RUnlock()
+	defer c.handlePanic()
 
+	var result [][]string
+
+	c.RLock()
 	res, ok := c.v.Get(key).([]interface{})
 	if !ok {
+		c.RUnlock()
+
 		return nil, false
 	}
-	var result [][]string
 	for _, entry := range res {
 		result2 := []string{}
 		for _, entry2 := range entry.([]interface{}) {
@@ -401,21 +432,37 @@ func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
 		}
 		result = append(result, result2)
 	}
+	c.RUnlock()
+
 	return result, true
+}
+
+func (c *config) SetVal(key string, value any) {
+	defer c.handlePanic()
+
+	// c.logger.Debugf("SetVal locking for %s", key)
+	c.Lock()
+	c.v.Set(key, value)
+	c.Unlock()
+	// c.logger.Debugf("Unlocked for %s", key)
 }
 
 // IsFilenameBlackListed checks if a given file name matches the
 // configured blacklist. This is useful to filter potentially-harmful
 // files that could be served over HTTP (eg. `.html` with XSS).
 func (c *config) IsFilenameBlacklisted(filename string) bool {
-	c.RLock()
-	defer c.RUnlock()
+	defer c.handlePanic()
 
+	c.RLock()
 	for _, re := range *c.MediaDownloadBlackListRegexes {
 		if re.MatchString(filename) {
+			c.RUnlock()
+
 			return true
 		}
 	}
+
+	c.RUnlock()
 
 	return false
 }
@@ -427,6 +474,7 @@ func GetIconURL(msg *Message, iconURL string) string {
 	iconURL = strings.ReplaceAll(iconURL, "{NICK}", msg.Username)
 	iconURL = strings.ReplaceAll(iconURL, "{BRIDGE}", name)
 	iconURL = strings.ReplaceAll(iconURL, "{PROTOCOL}", protocol)
+
 	return iconURL
 }
 
@@ -509,6 +557,14 @@ func detectConfigType(cfgfile string) string {
 		return "yaml"
 	}
 	return "toml"
+}
+
+// TODO: Detect whether any locks are currently set (a feature for debug mode only)
+func (c *config) handlePanic() {
+	r := recover()
+	if r != nil {
+		c.logger.Warnf("Recovered from panic: %#v", r)
+	}
 }
 
 func newConfigFromString(logger *logrus.Entry, input []byte, cfgtype string) *config {
