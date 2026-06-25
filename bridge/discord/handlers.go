@@ -339,14 +339,44 @@ func (b *Bdiscord) handleEmbed(embed *discordgo.MessageEmbed) string {
 	result = strings.ReplaceAll(result, "{TITLE}", embed.Title)
 	result = strings.ReplaceAll(result, "{DESCRIPTION}", embed.Description)
 	result = strings.ReplaceAll(result, "{TIME}", embed.Timestamp)
-	// todo: make these work without making the entire thing panic
-	// result = strings.ReplaceAll(result, "{FOOTER}", embed.Footer.Text)
-	// result = strings.ReplaceAll(result, "{IMAGE}", embed.Image.URL)
-	// result = strings.ReplaceAll(result, "{THUMBNAIL}", embed.Thumbnail.URL)
-	// result = strings.ReplaceAll(result, "{VIDEO}", embed.Video.URL)
-	// result = strings.ReplaceAll(result, "{PROVIDER}", embed.Provider.URL)
-	// result = strings.ReplaceAll(result, "{AUTHOR}", embed.Author.Name)
-	// result = strings.ReplaceAll(result, "{AUTHORURL}", embed.Author.URL)
+
+	if embed.Footer != nil {
+		result = strings.ReplaceAll(result, "{FOOTER}", embed.Footer.Text)
+	} else {
+		result = strings.ReplaceAll(result, "{FOOTER}", "")
+	}
+
+	if embed.Image != nil {
+		result = strings.ReplaceAll(result, "{IMAGE}", embed.Image.URL)
+	} else {
+		result = strings.ReplaceAll(result, "{IMAGE}", "")
+	}
+
+	if embed.Thumbnail != nil {
+		result = strings.ReplaceAll(result, "{THUMBNAIL}", embed.Thumbnail.URL)
+	} else {
+		result = strings.ReplaceAll(result, "{THUMBNAIL}", "")
+	}
+
+	if embed.Video != nil {
+		result = strings.ReplaceAll(result, "{VIDEO}", embed.Video.URL)
+	} else {
+		result = strings.ReplaceAll(result, "{VIDEO}", "")
+	}
+
+	if embed.Provider != nil {
+		result = strings.ReplaceAll(result, "{PROVIDER}", embed.Provider.URL)
+	} else {
+		result = strings.ReplaceAll(result, "{PROVIDER}", "")
+	}
+
+	if embed.Author != nil {
+		result = strings.ReplaceAll(result, "{AUTHOR}", embed.Author.Name)
+		result = strings.ReplaceAll(result, "{AUTHORURL}", embed.Author.URL)
+	} else {
+		result = strings.ReplaceAll(result, "{AUTHOR}", "")
+		result = strings.ReplaceAll(result, "{AUTHORURL}", "")
+	}
 
 	if result != "" {
 		result += "\n"

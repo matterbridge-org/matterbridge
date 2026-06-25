@@ -16,15 +16,6 @@ func handleEmbed(embed *discordgo.MessageEmbed) string {
 	result = strings.ReplaceAll(result, "{URL}", embed.URL)
 	result = strings.ReplaceAll(result, "{TITLE}", embed.Title)
 	result = strings.ReplaceAll(result, "{DESCRIPTION}", embed.Description)
-	result = strings.ReplaceAll(result, "{TIME}", embed.Timestamp)
-	// todo: make these work without making the entire thing panic
-	// result = strings.ReplaceAll(result, "{FOOTER}", embed.Footer.Text)
-	// result = strings.ReplaceAll(result, "{IMAGE}", embed.Image.URL)
-	// result = strings.ReplaceAll(result, "{THUMBNAIL}", embed.Thumbnail.URL)
-	// result = strings.ReplaceAll(result, "{VIDEO}", embed.Video.URL)
-	// result = strings.ReplaceAll(result, "{PROVIDER}", embed.Provider.URL)
-	// result = strings.ReplaceAll(result, "{AUTHOR}", embed.Author.Name)
-	// result = strings.ReplaceAll(result, "{AUTHORURL}", embed.Author.URL)
 
 	if result != "" {
 		result += "\n"
