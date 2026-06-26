@@ -151,10 +151,12 @@ func (b *Brocketchat) Send(msg config.Message) (string, error) {
 			smsg := &models.Message{
 				RoomID: b.getChannelID(rmsg.Channel),
 				Msg:    rmsg.Username + rmsg.Text,
-				PostMessage: models.PostMessage{
+			}
+			if !b.GetBool("PrefixMessagesWithNick") {
+				smsg.PostMessage = models.PostMessage{
 					Avatar: rmsg.Avatar,
 					Alias:  rmsg.Username,
-				},
+				}
 			}
 			if _, err := b.c.SendMessage(smsg); err != nil {
 				b.Log.Errorf("SendMessage failed: %s", err)
@@ -168,10 +170,12 @@ func (b *Brocketchat) Send(msg config.Message) (string, error) {
 	smsg := &models.Message{
 		RoomID: channel.ID,
 		Msg:    msg.Text,
-		PostMessage: models.PostMessage{
+	}
+	if !b.GetBool("PrefixMessagesWithNick") {
+		smsg.PostMessage = models.PostMessage{
 			Avatar: msg.Avatar,
 			Alias:  msg.Username,
-		},
+		}
 	}
 
 	rmsg, err := b.c.SendMessage(smsg)
