@@ -47,6 +47,7 @@
   - Log message type='error' as warnings for easier debugging ([#173](https://github.com/matterbridge-org/matterbridge/pull/173))
   - Can now upload files from bytes in addition to sharing attachement URLs ([#23](https://github.com/matterbridge-org/matterbridge/pull/23/))
   - Can now receive and download OOB attachments from XMPP channels to share with other bridges ([#23](https://github.com/matterbridge-org/matterbridge/pull/23/))
+  - New setting `SkipEncrypted` to ignore encrypted messages (OTR, PGP, OMEMO) ([#217](https://github.com/matterbridge-org/matterbridge/pull/217/))
 - discord
   - Replies will be included inline ([#124](https://github.com/matterbridge-org/matterbridge/pull/124), thanks @lekoOwO), by default like "(re name: message)". This is useful when bridging to destinations that do not understand replies, but distracting when the destination does. Can be disabled with `QuoteDisable=true` under your `[discord]` config.
   - New setting `EditMaxDays` to ignore edits of older messages. ([#199](https://github.com/matterbridge-org/matterbridge/pull/199))

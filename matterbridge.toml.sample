@@ -275,6 +275,11 @@ SkipTLSVerify=true
 #OPTIONAL (default false)
 NoTLS=true
 
+#Drop end-to-end encrypted messages (OMEMO, OTR, OpenPGP) instead of relaying
+#their unusable plaintext fallback to other bridges.
+#OPTIONAL (default false)
+SkipEncrypted=false
+
 ## RELOADABLE SETTINGS
 ## Settings below can be reloaded by editing the file
 
