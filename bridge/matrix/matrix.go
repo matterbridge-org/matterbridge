@@ -186,7 +186,13 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	username := newMatrixUsername(msg.Username)
 
 	body := username.plain + msg.Text
-	formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+
+	var formattedBody string
+	if b.GetBool("DisableMarkdownParsing") {
+		formattedBody = username.formatted + msg.Text
+	} else {
+		formattedBody = username.formatted + helper.ParseMarkdown(msg.Text)
+	}
 
 	if b.GetBool("SpoofUsername") {
 		// https://spec.matrix.org/v1.3/client-server-api/#mroommember
