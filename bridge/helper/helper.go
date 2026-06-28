@@ -14,11 +14,14 @@ import (
 
 	"golang.org/x/image/webp"
 
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/html"
-	"github.com/gomarkdown/markdown/parser"
+	// "github.com/gomarkdown/markdown"
+	// "github.com/gomarkdown/markdown/html"
+	// "github.com/gomarkdown/markdown/parser"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
 var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
@@ -325,18 +328,40 @@ func ClipOrSplitMessage(text string, length int, clippingMessage string, splitMa
 	return msgParts
 }
 
-// ParseMarkdown takes in an input string as markdown and parses it to html
-func ParseMarkdown(input string) string {
-	extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode
-	markdownParser := parser.NewWithExtensions(extensions)
-	renderer := html.NewRenderer(html.RendererOptions{
-		Flags: 0,
-	})
-	parsedMarkdown := markdown.ToHTML([]byte(input), markdownParser, renderer)
-	res := string(parsedMarkdown)
-	res = strings.TrimPrefix(res, "<p>")
-	res = strings.TrimSuffix(res, "</p>\n")
-	return res
+// // ParseMarkdown takes in an input string as markdown and parses it to html
+// func ParseMarkdown(input string) string {
+// 	extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode
+// 	markdownParser := parser.NewWithExtensions(extensions)
+// 	renderer := html.NewRenderer(html.RendererOptions{
+// 		Flags: 0,
+// 	})
+// 	parsedMarkdown := markdown.ToHTML([]byte(input), markdownParser, renderer)
+// 	res := string(parsedMarkdown)
+// 	res = strings.TrimPrefix(res, "<p>")
+// 	res = strings.TrimSuffix(res, "</p>\n")
+// 	return res
+// }
+
+// This is the new ParseMarkdown function
+func ParseMarkdown(input string, logger *logrus.Entry) string {
+	actualInput := []byte(input)
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.Strikethrough,
+			extension.Linkify,
+		),
+		goldmark.WithParserOptions(),
+		goldmark.WithRendererOptions(
+			html.WithHardWraps(),
+			html.WithUnsafe(),
+		),
+	)
+	var buf bytes.Buffer
+	if err := md.Convert(actualInput, &buf); err != nil {
+		logger.Debugf("markdown parser errored with %#v with input \"%v\"\n\n", err, input)
+		return input
+	}
+	return buf.String()
 }
 
 // ConvertWebPToPNG converts input data (which should be WebP format) to PNG format

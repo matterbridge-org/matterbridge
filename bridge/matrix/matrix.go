@@ -186,7 +186,13 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	username := newMatrixUsername(msg.Username)
 
 	body := username.plain + msg.Text
-	formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+
+	var formattedBody string
+	if b.GetBool("DisableMarkdownParsing") {
+		formattedBody = username.formatted + msg.Text
+	} else {
+		formattedBody = username.formatted + helper.ParseMarkdown(msg.Text, b.Log)
+	}
 
 	if b.GetBool("SpoofUsername") {
 		// https://spec.matrix.org/v1.3/client-server-api/#mroommember
@@ -206,7 +212,12 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		_, err := b.mc.SendStateEvent(context.TODO(), roomID, event.StateMember, b.UserID.String(), content)
 		if err == nil {
 			body = msg.Text
-			formattedBody = helper.ParseMarkdown(msg.Text)
+
+			if b.GetBool("DisableMarkdownParsing") {
+				formattedBody = msg.Text
+			} else {
+				formattedBody = helper.ParseMarkdown(msg.Text, b.Log)
+			}
 		}
 	}
 
@@ -817,7 +828,12 @@ func (b *Bmatrix) handleUploadFiles(msg *config.Message, roomID id.RoomID) (stri
 		username := newMatrixUsername(msg.Username)
 		b.Log.Debugf("Sending text message alongside attachment from %s", username.plain)
 		body := username.plain + msg.Text
-		formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+		var formattedBody string
+		if b.GetBool("DisableMarkdownParsing") {
+			formattedBody = username.formatted + msg.Text
+		} else {
+			formattedBody = username.formatted + helper.ParseMarkdown(msg.Text, b.Log)
+		}
 
 		// TODO: message ID
 		_, err := b.sendNormalMessage(roomID, body, formattedBody)
