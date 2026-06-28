@@ -1313,6 +1313,10 @@ NoHomeServerSuffix=false
 #OPTIONAL (default false)
 HTMLDisable=false
 
+#Whether to disable parsing markdown before setting the formatted body
+#OPTIONAL (default false)
+DisableMarkdownParsing=false
+
 ## RELOADABLE SETTINGS
 ## Settings below can be reloaded by editing the file
 

@@ -140,6 +140,7 @@ type Protocol struct {
 	Debug                  bool     // general
 	DebugLevel             int      // only for irc now
 	DeviceID               string   // matrix
+	DisableMarkdownParsing bool     // matrix
 	DisableWebPagePreview  bool     // telegram
 	EditSuffix             string   // mattermost, slack, discord, telegram
 	EditDisable            bool     // mattermost, slack, discord, telegram
