@@ -18,7 +18,7 @@ Unless this option is set, the Matrix client is unencrypted and MxID based login
 
 ## DisableMarkdownParsing
 
-By default, Matterbridge uses [gomarkdown](https://github.com/gomarkdown/markdown) to parse markdown before passing it off to the formatted body. One may wish to override this with their own tengo script or simply disable it if the other end of their setup doesn't even use markdown (e.g. XMPP). Defaults to false for compatibility.
+By default, Matterbridge uses [goldmark](https://github.com/yuin/goldmark) to parse markdown before passing it off to the formatted body. One may wish to override this with their own tengo script or simply disable it if the other end of their setup doesn't even use markdown (e.g. XMPP). Defaults to false for compatibility.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
 - Format: *boolean*

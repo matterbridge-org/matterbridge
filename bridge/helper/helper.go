@@ -13,10 +13,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/image/webp"
-
-	// "github.com/gomarkdown/markdown"
-	// "github.com/gomarkdown/markdown/html"
-	// "github.com/gomarkdown/markdown/parser"
+	
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
 	"github.com/yuin/goldmark"
@@ -328,21 +325,7 @@ func ClipOrSplitMessage(text string, length int, clippingMessage string, splitMa
 	return msgParts
 }
 
-// // ParseMarkdown takes in an input string as markdown and parses it to html
-// func ParseMarkdown(input string) string {
-// 	extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode
-// 	markdownParser := parser.NewWithExtensions(extensions)
-// 	renderer := html.NewRenderer(html.RendererOptions{
-// 		Flags: 0,
-// 	})
-// 	parsedMarkdown := markdown.ToHTML([]byte(input), markdownParser, renderer)
-// 	res := string(parsedMarkdown)
-// 	res = strings.TrimPrefix(res, "<p>")
-// 	res = strings.TrimSuffix(res, "</p>\n")
-// 	return res
-// }
-
-// This is the new ParseMarkdown function
+// ParseMarkdown takes in an input string as markdown and parses it to html
 func ParseMarkdown(input string, logger *logrus.Entry) string {
 	actualInput := []byte(input)
 	md := goldmark.New(
