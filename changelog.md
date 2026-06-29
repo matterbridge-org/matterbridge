@@ -91,6 +91,9 @@
   - when an attachment has no public URL, an error message is printed/logged encouraging the
     matterbridge operator to enable the mediaserver, instead of producing an incoherent message
     ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
+  - KICK events now relay the kicked nick and the kick reason, instead of showing up downstream
+    as a bare join/leave-style line with no indication of who was kicked or why
+    ([#240](https://github.com/matterbridge-org/matterbridge/pull/240))
 
 ## Upstream
 
