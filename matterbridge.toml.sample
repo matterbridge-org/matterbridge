@@ -854,6 +854,9 @@ AllowMention=["everyone", "roles", "users"]
 # ShowEmbeds shows the title, description and URL of embedded messages (sent by other bots)
 ShowEmbeds=false
 
+# EmbedFormat sets the outgoing format for messages sent by users with embeds (e.g. YouTube videos)
+EmbedFormat="\n# {TITLE} ({URL})\n{DESCRIPTION}\n{TIME}"
+
 # UseLocalAvatar specifies source bridges for which an avatar should be 'guessed' when an incoming message has no avatar.
 # This works by comparing the username of the message to an existing Discord user, and using the avatar of the Discord user.
 #
