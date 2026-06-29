@@ -23,6 +23,8 @@ import (
 
 var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
 
+var pTagRE = regexp.MustCompile(`(?s)<p>(.*?)</p>`)
+
 func HttpGetNotOkError(url string, code int) error {
 	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, url, code)
 }
@@ -344,7 +346,20 @@ func ParseMarkdown(input string, logger *logrus.Entry) string {
 		logger.Debugf("markdown parser errored with %#v with input \"%v\"\n\n", err, input)
 		return input
 	}
-	return buf.String()
+	res := buf.String()
+	replaced := false
+	out := pTagRE.ReplaceAllStringFunc(res, func(m string) string {
+		if replaced {
+			return m
+		}
+		replaced = true
+		sub := pTagRE.FindStringSubmatch(m)
+		if len(sub) >= 2 {
+			return sub[1]
+		}
+		return m
+	})
+	return out
 }
 
 // ConvertWebPToPNG converts input data (which should be WebP format) to PNG format
