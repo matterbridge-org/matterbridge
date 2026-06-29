@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/image/webp"
-	
+
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
 	"github.com/yuin/goldmark"
