@@ -35,6 +35,8 @@
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
   - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
+- matrix
+  - Supports MSC4144/puppeting ([#232](https://github.com/matterbridge-org/matterbridge/pulls/232)). See also [MSC4144](https://github.com/matrix-org/matrix-spec-proposals/pulls/4144). Note that this is useless unless you have a client that can display these. Clients that don't will fall back to displaying e.g. `Nick: msg`.
 - irc
   - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
   - irc bridges now handle server connections, channel joins, and messages asynchronously.  performance has been enhanced by moving all calls to the `girc` library to outside of the main goroutine which calls `Send()`, thus avoiding unnecessary locks. Thanks go to github user cjdelisle for the async inspiration ([#230](https://github.com/matterbridge-org/matterbridge/pull/230))
