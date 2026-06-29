@@ -73,6 +73,7 @@
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - video attachments advertise their size properly ([#188](https://github.com/matterbridge-org/matterbridge/pull/188)
   - audio attachments are properly now sent as `m.audio` for valid mimetypes ([#195](https://github.com/matterbridge-org/matterbridge/pull/195))
+  - fixed an active (in matterbridge's version) CVE in a dependcency (gomarkdown) by removing that dependcency in favour of the more functional [goldmark](https://github.com/yuin/goldmark)
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
   - xmpp JID's with "@" or "/" characters in the nick will now be parsed correctly ([#216](https://github.com/matterbridge-org/matterbridge/pull/216))
