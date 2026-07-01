@@ -83,7 +83,12 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	if b.GetBool("UseRelayMsg") && b.GetBool("Colornicks") {
 		b.Log.Warn("UseRelayMsg and Colornicks settings are not compatible with each other!")
 		b.Log.Warn("Please choose one or the other for each bridge.")
-		b.Log.Warnf("Making best attempt with currently misconfigured bridge: %s", b.Account)
+		b.Log.Warnf("Overriding Colornicks and defaulting to UseRelayMsg only on: %s", b.Account)
+		b.SetBool("Colornicks", false)
+	}
+
+	if !b.IsKeySet("UseRelayFallback") {
+		b.SetBool("UseRelayFallback", true)
 	}
 
 	b.FirstConnection = true

@@ -188,6 +188,7 @@ type Protocol struct {
 	RealName               string     // IRC
 	RecoveryKey            string     // matrix
 	RejoinDelay            int        // IRC
+	RelayFallbackNick      string     // IRC, fallback nick to use when SanitizeNick results in an empty message
 	RelayMsgSep            string     // IRC, autodetected, required separator char(s) in relayed nicks, not configurable
 	ReplaceMessages        [][]string // all protocols
 	ReplaceNicks           [][]string // all protocols
@@ -220,6 +221,7 @@ type Protocol struct {
 	UseUserName            bool       // discord, matrix, mattermost
 	UseInsecureURL         bool       // telegram
 	UserName               string     // IRC
+	UseRelayFallback       bool       // IRC, controls whether RelayFallbackNick is used, defaults to true
 	UseRelayMsg            bool       // IRC
 	VerboseJoinPart        bool       // IRC
 	WebhookBindAddress     string     // mattermost, slack
@@ -432,6 +434,7 @@ func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
 		}
 		result = append(result, result2)
 	}
+
 	c.RUnlock()
 
 	return result, true
@@ -440,11 +443,9 @@ func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
 func (c *config) SetVal(key string, value any) {
 	defer c.handlePanic()
 
-	// c.logger.Debugf("SetVal locking for %s", key)
 	c.Lock()
 	c.v.Set(key, value)
 	c.Unlock()
-	// c.logger.Debugf("Unlocked for %s", key)
 }
 
 // IsFilenameBlackListed checks if a given file name matches the

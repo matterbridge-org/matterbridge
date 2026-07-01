@@ -190,7 +190,14 @@ func (gw *Gateway) SendMessage( //nolint:gocyclo,funlen
 	}
 
 	gw.modifyAvatar(&msg, dest)
-	gw.modifyUsername(&msg, dest)
+	errNick := gw.modifyUsername(&msg, dest)
+
+	if errNick != nil && !dest.GetBool("UseRelayFallback") { // We are trying to send to an IRC bridge using RELAYMSG.
+		gw.logger.Debugf("=> UseRelayFallback=false and got error from modifyUsername: %s", errNick)
+		gw.logger.Debugf("=> Dropping %#v from %s (%s) to %s (%s)", msg, msg.Account, rmsg.Channel, dest.Account, channel.Name)
+		// We either switched to a fallback nick, or are dropping the message.
+		return "", errNick
+	}
 
 	msg.ParentID = gw.getDestMsgID(canonicalParentMsgID, dest, channel)
 	if msg.ParentID == "" {
@@ -444,7 +451,7 @@ func (gw *Gateway) ignoreFilesComment(extra map[string][]interface{}, igMessages
 	return false
 }
 
-func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
+func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) error { //nolint:gocyclo,funlen
 	// fix for upstream issue #2043 was written by github user adbenitez
 	// this prevents StripNick (and now also Colornicks) from being applied to the original msg,
 	// and thereby potentially affecting subsequent bridges which lack those settings.
@@ -514,32 +521,42 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
 
 	_, ok := bridgemap.SanitizeNickSupport[dest.Protocol] // irc only, for now.  other bridges can be added to gateway/bridgemap/ files
 	if !ok {
-		return // No further sanitizing supported
+		return nil // No further sanitizing supported
 	}
-
-	fallbacknick := "unknown" // TODO: Make a config setting to change this, or maybe just drop the message instead of sending.
 
 	switch dest.Protocol {
 	case ircProtocol: // Check that we actually want to sanitize the nick - for irc, that's only needed for RelayMsg
 		if dest.GetBool("Colornicks") || !dest.GetBool("UseRelayMsg") {
-			// Colornicks and RelayMsg are mutually exclusive settings
-			return
+			// Colornicks and UseRelayMsg are mutually exclusive settings
+			return nil
+		}
+
+		collisioncheck := dest.GetString("RemoteNickFormat") // Prevent an attacker from impersonating an IRC user's formatted and sanitized nick
+
+		if collisioncheck != "" { // Empty the nick format of all untrusted-input values, leaving potential RELAYMSG separator values
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{NOPINGNICK}", "")
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{BRIDGE}", br.Name)
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{PROTOCOL}", br.Protocol)
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{GATEWAY}", gw.Name)
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{LABEL}", br.GetString("Label"))
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{NICK}", "")
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{USERID}", "")
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{CHANNEL}", "")
+			collisioncheck = strings.ReplaceAll(collisioncheck, "{TENGO}", "")
 		}
 
 		mysep := dest.GetString("RelayMsgSep")
 		if mysep == "" {
 			gw.logger.Debugf("Got empty RelayMsgSep for %s", dest.Account)
 
-			mysep = "/" // Forward-slash and tilde are the defaults for Ergo and go-discord-irc
-			// This guess will hopefully get overwritten with a proper value from the server.
-			// dest.SetString("RelayMsgSep", mysep)
+			mysep = "/"                          // Forward-slash and tilde are the defaults for Ergo and go-discord-irc
+			dest.SetString("RelayMsgSep", mysep) // This guess will hopefully get overwritten with a proper value from the server.
 		} // It's possible that we just recently connected and haven't finished cap negotiation.
 		// Best practice is to include the correct separator(s) in RemoteNickFormat
-		if !strings.ContainsAny(msg.Username, mysep) {
+		if !strings.ContainsAny(collisioncheck, mysep) {
 			// A separator char is not optional.  Maybe a slash will work
 			proto, _ := utf8.DecodeRuneInString(br.Protocol) // get first rune in string
 			sepr, _ := utf8.DecodeRuneInString(mysep)
-			fallbacknick += string(sepr) + string(proto)
 			msg.Username += string(sepr) + string(proto)
 			gw.logger.Debugf("No matching separators in RemoteNickFormat, trying to guess.\n >> Currently relaying pre-sanitized nick: %s", msg.Username)
 		}
@@ -553,11 +570,12 @@ func (gw *Gateway) modifyUsername(msg *config.Message, dest *bridge.Bridge) {
 SANITIZE:
 	err = dest.SanitizeNick(msg)
 
-	if err != nil || msg.Username == "" { // We got an error, switch to the fallback nick.
+	if err != nil { // We got an error, so we either switched to the fallback nick, or are canceling this msg send.
+		// TODO: Do this using context.Cancel instead of returning an error
 		gw.logger.Errorf("SanitizeNick error on %s: %s", dest.Account, err)
-
-		msg.Username = fallbacknick
 	}
+
+	return err
 }
 
 func (gw *Gateway) modifyAvatar(msg *config.Message, dest *bridge.Bridge) {

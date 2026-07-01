@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"golang.org/x/text/secure/precis"
@@ -23,6 +24,7 @@ const (
 )
 
 var (
+	errEmptyNickNoFallback  = errors.New("sanitizing resulted in empty nick, with no fallback enabled")
 	errSanitizerEmpty       = errors.New("sanitizing resulted in empty nick")
 	usernameNoCasemapNoBidi = precis.NewIdentifier(precis.FoldWidth, precis.Norm(norm.NFC),
 		precis.DisallowEmpty, precis.IgnoreCase)
@@ -74,7 +76,7 @@ var (
 )
 
 func (b *Birc) SanitizeNick(msg *config.Message) error {
-	cleanednick, err := b.sanitizeNick(msg.Username)
+	cleanednick, err := b.sanitizeNick(strings.TrimSpace(msg.Username))
 	if err != nil {
 		b.Log.Errorf("SanitizeNick on %s for %s failed: %s", msg.Username, b.Account, err)
 	}
@@ -92,6 +94,7 @@ func (b *Birc) SanitizeNick(msg *config.Message) error {
 // https://github.com/jlu5/ircv3-specifications/blob/master/extensions/relaymsg.md
 func (b *Birc) sanitizeNick(nick string) (string, error) {
 	var cleaned string
+
 	var folded string
 
 	switch b.Casemapping {
@@ -99,22 +102,24 @@ func (b *Birc) sanitizeNick(nick string) (string, error) {
 		b.Log.Debugf("sanitizeNick called with unknown Casemapping setting %s, falling back to ASCII", b.Casemapping)
 		fallthrough
 	case CM_ASCII:
-		cleaned = strings.Map(sanitizeASCII, strings.TrimSpace(nick))
+		cleaned = strings.Map(sanitizeASCII, nick)
 		folded = cleaned
 	case CM_RFC1459:
-		cleaned = strings.Map(sanitizeASCII, strings.TrimSpace(nick))
+		cleaned = strings.Map(sanitizeASCII, nick)
 		folded = rfc1459Replacer.Replace(cleaned)
 	case CM_RFC1459STRICT:
-		cleaned = strings.Map(sanitizeASCII, strings.TrimSpace(nick))
+		cleaned = strings.Map(sanitizeASCII, nick)
 		folded = rfc1459StrictReplacer.Replace(cleaned)
 	case CM_PRECIS:
-		cleaned = strings.Map(sanitizePRECIS, strings.TrimSpace(nick))
+		cleaned = strings.Map(sanitizePRECIS, nick)
+
 		folded = b.toPRECIS(cleaned)
 		if folded == CM_UNKNOWN {
 			folded = strings.Map(sanitizeASCII, cleaned)
 		}
 	case CM_PERMISSIVE:
-		cleaned = strings.Map(sanitizeORIG, strings.TrimSpace(nick))
+		cleaned = strings.Map(sanitizeORIG, nick)
+
 		folded = b.toPermissive(cleaned)
 		if folded == CM_UNKNOWN {
 			cleaned = strings.Map(sanitizePRECIS, cleaned)
@@ -126,15 +131,28 @@ func (b *Birc) sanitizeNick(nick string) (string, error) {
 		}
 	}
 
-	for strings.Index(folded, "-") == 0 && len(folded) > 1 { // Ergo dislikes dashes as the first char of the nick
+	for strings.Index(folded, "-") == 0 && utf8.RuneCountInString(folded) > 1 { // Ergo dislikes dashes as the first char of the nick
 		folded = folded[1:]
 	}
 
-	if folded == "" {
-		return "", errSanitizerEmpty
+	mysep := b.GetString("RelayMsgSep") // If this setting was empty, it was temporarily set in the gateway before calling SanitizeNick for the first time
+
+	if utf8.RuneCountInString(folded) > 2 && strings.ContainsAny(folded, mysep) {
+		return folded, nil
 	}
 
-	return folded, nil
+	// Handle the edge case where sanitizing results in an empty nick, except for two chars added by the gateway
+	if !b.GetBool("UseRelayFallback") {
+		return "", errEmptyNickNoFallback
+	}
+
+	fallbacknick := b.GetString("RelayFallbackNick")
+	if fallbacknick == "" {
+		fallbacknick = "unknown"
+		b.SetString("RelayFallbackNick", fallbacknick)
+	}
+
+	return fallbacknick + folded, errSanitizerEmpty
 }
 
 func (b *Birc) toPRECIS(str string) string {
@@ -147,15 +165,12 @@ func (b *Birc) toPRECIS(str string) string {
 }
 
 func (b *Birc) toPermissive(str string) string {
-	// b.Log.Debugf("%s in toPermissive", str)
 	if !permissiveCharsRegex.MatchString(str) {
 		return CM_UNKNOWN
 	}
 
 	str = norm.NFD.String(str)
-	// str = cases.Fold().String(str)
-	// str = norm.NFD.String(str)
-	// b.Log.Debugf("returning %s", str)
+
 	return str
 }
 

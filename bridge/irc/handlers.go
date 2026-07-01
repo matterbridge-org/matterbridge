@@ -229,6 +229,7 @@ func (b *Birc) handleCapRelay(client *girc.Client, event girc.Event) {
 		if b.relayMsgDone && event.Params[1] != girc.CAP_NEW {
 			return // We're done here, unless the server has rehashed with a new separator
 		}
+
 		caps := strings.Split(event.Last(), " ")
 
 		for cap := range caps {
