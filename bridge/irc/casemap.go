@@ -13,7 +13,7 @@ import (
 )
 
 // the current possible Ergo config options for its "casemapping" setting.
-// we'll use handleCap in handlers.go to figure out which to use
+// we'll use handleCapRelay in handlers.go to figure out which to use
 const (
 	CM_ASCII         = "ascii"
 	CM_RFC1459       = "rfc1459"
@@ -21,6 +21,8 @@ const (
 	CM_PRECIS        = "precis"
 	CM_PERMISSIVE    = "permissive"
 	CM_UNKNOWN       = "@unknown"
+	CM_DISALLOWED    = "!+%@&#$:'\"?*,." // disallowed for RELAYMSG in general
+	CM_ERGO_FIRST    = "~-"              // additional chars that Ergo disallows as the first char
 )
 
 var (
@@ -30,7 +32,7 @@ var (
 		precis.DisallowEmpty, precis.IgnoreCase)
 
 	sanitizeORIG = func(r rune) rune {
-		if strings.ContainsRune("!+%@&#$:'\"?*,.", r) || unicode.IsSpace(r) { // include check for any whitespace
+		if strings.ContainsRune(CM_DISALLOWED, r) || unicode.IsSpace(r) { // include check for any whitespace
 			return '-'
 		}
 
@@ -40,7 +42,7 @@ var (
 	isASCII = func(r rune) bool { return r <= unicode.MaxASCII }
 
 	sanitizeASCII = func(r rune) rune {
-		if strings.ContainsRune("!+%@&#$:'\"?*,.", r) || unicode.IsSpace(r) || !isASCII(r) { // include check for whitespace and non-ascii
+		if strings.ContainsRune(CM_DISALLOWED, r) || unicode.IsSpace(r) || !isASCII(r) { // include check for whitespace and non-ascii
 			return '-'
 		}
 
@@ -50,7 +52,7 @@ var (
 	allowedPRECIS = usernameNoCasemapNoBidi.Allowed()
 
 	sanitizePRECIS = func(r rune) rune {
-		if strings.ContainsRune("!+%@&#$:'\"?*,.", r) || unicode.IsSpace(r) || !allowedPRECIS.Contains(r) {
+		if strings.ContainsRune(CM_DISALLOWED, r) || unicode.IsSpace(r) || !allowedPRECIS.Contains(r) {
 			return '-'
 		}
 
@@ -131,17 +133,15 @@ func (b *Birc) sanitizeNick(nick string) (string, error) {
 		}
 	}
 
-	for strings.Index(folded, "-") == 0 && utf8.RuneCountInString(folded) > 1 { // Ergo dislikes dashes as the first char of the nick
-		folded = folded[1:]
-	}
+	folded = strings.TrimLeft(folded, CM_ERGO_FIRST) // Ergo dislikes dashes and tildes as the first char of the nick
 
-	mysep := b.GetString("RelayMsgSep") // If this setting was empty, it was temporarily set in the gateway before calling SanitizeNick for the first time
+	mysep := b.GetString("RelayMsgSep") // If this setting was empty, it was temporarily set in the gateway before calling SanitizeNick
 
-	if utf8.RuneCountInString(folded) > 2 && strings.ContainsAny(folded, mysep) {
+	if utf8.RuneCountInString(folded) > 1 && strings.ContainsAny(folded, mysep) {
 		return folded, nil
 	}
 
-	// Handle the edge case where sanitizing results in an empty nick, except for two chars added by the gateway
+	// Handle the edge case where sanitizing results in an empty nick
 	if !b.GetBool("UseRelayFallback") {
 		return "", errEmptyNickNoFallback
 	}
