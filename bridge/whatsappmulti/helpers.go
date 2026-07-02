@@ -128,7 +128,28 @@ func (b *Bwhatsapp) GetProfilePicThumb(jid string) (*types.ProfilePictureInfo, e
 func isGroupJid(identifier string) bool {
 	return strings.HasSuffix(identifier, "@g.us") ||
 		strings.HasSuffix(identifier, "@temp") ||
-		strings.HasSuffix(identifier, "@broadcast")
+		strings.HasSuffix(identifier, "@broadcast") ||
+		strings.HasSuffix(identifier, "@newsletter")
+}
+
+func (b *Bwhatsapp) getNewsletterName(jid types.JID) string {
+	b.RLock()
+	name, ok := b.newsletterNames[jid.String()]
+	b.RUnlock()
+	if ok {
+		return name
+	}
+	return "Unknown Channel"
+}
+
+func (b *Bwhatsapp) listNewsletterJIDs() []string {
+	b.RLock()
+	jids := make([]string, len(b.subscribedNewsletters))
+	for i, nl := range b.subscribedNewsletters {
+		jids[i] = nl.ID.String()
+	}
+	b.RUnlock()
+	return jids
 }
 
 func (b *Bwhatsapp) getDevice() (*store.Device, error) {
