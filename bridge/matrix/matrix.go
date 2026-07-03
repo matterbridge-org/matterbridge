@@ -555,6 +555,41 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 			b.cacheDisplayName(ev.Sender, ev.Content.AsMember().Displayname)
 		}
 	}
+
+	if b.GetBool("nosendjoinpart") {
+		return
+	}
+	if ev.Sender != b.UserID {
+		b.RLock()
+		channel, ok := b.RoomMap[ev.RoomID]
+		b.RUnlock()
+		if !ok {
+			b.Log.Debugf("Unknown room %s", ev.RoomID)
+			return
+		}
+
+		joinpart := ""
+		joinpart_event := config.EventJoinLeave
+		if ev.Content["membership"] == "join" {
+ 		   joinpart = "joins"
+		   joinpart_event = config.EventJoin
+		} else {
+	          joinpart = "parts"
+		  joinpart_event = config.EventLeave
+		}
+		msg := config.Message{
+			Username: b.getDisplayName(ev.Sender),
+			Channel:  channel,
+			Text:     joinpart,
+			Account:  b.Account,
+			UserID:   ev.Sender,
+			ID:       ev.ID,
+			Avatar:   b.getAvatarURL(ev.Sender),
+			Event:    joinpart_event,
+		}
+		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
+		b.Remote <- msg
+	}
 }
 
 //nolint:funlen // This function is necessarily long because it is an event handler
