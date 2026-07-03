@@ -20,10 +20,11 @@ import (
 	_ "github.com/paulrosania/go-charset/data"
 )
 
-const utf8charset = "utf-8"
-const errInvalidNick = "INVALID_NICK"
-const cmdRelayMsg = "RELAYMSG"
-const cmdKick = "KICK"
+const (
+	utf8charset    = "utf-8"
+	errInvalidNick = "INVALID_NICK"
+	cmdRelayMsg    = "RELAYMSG"
+)
 
 // this handler actually gets called when sending out to an IRC bridge, not when receiving a privmsg via the irc library.
 // refer to handlePrivMsg() for the latter (including attempted autodetection when no charset is specified)
@@ -211,28 +212,19 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 		text := formatJoinLeaveText(event, b.GetBool("verbosejoinpart"))
 		msg := config.Message{
 			Username: event.Source.Name,
-			Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
-			Channel: channel,
-			Account: b.Account,
-			Event:   config.EventJoinLeave,
+			Text:     text,
+			Channel:  channel,
+			Account:  b.Account,
+			Event:    config.EventJoinLeave,
 		}
-		if event.Command == "JOIN" {
-			msg = config.Message{
-				Username: event.Source.Name,
-				Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
-				Channel: channel,
-				Account: b.Account,
-				Event:   config.EventJoin,
-			}
-		} else if event.Command == "PART" {
-			msg = config.Message{
-				Username: event.Source.Name,
-				Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
-				Channel: channel,
-				Account: b.Account,
-				Event:   config.EventLeave,
-			}
+
+		switch event.Command {
+		case girc.JOIN:
+			msg.Event = config.EventJoin
+		case girc.PART:
+			msg.Event = config.EventLeave
 		}
+
 		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
 		b.Log.Debugf("<= Message is %#v", msg)
 		b.Remote <- msg
@@ -472,10 +464,10 @@ func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 	i.Handlers.Clear("CTCP_ACTION")
 	i.Handlers.Clear(girc.RPL_TOPICWHOTIME)
 	i.Handlers.Clear(girc.NOTICE)
-	i.Handlers.Clear("JOIN")
-	i.Handlers.Clear("PART")
+	i.Handlers.Clear(girc.JOIN)
+	i.Handlers.Clear(girc.PART)
 	i.Handlers.Clear("QUIT")
-	i.Handlers.Clear("KICK")
+	i.Handlers.Clear(girc.KICK)
 	i.Handlers.Clear("INVITE")
 	i.Handlers.Clear(girc.RPL_ISUPPORT)
 	i.Handlers.Clear(girc.CAP)
@@ -490,13 +482,13 @@ func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 	i.Handlers.AddBg("PRIVMSG", b.handlePrivMsg)
 	i.Handlers.AddBg(girc.RPL_TOPICWHOTIME, b.handleTopicWhoTime)
 	i.Handlers.AddBg(girc.NOTICE, b.handleNotice)
-	i.Handlers.AddBg("JOIN", b.handleJoinPart)
-	i.Handlers.Add("JOIN", b.handleJoinPartPrefix) // to handle the initial part of the MessagePrefix calculations
-	i.Handlers.AddBg("PART", b.handleJoinPart)
-	i.Handlers.Add("QUIT", b.handleJoinPartQUIT)    // Foreground this to make sure b.authDone, etc. get reset on ping timeout
-	i.Handlers.AddBg(cmdKick, b.handleJoinPartKICK) // Background this because it sleeps, but need to figure out an alternative.
-	i.Handlers.AddBg(cmdKick, b.handleJoinPart)     // Relay kicks of other channel members as usual
-	i.Handlers.Add("INVITE", b.handleInvite)        // handleInvite obtains a read lock, so make sure it comes home
+	i.Handlers.AddBg(girc.JOIN, b.handleJoinPart)
+	i.Handlers.Add(girc.JOIN, b.handleJoinPartPrefix) // to handle the initial part of the MessagePrefix calculations
+	i.Handlers.AddBg(girc.PART, b.handleJoinPart)
+	i.Handlers.Add("QUIT", b.handleJoinPartQUIT)      // Foreground this to make sure b.authDone, etc. get reset on ping timeout
+	i.Handlers.AddBg(girc.KICK, b.handleJoinPartKICK) // Background this because it sleeps, but need to figure out an alternative.
+	i.Handlers.AddBg(girc.KICK, b.handleJoinPart)     // Relay kicks of other channel members as usual
+	i.Handlers.Add("INVITE", b.handleInvite)          // handleInvite obtains a read lock, so make sure it comes home
 
 	i.Handlers.Add(girc.RPL_ISUPPORT, b.handleISupportBOT) // enable bot mode
 	i.Handlers.Add(girc.RPL_ISUPPORT, b.handleISupportCM)  // determine casemapping value

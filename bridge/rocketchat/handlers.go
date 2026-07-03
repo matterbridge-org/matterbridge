@@ -50,13 +50,12 @@ func (b *Brocketchat) handleStatusEvent(ev models.Message, rmsg *config.Message)
 		// this is a normal message, no processing needed
 		// return true so the message is not dropped
 		return true
-	case sUserJoined, sUserLeft:
-		rmsg.Event = config.EventJoinLeave
-		return true
 	case sUserJoined:
 		rmsg.Event = config.EventJoin
+		return true
 	case sUserLeft:
 		rmsg.Event = config.EventLeave
+		return true
 	case sRoomChangedTopic:
 		rmsg.Event = config.EventTopicChange
 		return true

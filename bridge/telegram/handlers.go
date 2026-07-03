@@ -281,7 +281,7 @@ func (b *Btelegram) handleUserJoin(update tgbotapi.Update) {
 	for _, user := range msg.NewChatMembers {
 		rmsg := config.Message{
 			UserID:   strconv.FormatInt(user.ID, 10),
-			Username: user.FirstName, // for some reason all the other name felids are empty on this event (at least for me)
+			Username: user.FirstName, // for some reason all the other name fields are empty on this event (at least for me)
 			Channel:  strconv.FormatInt(msg.Chat.ID, 10),
 			Account:  b.Account,
 			Protocol: b.Protocol,
@@ -298,7 +298,7 @@ func (b *Btelegram) handleUserLeave(update tgbotapi.Update) {
 
 	rmsg := config.Message{
 		UserID:   strconv.FormatInt(user.ID, 10),
-		Username: user.FirstName, // for some reason all the other name felids are empty on this event (at least for me)
+		Username: user.FirstName, // for some reason all the other name fields are empty on this event (at least for me)
 		Channel:  strconv.FormatInt(msg.Chat.ID, 10),
 		Account:  b.Account,
 		Protocol: b.Protocol,

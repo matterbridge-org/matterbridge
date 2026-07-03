@@ -11,6 +11,8 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
+const systemUsername = "system"
+
 func (b *Bmattermost) doConnectWebhookBind() error {
 	switch {
 	case b.GetString("WebhookURL") != "":
@@ -176,9 +178,6 @@ func (b *Bmattermost) sendWebhook(msg config.Message) (string, error) {
 func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 	// Handle join/leave
 	skipJoinMessageTypes := map[string]struct{}{
-		"system_join_leave":          {},
-		"system_leave_channel":       {}, // deprecated for system_remove_from_channel
-		"system_join_channel":        {}, // deprecated for system_add_to_channel
 		"system_add_to_channel":      {},
 		"system_remove_from_channel": {},
 		"system_add_to_team":         {},
@@ -198,23 +197,21 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 		}
 
 		switch message.Type {
-		case "system_join_channel":
 		case "system_add_to_channel":
 			b.Log.Debugf("Sending JOIN event from %s to gateway", b.Account)
 
 			b.Remote <- config.Message{
-				Username: "system",
+				Username: systemUsername,
 				Text:     message.Text,
 				Channel:  channelName,
 				Account:  b.Account,
 				Event:    config.EventJoin,
 			}
-		case "system_leave_channel":
 		case "system_remove_from_channel":
 			b.Log.Debugf("Sending LEAVE event from %s to gateway", b.Account)
 
 			b.Remote <- config.Message{
-				Username: "system",
+				Username: systemUsername,
 				Text:     message.Text,
 				Channel:  channelName,
 				Account:  b.Account,
