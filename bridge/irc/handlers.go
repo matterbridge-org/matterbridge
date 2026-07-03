@@ -211,26 +211,26 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 		text := formatJoinLeaveText(event, b.GetBool("verbosejoinpart"))
 		msg := config.Message{
 			Username: event.Source.Name,
-			Text: strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host, 
-			Channel: channel, 
-			Account: b.Account, 
-			Event: config.EventJoinLeave,
+			Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
+			Channel: channel,
+			Account: b.Account,
+			Event:   config.EventJoinLeave,
 		}
 		if event.Command == "JOIN" {
 			msg = config.Message{
 				Username: event.Source.Name,
-				Text: strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host, 
-				Channel: channel, 
-				Account: b.Account, 
-				Event: config.EventJoin,
+				Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
+				Channel: channel,
+				Account: b.Account,
+				Event:   config.EventJoin,
 			}
 		} else if event.Command == "PART" {
 			msg = config.Message{
 				Username: event.Source.Name,
-				Text: strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host, 
-				Channel: channel, 
-				Account: b.Account, 
-				Event: config.EventLeave,
+				Text:     strings.ToLower(event.Command) + "s", UserID: event.Source.Ident + "@" + event.Source.Host,
+				Channel: channel,
+				Account: b.Account,
+				Event:   config.EventLeave,
 			}
 		}
 		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)

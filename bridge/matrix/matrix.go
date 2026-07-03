@@ -320,7 +320,9 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	}
 
 	// Use notices to send join/leave events
-	if msg.Event == config.EventJoinLeave {
+	if msg.Event == config.EventJoin ||
+		msg.Event == config.EventJoin ||
+		msg.Event == config.EventLeave {
 		content := event.MessageEventContent{
 			MsgType:       event.MsgNotice,
 			Body:          body,
@@ -552,7 +554,7 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 
 	if content.Membership == event.MembershipJoin {
 		if content.Displayname != "" {
-			b.cacheDisplayName(ev.Sender, ev.Content.AsMember().Displayname)
+			b.cacheDisplayName(ev.Sender, content.Displayname)
 		}
 	}
 
@@ -571,11 +573,11 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 		joinpart := ""
 		joinpart_event := config.EventJoinLeave
 		if ev.Content["membership"] == "join" {
- 		   joinpart = "joins"
-		   joinpart_event = config.EventJoin
+			joinpart = "joins"
+			joinpart_event = config.EventJoin
 		} else {
-	          joinpart = "parts"
-		  joinpart_event = config.EventLeave
+			joinpart = "parts"
+			joinpart_event = config.EventLeave
 		}
 		msg := config.Message{
 			Username: b.getDisplayName(ev.Sender),

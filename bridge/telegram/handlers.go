@@ -285,7 +285,7 @@ func (b *Btelegram) handleUserJoin(update tgbotapi.Update) {
 			Channel:  strconv.FormatInt(msg.Chat.ID, 10),
 			Account:  b.Account,
 			Protocol: b.Protocol,
-			Event:    config.EventJoinLeave,
+			Event:    config.EventJoin,
 			Text:     "joined chat",
 		}
 		b.Remote <- rmsg
@@ -302,7 +302,7 @@ func (b *Btelegram) handleUserLeave(update tgbotapi.Update) {
 		Channel:  strconv.FormatInt(msg.Chat.ID, 10),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Event:    config.EventJoinLeave,
+		Event:    config.EventLeave,
 		Text:     "left chat",
 	}
 

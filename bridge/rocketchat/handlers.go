@@ -5,6 +5,7 @@ import (
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
+
 	// Library even upstream no longer actively maintained, should be replaced:
 	"github.com/matterbridge/Rocket.Chat.Go.SDK/models"
 )
@@ -52,6 +53,10 @@ func (b *Brocketchat) handleStatusEvent(ev models.Message, rmsg *config.Message)
 	case sUserJoined, sUserLeft:
 		rmsg.Event = config.EventJoinLeave
 		return true
+	case sUserJoined:
+		rmsg.Event = config.EventJoin
+	case sUserLeft:
+		rmsg.Event = config.EventLeave
 	case sRoomChangedTopic:
 		rmsg.Event = config.EventTopicChange
 		return true
