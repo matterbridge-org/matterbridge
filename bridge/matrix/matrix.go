@@ -321,8 +321,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 
 	// Use notices to send join/leave events
 	if msg.Event == config.EventJoin ||
-		msg.Event == config.EventJoin ||
-		msg.Event == config.EventLeave {
+		msg.Event == config.EventLeave ||
+		msg.Event == config.EventJoinLeave {
 		content := event.MessageEventContent{
 			MsgType:       event.MsgNotice,
 			Body:          body,
@@ -570,25 +570,36 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 			return
 		}
 
-		joinpart := ""
-		joinpart_event := config.EventJoinLeave
-		if ev.Content["membership"] == "join" {
-			joinpart = "joins"
-			joinpart_event = config.EventJoin
-		} else {
-			joinpart = "parts"
-			joinpart_event = config.EventLeave
-		}
 		msg := config.Message{
-			Username: b.getDisplayName(ev.Sender),
+			Username: b.getDisplayName(ctx, ev.Sender),
 			Channel:  channel,
-			Text:     joinpart,
 			Account:  b.Account,
-			UserID:   ev.Sender,
-			ID:       ev.ID,
-			Avatar:   b.getAvatarURL(ev.Sender),
-			Event:    joinpart_event,
+			UserID:   ev.Sender.String(),
+			ID:       ev.ID.String(),
+			Avatar:   b.getAvatarURL(ctx, ev.Sender),
+			Event:    config.EventJoinLeave,
 		}
+
+		switch content.Membership {
+		case event.MembershipJoin:
+			msg.Text = "joins"
+			msg.Event = config.EventJoin
+		case event.MembershipLeave:
+			msg.Text = "parts"
+			msg.Event = config.EventLeave
+		case event.MembershipBan:
+			return
+		case event.MembershipKnock:
+			return
+		case event.MembershipInvite:
+			return
+		default:
+			b.Log.Debugf("<= Got unknown Membership event from %s to gateway", b.Account)
+			b.Log.Debugf("event is: %#v", ev)
+
+			return
+		}
+
 		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
 		b.Remote <- msg
 	}
