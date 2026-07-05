@@ -118,12 +118,22 @@ func (b *Bmumble) handleJoinLeave(event *gumble.UserChangeEvent) {
 	}
 
 	if text != "" {
-		b.Remote <- config.Message{
-			Username: "system",
-			Text:     event.User.Name + text,
-			Channel:  strconv.FormatUint(uint64(*b.Channel), 10),
-			Account:  b.Account,
-			Event:    config.EventJoinLeave,
+		if text == " joined" {
+			b.Remote <- config.Message{
+				Username: "system",
+				Text:     event.User.Name + text,
+				Channel:  strconv.FormatUint(uint64(*b.Channel), 10),
+				Account:  b.Account,
+				Event:    config.EventJoin,
+			}
+		} else {
+			b.Remote <- config.Message{
+				Username: "system",
+				Text:     event.User.Name + text,
+				Channel:  strconv.FormatUint(uint64(*b.Channel), 10),
+				Account:  b.Account,
+				Event:    config.EventLeave,
+			}
 		}
 	}
 }

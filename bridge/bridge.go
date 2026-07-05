@@ -23,6 +23,7 @@ type Bridger interface {
 	Disconnect() error
 	NewHttpRequest(method, uri string, body io.Reader) (*http.Request, error)
 	NewHttpClient(proxy string) (*http.Client, error)
+	SanitizeNick(msg *config.Message) error // Ensure that a bridge will accept the relayed nick as valid
 }
 
 type Bridge struct {
@@ -77,24 +78,11 @@ func (b *Bridge) JoinChannels() error {
 
 // SetChannelMembers sets the newMembers to the bridge ChannelMembers
 func (b *Bridge) SetChannelMembers(newMembers *config.ChannelMembers) {
+	defer b.handlePanic()
+
 	b.Lock()
 	b.ChannelMembers = newMembers
 	b.Unlock()
-}
-
-func (b *Bridge) joinChannels(channels map[string]config.ChannelInfo, exists map[string]bool) error {
-	for ID, channel := range channels {
-		if !exists[ID] {
-			b.Log.Infof("%s: joining %s (ID: %s)", b.Account, channel.Name, ID)
-			time.Sleep(time.Duration(b.GetInt("JoinDelay")) * time.Millisecond)
-			err := b.JoinChannel(channel)
-			if err != nil {
-				return err
-			}
-			exists[ID] = true
-		}
-	}
-	return nil
 }
 
 func (b *Bridge) GetConfigKey(key string) string {
@@ -143,6 +131,32 @@ func (b *Bridge) GetStringSlice2D(key string) [][]string {
 		val, _ = b.Config.GetStringSlice2D("general." + key)
 	}
 	return val
+}
+
+func (b *Bridge) SetBool(key string, val bool) {
+	b.SetVal(b.GetConfigKey(key), val)
+}
+
+func (b *Bridge) SetInt(key string, val int) {
+	b.SetVal(b.GetConfigKey(key), val)
+}
+
+func (b *Bridge) SetString(key string, val string) {
+	b.SetVal(b.GetConfigKey(key), val)
+}
+
+func (b *Bridge) SetStringSlice(key string, val []string) {
+	b.SetVal(b.GetConfigKey(key), val)
+}
+
+func (b *Bridge) SetStringSlice2D(key string, val [][]string) {
+	b.SetVal(b.GetConfigKey(key), val)
+}
+
+// SetVal can be called with "general." prepended to the key instead of using
+// one of the above Set functions, to override a setting in the [general] section.
+func (b *Bridge) SetVal(key string, value any) {
+	b.Config.SetVal(key, value)
 }
 
 // NewHttpClient produces a single unified http.Client per bridge.
@@ -309,6 +323,34 @@ func (b *Bridge) AddAvatarFromBytes(msg *config.Message, filename string, id str
 // this method in the bridge struct.
 func (b *Bridge) NewHttpRequest(method, uri string, body io.Reader) (*http.Request, error) {
 	return http.NewRequest(method, uri, body)
+}
+
+// TODO: add a check for whether any mutex locks are currently active (debug mode only)
+func (b *Bridge) handlePanic() {
+	rec := recover()
+	if rec != nil {
+		b.Log.Warnf("Recovered from panic: %#v", rec)
+	}
+}
+
+func (b *Bridge) joinChannels(channels map[string]config.ChannelInfo, exists map[string]bool) error {
+	for ID, channel := range channels {
+		if exists[ID] {
+			continue
+		}
+
+		b.Log.Infof("%s: joining %s (ID: %s)", b.Account, channel.Name, ID)
+		time.Sleep(time.Duration(b.GetInt("JoinDelay")) * time.Millisecond)
+
+		err := b.JoinChannel(channel)
+		if err != nil {
+			return err
+		}
+
+		exists[ID] = true
+	}
+
+	return nil
 }
 
 // Internal method including common parts to attachment/avatar handling methods.
