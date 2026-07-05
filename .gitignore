@@ -15,4 +15,4 @@ matterbridge.toml
 # OS files
 .DS_Store
 *~
-#*#
+\#*#
