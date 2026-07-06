@@ -237,7 +237,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 				FormattedBody: formattedBody,
 				Format:        event.FormatHTML,
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
+					ID:          msg.UserID + "/" + username.plain,
 					Displayname: username.plain,
 					AvatarURL:   &avatar,
 					HasFallback: true,
@@ -334,7 +334,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					Format:        event.FormatHTML,
 					MsgType:       event.MsgText,
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-						ID:          msg.UserID,
+						ID:          msg.UserID + "/" + username.plain,
 						Displayname: username.plain,
 						AvatarURL:   &avatar,
 						HasFallback: true,
@@ -345,7 +345,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					Type:    event.RelReplace,
 				},
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
+					ID:          msg.UserID + "/" + username.plain,
 					Displayname: username.plain,
 					AvatarURL:   &avatar,
 					HasFallback: true,
@@ -444,7 +444,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 					},
 				},
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
+					ID:          msg.UserID + "/" + username.plain,
 					Displayname: username.plain,
 					AvatarURL:   &avatar,
 					HasFallback: true,
@@ -1052,7 +1052,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						Size:     len(*fi.Data),
 					},
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-						ID:          msg.UserID,
+						ID:          msg.UserID + "/" + username.plain,
 						Displayname: username.plain,
 						AvatarURL:   &avatar,
 						HasFallback: true,
@@ -1106,7 +1106,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 					Height:   cfg.Height, // #nosec G115 -- go std will not returned negative size
 				},
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
+					ID:          msg.UserID + "/" + username.plain,
 					Displayname: username.plain,
 					AvatarURL:   &avatar,
 					HasFallback: true,
@@ -1159,7 +1159,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						Size:     len(*fi.Data),
 					},
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-						ID:          msg.UserID,
+						ID:          msg.UserID + "/" + username.plain,
 						Displayname: username.plain,
 						AvatarURL:   &avatar,
 						HasFallback: true,
@@ -1200,7 +1200,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 						Size:     len(*fi.Data),
 					},
 					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-						ID:          msg.UserID,
+						ID:          msg.UserID + "/" + username.plain,
 						Displayname: username.plain,
 						AvatarURL:   &avatar,
 						HasFallback: true,
@@ -1257,7 +1257,7 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, user
 				MsgType: event.MsgText,
 				Body:    body,
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
+					ID:          msg.UserID + "/" + username.plain,
 					Displayname: username.plain,
 					AvatarURL:   &avatar,
 					HasFallback: true,
@@ -1296,7 +1296,7 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 				FormattedBody: formattedBody,
 				Format:        event.FormatHTML,
 				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
-					ID:          msg.UserID,
+					ID:          msg.UserID + "/" + username.plain,
 					Displayname: username.plain,
 					AvatarURL:   &avatar,
 					HasFallback: true,
