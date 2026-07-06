@@ -226,12 +226,25 @@ JoinDelay=0
 #See https://github.com/42wim/matterbridge/issues/667#issuecomment-634214165 for more details.
 #Spoofed nicks will use the configured RemoteNickFormat, replacing reserved IRC characters
 #(!+%@&#$:'"?*,.) with a hyphen (-).
+#Any hyphens at the beginning of the nick will then be removed from the nick, to comply with Ergo IRC servers.
 #On most configurations, the RemoteNickFormat must include a separator character such as "/".
 #You should make sure that the settings here match your IRCd.
 #This option overrides ColorNicks.
 #OPTIONAL (default false)
 UseRelayMsg=false
 #RemoteNickFormat="{NICK}/{PROTOCOL}"
+
+#When UseRelayMsg is true, and sanitizing a relayed nick completely wipes it out, a fallback can be used.
+#Note that this can potentially allow for anonymized messages to be sent to an IRC bridge.
+#If this is set to false, and a sanitized nick results as empty,
+#then the message will be dropped instead of relayed.
+#OPTIONAL (default true)
+UseRelayFallback=true
+
+#The fallback nick to be used for an empty relayed nick.
+#OPTIONAL (default "unknown")
+RelayFallbackNick="unknown"
+
 
 ###################################################################
 #XMPP section
@@ -1299,6 +1312,10 @@ NoHomeServerSuffix=false
 #See https://github.com/42wim/matterbridge/issues/1022
 #OPTIONAL (default false)
 HTMLDisable=false
+
+#Whether to disable parsing markdown before setting the formatted body
+#OPTIONAL (default false)
+DisableMarkdownParsing=false
 
 ## RELOADABLE SETTINGS
 ## Settings below can be reloaded by editing the file

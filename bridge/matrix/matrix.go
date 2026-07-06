@@ -187,7 +187,13 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	username := newMatrixUsername(msg.Username)
 
 	body := username.plain + msg.Text
-	formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+
+	var formattedBody string
+	if b.GetBool("DisableMarkdownParsing") {
+		formattedBody = username.formatted + msg.Text
+	} else {
+		formattedBody = username.formatted + helper.ParseMarkdown(msg.Text, b.Log)
+	}
 
 	if b.GetBool("SpoofUsername") {
 		// https://spec.matrix.org/v1.3/client-server-api/#mroommember
@@ -207,7 +213,12 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		_, err := b.mc.SendStateEvent(context.TODO(), roomID, event.StateMember, b.UserID.String(), content)
 		if err == nil {
 			body = msg.Text
-			formattedBody = helper.ParseMarkdown(msg.Text)
+
+			if b.GetBool("DisableMarkdownParsing") {
+				formattedBody = msg.Text
+			} else {
+				formattedBody = helper.ParseMarkdown(msg.Text, b.Log)
+			}
 		}
 	}
 
@@ -379,7 +390,9 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	}
 
 	// Use notices to send join/leave events
-	if msg.Event == config.EventJoinLeave {
+	if msg.Event == config.EventJoin ||
+		msg.Event == config.EventLeave ||
+		msg.Event == config.EventJoinLeave {
 		content := event.MessageEventContent{
 			MsgType:       event.MsgNotice,
 			Body:          body,
@@ -638,8 +651,54 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 
 	if content.Membership == event.MembershipJoin {
 		if content.Displayname != "" {
-			b.cacheDisplayName(ev.Sender, ev.Content.AsMember().Displayname)
+			b.cacheDisplayName(ev.Sender, content.Displayname)
 		}
+	}
+
+	if b.GetBool("nosendjoinpart") {
+		return
+	}
+	if ev.Sender != b.UserID {
+		b.RLock()
+		channel, ok := b.RoomMap[ev.RoomID]
+		b.RUnlock()
+		if !ok {
+			b.Log.Debugf("Unknown room %s", ev.RoomID)
+			return
+		}
+
+		msg := config.Message{
+			Username: b.getDisplayName(ctx, ev.Sender),
+			Channel:  channel,
+			Account:  b.Account,
+			UserID:   ev.Sender.String(),
+			ID:       ev.ID.String(),
+			Avatar:   b.getAvatarURL(ctx, ev.Sender),
+			Event:    config.EventJoinLeave,
+		}
+
+		switch content.Membership {
+		case event.MembershipJoin:
+			msg.Text = "joins"
+			msg.Event = config.EventJoin
+		case event.MembershipLeave:
+			msg.Text = "parts"
+			msg.Event = config.EventLeave
+		case event.MembershipBan:
+			return
+		case event.MembershipKnock:
+			return
+		case event.MembershipInvite:
+			return
+		default:
+			b.Log.Debugf("<= Got unknown Membership event from %s to gateway", b.Account)
+			b.Log.Debugf("event is: %#v", ev)
+
+			return
+		}
+
+		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
+		b.Remote <- msg
 	}
 }
 
@@ -903,7 +962,12 @@ func (b *Bmatrix) handleUploadFiles(msg *config.Message, roomID id.RoomID) (stri
 		username := newMatrixUsername(msg.Username)
 		b.Log.Debugf("Sending text message alongside attachment from %s", username.plain)
 		body := username.plain + msg.Text
-		formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+		var formattedBody string
+		if b.GetBool("DisableMarkdownParsing") {
+			formattedBody = username.formatted + msg.Text
+		} else {
+			formattedBody = username.formatted + helper.ParseMarkdown(msg.Text, b.Log)
+		}
 
 		// TODO: message ID
 		_, err := b.sendNormalMessage(roomID, body, formattedBody, username, msg)

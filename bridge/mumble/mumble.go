@@ -242,7 +242,7 @@ func (b *Bmumble) processMessage(msg *config.Message) {
 	}
 	// If HTML is allowed, convert markdown into HTML, otherwise strip markdown
 	if allowHTML {
-		msg.Text = helper.ParseMarkdown(msg.Text)
+		msg.Text = helper.ParseMarkdown(msg.Text, b.Log)
 	} else {
 		msg.Text = stripmd.Strip(msg.Text)
 	}

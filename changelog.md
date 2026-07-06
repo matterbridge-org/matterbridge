@@ -37,9 +37,13 @@
   - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
 - matrix
   - Supports MSC4144/puppeting ([#232](https://github.com/matterbridge-org/matterbridge/pulls/232)). See also [MSC4144](https://github.com/matrix-org/matrix-spec-proposals/pulls/4144). Note that this is useless unless you have a client that can display these. Clients that don't will fall back to displaying e.g. `Nick: msg`.
+  - the Viper configuration functions have been updated to defer a panic-handling function instead of deferring their RWMutex RUnlock calls.  This became necessary due to the new "SetVal" function, which may be used to override a configuration setting; this is now the first time a write lock has been used within the config package.  Otherwise, obtaining a write lock could have caused matterbridge to behave as a single-threaded application, due to the numerous RLock calls made from multiple bridges during runtime.
+  - a new bridge function "SanitizeNick" has been made available to any bridge that chooses to implement it.  This is useful for puppeting support when certain characters are disallowed in the puppeted nicks.  Only the irc bridge has an implementation of this so far. ([#239](https://github.com/matterbridge-org/matterbridge/pull/239))
+  - new bridge functions "SetBool", "SetString", "SetInt", etc. have been added, which provide override values for the Viper config settings for that bridge.  These settings do not persist upon restart.
 - irc
   - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
   - irc bridges now handle server connections, channel joins, and messages asynchronously.  performance has been enhanced by moving all calls to the `girc` library to outside of the main goroutine which calls `Send()`, thus avoiding unnecessary locks. Thanks go to github user cjdelisle for the async inspiration ([#230](https://github.com/matterbridge-org/matterbridge/pull/230))
+  - irc bridges with `UseRelayMsg` set will now automatically discover the required separator character(s) and apply one if it is missing from the `RemoteNickFormat`.  they will also automatically adapt the encoding of relayed nicks, depending on the server's "casemapping" configuration, allowing for unicode support in the relayed nicks if the server supports them.  to handle the edge case where a nick has been completely erased during pre-relaymsg sanitizing, the config settings `UseRelayFallback` and `RelayFallbackNick` have been added, defaulting to `true` and "unknown", respectively.  Note that this could potentially allow for anonymized messages to be sent to irc bridges.
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
@@ -75,6 +79,7 @@
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - video attachments advertise their size properly ([#188](https://github.com/matterbridge-org/matterbridge/pull/188)
   - audio attachments are properly now sent as `m.audio` for valid mimetypes ([#195](https://github.com/matterbridge-org/matterbridge/pull/195))
+  - fixed an active (in matterbridge's version) CVE in a dependcency (gomarkdown) by removing that dependcency in favour of the more functional [goldmark](https://github.com/yuin/goldmark)
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
   - xmpp JID's with "@" or "/" characters in the nick will now be parsed correctly ([#216](https://github.com/matterbridge-org/matterbridge/pull/216))

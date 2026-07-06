@@ -130,6 +130,7 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/wiggin77/merror v1.0.5 // indirect
 	github.com/wiggin77/srslog v1.0.1 // indirect
+	github.com/yuin/goldmark v1.8.2 // indirect
 	go.mau.fi/libsignal v0.2.1 // indirect
 	go.mau.fi/util v0.9.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

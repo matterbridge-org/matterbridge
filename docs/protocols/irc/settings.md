@@ -20,7 +20,7 @@ The selected charset will be converted to utf-8 when sent to other, non-irc brid
 ## ColorNicks
 
 ColorNicks will show each nickname in a different color.
-Only works in IRC right now.
+Only works in IRC right now.  Will be overridden by UseRelayMsg if both are set.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
 - Format: *boolean*
@@ -256,6 +256,7 @@ Enable to use TLS connection to your irc server.
 ## UseRelayMsg
 
 Enable to replace bot's nick with user's nick.
+Will override Colornicks if both are set.
 - `RemoteNickFormat` has to contain `/`.
 The server has to support RELAYMSG.
 Bot may need to be channel operator to use RELAYMSG.
@@ -265,6 +266,33 @@ Bot may need to be channel operator to use RELAYMSG.
 - Example:
   ```toml
   UseRelayMsg=true
+  ```
+
+## UseRelayFallback
+
+Enable to replace empty post-sanitizing relayed nick with a fallback.
+This can potentially allow for anonymized messages to be sent to IRC bridges.
+If this is set to false, and a sanitized nick results as empty,
+then the message will be dropped instead of relayed.
+
+- Setting: OPTIONAL
+- Default: true
+- Format: *boolean*
+- Example:
+  ```toml
+  UseRelayMsg=true
+  ```
+
+## RelayFallbackNick
+
+The nick to replace empty sanitized nicks when using UseRelayMsg
+
+- Setting: OPTIONAL
+- Default: "unknown"
+- Format: *string*
+- Example:
+  ```toml
+  RelayFallbackNick="unknown"
   ```
 
 ## VerboseJoinPart
