@@ -502,6 +502,19 @@ func (b *Bslack) handleDownloadFile(rmsg *config.Message, file *slack.File, retr
 	if b.fileCached(file) {
 		return nil
 	}
+
+	// Files attached to events received over the socket mode Events API are
+	// "lite" objects without download URLs, so we have to fetch the full
+	// file object first. See https://github.com/matterbridge-org/matterbridge/issues/241
+	// and https://docs.slack.dev/reference/events/file_shared/#usage-info
+	if file.URLPrivateDownload == "" {
+		fullFile, _, _, err := b.sc.GetFileInfo(file.ID, 0, 0)
+		if err != nil {
+			return fmt.Errorf("GetFileInfo for file %s failed: %w", file.ID, err)
+		}
+		file = fullFile
+	}
+
 	// Check that the file is neither too large nor blacklisted.
 	if err := helper.HandleDownloadSize(b.Log, rmsg, file.Name, int64(file.Size), b.General); err != nil {
 		b.Log.WithError(err).Infof("Skipping download of incoming file.")

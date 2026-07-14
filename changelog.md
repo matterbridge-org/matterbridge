@@ -86,6 +86,9 @@
   - attachments of mixed types in the same message will be uploaded as documents
 - slack
   - file uploading now use the new upload steps described in the slack docs via `UploadFileV2`, replacing the deprecated and now disabled `file.upload` based method (via `UploadFile`) ([#129](https://github.com/matterbridge-org/matterbridge/pull/129))
+  - file and image downloads now work with Socket Mode apps: the Events API delivers file objects
+    without download URLs, so the full file object is now fetched via `files.info` before
+    downloading ([#245](https://github.com/matterbridge-org/matterbridge/pull/245))
 - discord
   - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
     longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37), [#114](https://github.com/matterbridge-org/matterbridge/pull/114))
