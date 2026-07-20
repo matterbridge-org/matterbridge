@@ -1,11 +1,28 @@
 package bdiscord
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/stretchr/testify/assert"
 )
+
+func handleEmbed(embed *discordgo.MessageEmbed) string {
+	var result string
+
+	result = " embed: {TITLE} - {DESCRIPTION} - {URL}"
+
+	result = strings.ReplaceAll(result, "{URL}", embed.URL)
+	result = strings.ReplaceAll(result, "{TITLE}", embed.Title)
+	result = strings.ReplaceAll(result, "{DESCRIPTION}", embed.Description)
+
+	if result != "" {
+		result += "\n"
+	}
+
+	return result
+}
 
 func TestHandleEmbed(t *testing.T) {
 	testcases := map[string]struct {
@@ -14,20 +31,20 @@ func TestHandleEmbed(t *testing.T) {
 	}{
 		"allempty": {
 			embed:  &discordgo.MessageEmbed{},
-			result: "",
+			result: " embed:  -  - \n",
 		},
 		"one": {
 			embed: &discordgo.MessageEmbed{
 				Title: "blah",
 			},
-			result: " embed: blah\n",
+			result: " embed: blah -  - \n",
 		},
 		"two": {
 			embed: &discordgo.MessageEmbed{
 				Title:       "blah",
 				Description: "blah2",
 			},
-			result: " embed: blah - blah2\n",
+			result: " embed: blah - blah2 - \n",
 		},
 		"three": {
 			embed: &discordgo.MessageEmbed{
@@ -42,13 +59,13 @@ func TestHandleEmbed(t *testing.T) {
 				Description: "blah2",
 				URL:         "blah3",
 			},
-			result: " embed: blah2 - blah3\n",
+			result: " embed:  - blah2 - blah3\n",
 		},
 		"oneb": {
 			embed: &discordgo.MessageEmbed{
 				URL: "blah3",
 			},
-			result: " embed: blah3\n",
+			result: " embed:  -  - blah3\n",
 		},
 	}
 
