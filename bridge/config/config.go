@@ -223,6 +223,7 @@ type Protocol struct {
 	UseFirstName           bool       // telegram
 	UseUserName            bool       // discord, matrix, mattermost
 	UseInsecureURL         bool       // telegram
+	UseMSC4144             bool       // matrix
 	UserName               string     // IRC
 	UseRelayFallback       bool       // IRC, controls whether RelayFallbackNick is used, defaults to true
 	UseRelayMsg            bool       // IRC
