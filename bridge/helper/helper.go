@@ -14,14 +14,16 @@ import (
 
 	"golang.org/x/image/webp"
 
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/html"
-	"github.com/gomarkdown/markdown/parser"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
 var errHttpGetNotOk = errors.New("HTTP server responded non-OK code")
+
+var pTagRE = regexp.MustCompile(`(?s)<p>(.*?)</p>`)
 
 func HttpGetNotOkError(url string, code int) error {
 	return fmt.Errorf("%w: %s returned code %d", errHttpGetNotOk, url, code)
@@ -134,6 +136,55 @@ func GetSubLines(message string, maxLineLength int, clippingMessage string) []st
 		// as we assume that the byte-length of the last rune will never exceed that of
 		// the byte-length of the clipping message.
 		lines = append(lines, line[splitStart:])
+	}
+	return lines
+}
+
+// GetSubLinesWords splits messages in newline-delimited lines. If maxLineLength is
+// specified as non-zero GetSubLinesWords will also clip long lines to the maximum
+// length and insert a warning marker that the line was clipped. It tries to respect word boundaries.
+func GetSubLinesWords(message string, maxLineLength int, clippingMessage string) []string {
+	if clippingMessage == "" {
+		clippingMessage = " <clipped message>"
+	}
+
+	var lines []string
+	for line := range strings.SplitSeq(strings.TrimSpace(message), "\n") {
+		if line == "" {
+			// Prevent sending empty messages, so we'll skip this line
+			// if it has no content.
+			continue
+		}
+
+		if maxLineLength == 0 || len([]byte(line)) <= maxLineLength {
+			lines = append(lines, line)
+			continue
+		}
+
+		clipMsgLen := len([]byte(clippingMessage))
+		idx := 0
+
+		for idx < (len(line)) {
+			endofline := idx + maxLineLength - clipMsgLen
+			if endofline >= (len(line)) {
+				lines = append(lines, line[idx:])
+				break
+			}
+			linesegment := line[idx:endofline]
+			splitMidWord := false
+
+			lastword := strings.LastIndex(linesegment, " ")
+			if lastword == -1 { // No space found, so cut at a rune
+				lastword = len(linesegment)
+				splitMidWord = true
+			}
+			linesegment = linesegment[:lastword]
+			idx += lastword
+			if !splitMidWord {
+				idx++ // Skip over the space we found
+			}
+			lines = append(lines, linesegment+clippingMessage)
+		}
 	}
 	return lines
 }
@@ -277,17 +328,38 @@ func ClipOrSplitMessage(text string, length int, clippingMessage string, splitMa
 }
 
 // ParseMarkdown takes in an input string as markdown and parses it to html
-func ParseMarkdown(input string) string {
-	extensions := parser.HardLineBreak | parser.NoIntraEmphasis | parser.FencedCode
-	markdownParser := parser.NewWithExtensions(extensions)
-	renderer := html.NewRenderer(html.RendererOptions{
-		Flags: 0,
+func ParseMarkdown(input string, logger *logrus.Entry) string {
+	actualInput := []byte(input)
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.Strikethrough,
+			extension.Linkify,
+		),
+		goldmark.WithParserOptions(),
+		goldmark.WithRendererOptions(
+			html.WithHardWraps(),
+			html.WithUnsafe(),
+		),
+	)
+	var buf bytes.Buffer
+	if err := md.Convert(actualInput, &buf); err != nil {
+		logger.Debugf("markdown parser errored with %#v with input \"%v\"\n\n", err, input)
+		return input
+	}
+	res := buf.String()
+	replaced := false
+	out := pTagRE.ReplaceAllStringFunc(res, func(m string) string {
+		if replaced {
+			return m
+		}
+		replaced = true
+		sub := pTagRE.FindStringSubmatch(m)
+		if len(sub) >= 2 {
+			return sub[1]
+		}
+		return m
 	})
-	parsedMarkdown := markdown.ToHTML([]byte(input), markdownParser, renderer)
-	res := string(parsedMarkdown)
-	res = strings.TrimPrefix(res, "<p>")
-	res = strings.TrimSuffix(res, "</p>\n")
-	return res
+	return out
 }
 
 // ConvertWebPToPNG converts input data (which should be WebP format) to PNG format

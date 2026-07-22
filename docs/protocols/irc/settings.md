@@ -5,11 +5,12 @@
 
 ## Charset
 
-If you know your charset, you can specify it manually. Otherwise it tries to detect this automatically.
+If you know your charset, you can specify it manually.  Set to "autodetect" to try to detect this automatically.
  
-The selected charset will be converted to utf-8 when sent to other bridges.
+The selected charset will be converted to utf-8 when sent to other, non-irc bridges.
 
 - Setting: **OPTIONAL**
+- Default: "utf-8"
 - Format: *string*
 - Example:
   ```toml
@@ -19,7 +20,7 @@ The selected charset will be converted to utf-8 when sent to other bridges.
 ## ColorNicks
 
 ColorNicks will show each nickname in a different color.
-Only works in IRC right now.
+Only works in IRC right now.  Will be overridden by UseRelayMsg if both are set.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
 - Format: *boolean*
@@ -68,15 +69,16 @@ Delay in milliseconds between each message send to the IRC server.
 
 ## MessageLength
 
-Maximum length of message sent to irc server. If it exceeds
-`<message clipped>` will be add to the message.
+Maximum length of message sent to irc server, including bot nick, user and hostname, channel name, formatted remote nick, etc.
+If it exceeds, `<message clipped>` will be added to the message and multiple lines will be sent.
+Can be overridden if the IRC server sets the LINELEN token in an ISUPPORT message.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
-- Default: *400*
+- Default: *512*
 - Format: *int*
 - Example:
   ```toml
-  MessageLength=400
+  MessageLength=512
   ```
 
 ## MessageQueue
@@ -94,10 +96,10 @@ messages will be dropped.
   ```
 
 ## MessageSplit
-Split messages on `MessageLength` instead of showing the `<message clipped>`
-WARNING: this could lead to flooding
+Split messages on `MessageLength` instead of relying on the irc library to do it.
 
 - Setting: **OPTIONAL**, **RELOADABLE**
+- Default: *true*
 - Format: *boolean*
 - Example:
   ```toml
@@ -254,6 +256,7 @@ Enable to use TLS connection to your irc server.
 ## UseRelayMsg
 
 Enable to replace bot's nick with user's nick.
+Will override Colornicks if both are set.
 - `RemoteNickFormat` has to contain `/`.
 The server has to support RELAYMSG.
 Bot may need to be channel operator to use RELAYMSG.
@@ -263,6 +266,33 @@ Bot may need to be channel operator to use RELAYMSG.
 - Example:
   ```toml
   UseRelayMsg=true
+  ```
+
+## UseRelayFallback
+
+Enable to replace empty post-sanitizing relayed nick with a fallback.
+This can potentially allow for anonymized messages to be sent to IRC bridges.
+If this is set to false, and a sanitized nick results as empty,
+then the message will be dropped instead of relayed.
+
+- Setting: OPTIONAL
+- Default: true
+- Format: *boolean*
+- Example:
+  ```toml
+  UseRelayMsg=true
+  ```
+
+## RelayFallbackNick
+
+The nick to replace empty sanitized nicks when using UseRelayMsg
+
+- Setting: OPTIONAL
+- Default: "unknown"
+- Format: *string*
+- Example:
+  ```toml
+  RelayFallbackNick="unknown"
   ```
 
 ## VerboseJoinPart

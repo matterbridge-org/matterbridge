@@ -23,6 +23,9 @@
 - irc: Leading colon messages are no longer doubled by default as an undocumented hack (eg `:D` -> `::D`); it's now enabled by the `DoubleColonPrefix` setting.
   If you are using this setting please help us understand the usecase by commenting
   on [issue #122](https://github.com/matterbridge-org/matterbridge/issues/122), otherwise this setting may be deprecated in the near-future.
+- irc: Charset for irc bridges will now be set to a default of "UTF-8", to avoid mojibake when attempting to automatically guess the incoming charset.  If you want to try autodetecting, you will need to set this to "autodetect" for the irc bridge.  Ideally, you will know which charset to set and won't have to try to guess.  Even with autodetection set, UTF-8 will be checked first before trying anything else, then fall back to latin-1 if the autodetection fails.  This should mostly address ([#120](https://github.com/matterbridge-org/matterbridge/issues/120))
+- irc: Destination bridges which have `Colornicks` set, and are not using `StripNick` nor `UseRelayMsg`, when receiving from bridges that allow spaces in the nickname (e.g. Discord, XMPP), will see those spaces in the nick replaced with non-breaking spaces.  This is to facilitate using spaces as delimiters for the new `Colornicks` behavior ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
+- irc: Messages are now split by default at word boundaries, with a maximum length per line of `MessageLength` (default of 512), and which now takes into account the channel name, prefix length (botnick!user@host), formatted remote nick, and other padding.  This is now controlled by the `MessageSplit` setting, which when disabled, will rely on the `girc` library to perform any required splitting.  The `MessageLength` setting can be overridden by a server that sends a LINELEN token in an ISUPPORT message when connecting.  Fixes ([#190](https://github.com/matterbridge-org/matterbridge/issues/190))
 
 ## New Features
 
@@ -32,6 +35,15 @@
   - matterbridge is now built with whatsappmulti backend enabled by default, unless the `nowhatsappmulti` build tag is passed
   - Docker images are now automatically built and published to `ghcr.io/matterbridge-org/matterbridge` ([#86](https://github.com/matterbridge-org/matterbridge/pull/86))
   - matterbridge will now apply a default `RemoteNickFormat` setting of `"[{PROTOCOL}] <{NICK}> "` which may be overridden by individual bridge settings, environment variables, or the `General` section of the config file, fulfilling the enhancement requested at ([#162](https://github.com/matterbridge-org/matterbridge/issues/162))
+- matrix
+  - Supports MSC4144/puppeting ([#232](https://github.com/matterbridge-org/matterbridge/pulls/232)). See also [MSC4144](https://github.com/matrix-org/matrix-spec-proposals/pulls/4144). Note that this is useless unless you have a client that can display these. Clients that don't will fall back to displaying e.g. `Nick: msg`.
+  - the Viper configuration functions have been updated to defer a panic-handling function instead of deferring their RWMutex RUnlock calls.  This became necessary due to the new "SetVal" function, which may be used to override a configuration setting; this is now the first time a write lock has been used within the config package.  Otherwise, obtaining a write lock could have caused matterbridge to behave as a single-threaded application, due to the numerous RLock calls made from multiple bridges during runtime.
+  - a new bridge function "SanitizeNick" has been made available to any bridge that chooses to implement it.  This is useful for puppeting support when certain characters are disallowed in the puppeted nicks.  Only the irc bridge has an implementation of this so far. ([#239](https://github.com/matterbridge-org/matterbridge/pull/239))
+  - new bridge functions "SetBool", "SetString", "SetInt", etc. have been added, which provide override values for the Viper config settings for that bridge.  These settings do not persist upon restart.
+- irc
+  - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
+  - irc bridges now handle server connections, channel joins, and messages asynchronously.  performance has been enhanced by moving all calls to the `girc` library to outside of the main goroutine which calls `Send()`, thus avoiding unnecessary locks. Thanks go to github user cjdelisle for the async inspiration ([#230](https://github.com/matterbridge-org/matterbridge/pull/230))
+  - irc bridges with `UseRelayMsg` set will now automatically discover the required separator character(s) and apply one if it is missing from the `RemoteNickFormat`.  they will also automatically adapt the encoding of relayed nicks, depending on the server's "casemapping" configuration, allowing for unicode support in the relayed nicks if the server supports them.  to handle the edge case where a nick has been completely erased during pre-relaymsg sanitizing, the config settings `UseRelayFallback` and `RelayFallbackNick` have been added, defaulting to `true` and "unknown", respectively.  Note that this could potentially allow for anonymized messages to be sent to irc bridges.
 - mastodon
   - Add new Mastodon bridge ([#14](https://github.com/matterbridge-org/matterbridge/pull/14)/[#16](https://github.com/matterbridge-org/matterbridge/pull/16), thanks @lil5)
   - Supports public messages and private messages
@@ -49,7 +61,7 @@
   - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
 - slack
   - added support for using socket mode Events API to receive messages for bridging instead of RTM.
-    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).  
+    this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).
     note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
 
 ## Bugfixes
@@ -57,6 +69,7 @@
 - general
   - when downloading a file attachment from a remote HTTP server, matterbridge will now error if
     the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
+  - fix for upstream issue 42wim#2043 by github user adbenitez's [fork](https://github.com/adbenitez/matterbridge/tree/adb/issue-2043) which will prevent per-destination message modifications for one bridge, such as for `StripNick` or `ColorNicks`, from being incorrectly applied to the original message that will be sent to other bridges which may not be using such settings
 - matrix
   - attachments received from matrix are working again, with authenticated media (MSC3916) implemented ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - attachment body is treated as attachment caption and will no longer produce bogus text messages on other bridges ([#169](https://github.com/matterbridge-org/matterbridge/pull/169/))
@@ -66,22 +79,31 @@
   - image attachments are now sent as images with more metadata ([#61](https://github.com/matterbridge-org/matterbridge/pull/61))
   - video attachments advertise their size properly ([#188](https://github.com/matterbridge-org/matterbridge/pull/188)
   - audio attachments are properly now sent as `m.audio` for valid mimetypes ([#195](https://github.com/matterbridge-org/matterbridge/pull/195))
+  - fixed an active (in matterbridge's version) CVE in a dependcency (gomarkdown) by removing that dependcency in favour of the more functional [goldmark](https://github.com/yuin/goldmark)
 - xmpp
   - various upstream go-xmpp changes fix connection on SASL2 with PLAIN auth
+  - xmpp JID's with "@" or "/" characters in the nick will now be parsed correctly ([#216](https://github.com/matterbridge-org/matterbridge/pull/216))
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
   - attachments of mixed types in the same message will be uploaded as documents
 - slack
   - file uploading now use the new upload steps described in the slack docs via `UploadFileV2`, replacing the deprecated and now disabled `file.upload` based method (via `UploadFile`) ([#129](https://github.com/matterbridge-org/matterbridge/pull/129))
+  - file and image downloads now work with Socket Mode apps: the Events API delivers file objects
+    without download URLs, so the full file object is now fetched via `files.info` before
+    downloading ([#245](https://github.com/matterbridge-org/matterbridge/pull/245))
 - discord
   - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
     longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37), [#114](https://github.com/matterbridge-org/matterbridge/pull/114))
   - all users in a guild are considered for name lookup instead of only a subset of 1000 ([#198](https://github.com/matterbridge-org/matterbridge/pull/198))
+  - discord now sets `{USERID}` in a `RemoteNickFormat` to the username rather than the actual user ID ([#225](https://github.com/matterbridge-org/matterbridge/pull/225))
 - irc
   - when there are attachments in the message, the body is now sent instead of being discarded silently ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
   - when an attachment has no public URL, an error message is printed/logged encouraging the
     matterbridge operator to enable the mediaserver, instead of producing an incoherent message
     ([#156](https://github.com/matterbridge-org/matterbridge/pull/156))
+  - KICK events now relay the kicked nick and the kick reason, instead of showing up downstream
+    as a bare join/leave-style line with no indication of who was kicked or why
+    ([#240](https://github.com/matterbridge-org/matterbridge/pull/240))
 
 ## Upstream
 

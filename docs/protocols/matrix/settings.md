@@ -16,6 +16,17 @@ Unless this option is set, the Matrix client is unencrypted and MxID based login
   DeviceID="yourdeviceid"
   ```
 
+## DisableMarkdownParsing
+
+By default, Matterbridge uses [goldmark](https://github.com/yuin/goldmark) to parse markdown before passing it off to the formatted body. One may wish to override this with their own tengo script or simply disable it if the other end of their setup doesn't even use markdown (e.g. XMPP). Defaults to false for compatibility.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  DisableMarkdownParsing=true
+  ```
+
 ## HTMLDisable
 
 Whether to disable sending of HTML content to matrix
@@ -136,4 +147,15 @@ Shows the username instead of the displayname
 - Example:
   ```toml
   UseUserName=true
+  ```
+
+## UseMSC4144
+
+Use MSC4144 to set nick per-message. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144. At the moment this is an open proposal and is subject to change. Clients that don't support this will display e.g. `Nick: msg` with the nick in bold.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  UseMSC4144=true
   ```

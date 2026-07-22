@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"regexp"
 	"slices"
@@ -186,7 +187,13 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	username := newMatrixUsername(msg.Username)
 
 	body := username.plain + msg.Text
-	formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+
+	var formattedBody string
+	if b.GetBool("DisableMarkdownParsing") {
+		formattedBody = username.formatted + msg.Text
+	} else {
+		formattedBody = username.formatted + helper.ParseMarkdown(msg.Text, b.Log)
+	}
 
 	if b.GetBool("SpoofUsername") {
 		// https://spec.matrix.org/v1.3/client-server-api/#mroommember
@@ -206,17 +213,43 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 		_, err := b.mc.SendStateEvent(context.TODO(), roomID, event.StateMember, b.UserID.String(), content)
 		if err == nil {
 			body = msg.Text
-			formattedBody = helper.ParseMarkdown(msg.Text)
+
+			if b.GetBool("DisableMarkdownParsing") {
+				formattedBody = msg.Text
+			} else {
+				formattedBody = helper.ParseMarkdown(msg.Text, b.Log)
+			}
 		}
 	}
 
 	// Make a action /me of the message
 	if msg.Event == config.EventUserAction {
-		content := event.MessageEventContent{
-			MsgType:       event.MsgEmote,
-			Body:          body,
-			FormattedBody: formattedBody,
-			Format:        event.FormatHTML,
+		var content event.MessageEventContent
+		if b.GetBool("UseMSC4144") {
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
+			content = event.MessageEventContent{
+				MsgType:       event.MsgEmote,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID + "/" + username.plain,
+					Displayname: username.plain,
+					AvatarURL:   &avatar,
+					HasFallback: true,
+				},
+			}
+		} else {
+			content = event.MessageEventContent{
+				MsgType:       event.MsgEmote,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+			}
 		}
 
 		if b.GetBool("HTMLDisable") {
@@ -283,21 +316,58 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 
 	// Edit message if we have an ID
 	if msg.ID != "" {
-		content := event.MessageEventContent{
-			Body:          "* " + body,
-			FormattedBody: "<b>*</b> " + formattedBody,
-			MsgType:       event.MsgText,
-			Format:        event.FormatHTML,
-			NewContent: &event.MessageEventContent{
-				Body:          body,
-				FormattedBody: formattedBody,
-				Format:        event.FormatHTML,
+		var content event.MessageEventContent
+		if b.GetBool("UseMSC4144") {
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
+			content = event.MessageEventContent{
+				Body:          "* " + body,
+				FormattedBody: "<b>*</b> " + formattedBody,
 				MsgType:       event.MsgText,
-			},
-			RelatesTo: &event.RelatesTo{
-				EventID: id.EventID(msg.ID),
-				Type:    event.RelReplace,
-			},
+				Format:        event.FormatHTML,
+				NewContent: &event.MessageEventContent{
+					Body:          body,
+					FormattedBody: formattedBody,
+					Format:        event.FormatHTML,
+					MsgType:       event.MsgText,
+					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+						ID:          msg.UserID + "/" + username.plain,
+						Displayname: username.plain,
+						AvatarURL:   &avatar,
+						HasFallback: true,
+					},
+				},
+				RelatesTo: &event.RelatesTo{
+					EventID: id.EventID(msg.ID),
+					Type:    event.RelReplace,
+				},
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID + "/" + username.plain,
+					Displayname: username.plain,
+					AvatarURL:   &avatar,
+					HasFallback: true,
+				},
+			}
+		} else {
+			content = event.MessageEventContent{
+				Body:          "* " + body,
+				FormattedBody: "<b>*</b> " + formattedBody,
+				MsgType:       event.MsgText,
+				Format:        event.FormatHTML,
+				NewContent: &event.MessageEventContent{
+					Body:          body,
+					FormattedBody: formattedBody,
+					Format:        event.FormatHTML,
+					MsgType:       event.MsgText,
+				},
+				RelatesTo: &event.RelatesTo{
+					EventID: id.EventID(msg.ID),
+					Type:    event.RelReplace,
+				},
+			}
 		}
 
 		if b.GetBool("HTMLDisable") {
@@ -320,7 +390,9 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	}
 
 	// Use notices to send join/leave events
-	if msg.Event == config.EventJoinLeave {
+	if msg.Event == config.EventJoin ||
+		msg.Event == config.EventLeave ||
+		msg.Event == config.EventJoinLeave {
 		content := event.MessageEventContent{
 			MsgType:       event.MsgNotice,
 			Body:          body,
@@ -352,17 +424,45 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 
 	// Reply to parent if message has a parent id
 	if msg.ParentValid() {
-		content := event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Body:          body,
-			FormattedBody: formattedBody,
-			Format:        event.FormatHTML,
-			RelatesTo: &event.RelatesTo{
-				Type: "m.reply",
-				InReplyTo: &event.InReplyTo{
-					EventID: id.EventID(msg.ParentID),
+		var content event.MessageEventContent
+		if b.GetBool("UseMSC4144") {
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
+
+			content = event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+				RelatesTo: &event.RelatesTo{
+					Type: "m.reply",
+					InReplyTo: &event.InReplyTo{
+						EventID: id.EventID(msg.ParentID),
+					},
 				},
-			},
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID + "/" + username.plain,
+					Displayname: username.plain,
+					AvatarURL:   &avatar,
+					HasFallback: true,
+				},
+			}
+		} else {
+			content = event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+				RelatesTo: &event.RelatesTo{
+					Type: "m.reply",
+					InReplyTo: &event.InReplyTo{
+						EventID: id.EventID(msg.ParentID),
+					},
+				},
+			}
 		}
 
 		if b.GetBool("HTMLDisable") {
@@ -386,9 +486,8 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 
 		return resp.EventID.String(), err
 	}
-
 	// Send a normal message
-	msgID, err := b.sendNormalMessage(roomID, body, formattedBody)
+	msgID, err := b.sendNormalMessage(roomID, body, formattedBody, username, &msg)
 	if err != nil {
 		return "", err
 	}
@@ -552,8 +651,54 @@ func (b *Bmatrix) handleMemberChange(ctx context.Context, ev *event.Event) {
 
 	if content.Membership == event.MembershipJoin {
 		if content.Displayname != "" {
-			b.cacheDisplayName(ev.Sender, ev.Content.AsMember().Displayname)
+			b.cacheDisplayName(ev.Sender, content.Displayname)
 		}
+	}
+
+	if b.GetBool("nosendjoinpart") {
+		return
+	}
+	if ev.Sender != b.UserID {
+		b.RLock()
+		channel, ok := b.RoomMap[ev.RoomID]
+		b.RUnlock()
+		if !ok {
+			b.Log.Debugf("Unknown room %s", ev.RoomID)
+			return
+		}
+
+		msg := config.Message{
+			Username: b.getDisplayName(ctx, ev.Sender),
+			Channel:  channel,
+			Account:  b.Account,
+			UserID:   ev.Sender.String(),
+			ID:       ev.ID.String(),
+			Avatar:   b.getAvatarURL(ctx, ev.Sender),
+			Event:    config.EventJoinLeave,
+		}
+
+		switch content.Membership {
+		case event.MembershipJoin:
+			msg.Text = "joins"
+			msg.Event = config.EventJoin
+		case event.MembershipLeave:
+			msg.Text = "parts"
+			msg.Event = config.EventLeave
+		case event.MembershipBan:
+			return
+		case event.MembershipKnock:
+			return
+		case event.MembershipInvite:
+			return
+		default:
+			b.Log.Debugf("<= Got unknown Membership event from %s to gateway", b.Account)
+			b.Log.Debugf("event is: %#v", ev)
+
+			return
+		}
+
+		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
+		b.Remote <- msg
 	}
 }
 
@@ -817,10 +962,15 @@ func (b *Bmatrix) handleUploadFiles(msg *config.Message, roomID id.RoomID) (stri
 		username := newMatrixUsername(msg.Username)
 		b.Log.Debugf("Sending text message alongside attachment from %s", username.plain)
 		body := username.plain + msg.Text
-		formattedBody := username.formatted + helper.ParseMarkdown(msg.Text)
+		var formattedBody string
+		if b.GetBool("DisableMarkdownParsing") {
+			formattedBody = username.formatted + msg.Text
+		} else {
+			formattedBody = username.formatted + helper.ParseMarkdown(msg.Text, b.Log)
+		}
 
 		// TODO: message ID
-		_, err := b.sendNormalMessage(roomID, body, formattedBody)
+		_, err := b.sendNormalMessage(roomID, body, formattedBody, username, msg)
 		if err != nil {
 			// Assume if there was an error sending a simple text message,
 			// sending the attachments will not be possible.
@@ -845,27 +995,29 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	sp := strings.Split(fi.Name, ".")
 	mtype := mime.TypeByExtension("." + sp[len(sp)-1])
 	// image and video uploads send no username, we have to do this ourself here #715
-	err := b.retry(func() error {
-		content := event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Body:          username.plain + fi.Comment,
-			FormattedBody: username.formatted + fi.Comment,
-			Format:        event.FormatHTML,
+	if !b.GetBool("UseMSC4144") {
+		err := b.retry(func() error {
+			content := event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          username.plain + fi.Comment,
+				FormattedBody: username.formatted + fi.Comment,
+				Format:        event.FormatHTML,
+			}
+
+			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
+
+			return err2
+		})
+		if err != nil {
+			b.Log.Errorf("file comment failed: %#v", err)
 		}
-
-		_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
-
-		return err2
-	})
-	if err != nil {
-		b.Log.Errorf("file comment failed: %#v", err)
 	}
 
 	b.Log.Debugf("uploading file: %s %s", fi.Name, mtype)
 
 	var res *mautrix.RespMediaUpload
 
-	err = b.retry(func() error {
+	err := b.retry(func() error {
 		media := mautrix.ReqUploadMedia{
 			Content:       content,
 			ContentType:   mtype,
@@ -888,14 +1040,37 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	case strings.Contains(mtype, "video"):
 		b.Log.Debugf("sendVideo %s", res.ContentURI)
 		err = b.retry(func() error {
-			content := event.MessageEventContent{
-				MsgType:  event.MsgVideo,
-				FileName: fi.Name,
-				URL:      id.ContentURIString(res.ContentURI.String()),
-				Info: &event.FileInfo{
-					MimeType: mtype,
-					Size:     len(*fi.Data),
-				},
+			var content event.MessageEventContent
+			if b.GetBool("UseMSC4144") {
+				avatar := b.handleAvatar(msg.Avatar)
+				content = event.MessageEventContent{
+					MsgType:  event.MsgVideo,
+					FileName: fi.Name,
+					URL:      id.ContentURIString(res.ContentURI.String()),
+					Info: &event.FileInfo{
+						MimeType: mtype,
+						Size:     len(*fi.Data),
+					},
+					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+						ID:          msg.UserID + "/" + username.plain,
+						Displayname: username.plain,
+						AvatarURL:   &avatar,
+						HasFallback: true,
+					},
+					Format:        event.FormatHTML,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
+					Body:          username.plain + ": " + fi.Name,
+				}
+			} else {
+				content = event.MessageEventContent{
+					MsgType:  event.MsgVideo,
+					FileName: fi.Name,
+					URL:      id.ContentURIString(res.ContentURI.String()),
+					Info: &event.FileInfo{
+						MimeType: mtype,
+						Size:     len(*fi.Data),
+					},
+				}
 			}
 
 			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
@@ -916,16 +1091,43 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 
 		b.Log.Debugf("Image format detected: %s (%dx%d)", format, cfg.Width, cfg.Height)
 
-		img := event.MessageEventContent{
-			MsgType: event.MsgImage,
-			Body:    fi.Name,
-			URL:     id.ContentURIString(res.ContentURI.String()),
-			Info: &event.FileInfo{
-				MimeType: mtype,
-				Size:     len(*fi.Data),
-				Width:    cfg.Width,  // #nosec G115 -- go std will not returned negative size
-				Height:   cfg.Height, // #nosec G115 -- go std will not returned negative size
-			},
+		var img event.MessageEventContent
+		if b.GetBool("UseMSC4144") {
+			avatar := b.handleAvatar(msg.Avatar)
+			img = event.MessageEventContent{
+				MsgType:  event.MsgImage,
+				Body:     username.plain + ": " + fi.Name,
+				FileName: fi.Name,
+				URL:      id.ContentURIString(res.ContentURI.String()),
+				Info: &event.FileInfo{
+					MimeType: mtype,
+					Size:     len(*fi.Data),
+					Width:    cfg.Width,  // #nosec G115 -- go std will not returned negative size
+					Height:   cfg.Height, // #nosec G115 -- go std will not returned negative size
+				},
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID + "/" + username.plain,
+					Displayname: username.plain,
+					AvatarURL:   &avatar,
+					HasFallback: true,
+				},
+				Format:        event.FormatHTML,
+				FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
+			}
+
+			img.AddPerMessageProfileFallback()
+		} else {
+			img = event.MessageEventContent{
+				MsgType: event.MsgImage,
+				Body:    fi.Name,
+				URL:     id.ContentURIString(res.ContentURI.String()),
+				Info: &event.FileInfo{
+					MimeType: mtype,
+					Size:     len(*fi.Data),
+					Width:    cfg.Width,  // #nosec G115 -- go std will not returned negative size
+					Height:   cfg.Height, // #nosec G115 -- go std will not returned negative size
+				},
+			}
 		}
 
 		err = b.retry(func() error {
@@ -945,14 +1147,37 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	}():
 		b.Log.Debugf("sendAudio %s", res.ContentURI)
 		err = b.retry(func() error {
-			content := event.MessageEventContent{
-				MsgType:  event.MsgAudio,
-				FileName: fi.Name,
-				URL:      id.ContentURIString(res.ContentURI.String()),
-				Info: &event.FileInfo{
-					MimeType: mtype,
-					Size:     len(*fi.Data),
-				},
+			var content event.MessageEventContent
+			if b.GetBool("UseMSC4144") {
+				avatar := b.handleAvatar(msg.Avatar)
+				content = event.MessageEventContent{
+					MsgType:  event.MsgAudio,
+					FileName: fi.Name,
+					URL:      id.ContentURIString(res.ContentURI.String()),
+					Info: &event.FileInfo{
+						MimeType: mtype,
+						Size:     len(*fi.Data),
+					},
+					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+						ID:          msg.UserID + "/" + username.plain,
+						Displayname: username.plain,
+						AvatarURL:   &avatar,
+						HasFallback: true,
+					},
+					Format:        event.FormatHTML,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
+					Body:          username.plain + ": " + fi.Name,
+				}
+			} else {
+				content = event.MessageEventContent{
+					MsgType:  event.MsgAudio,
+					FileName: fi.Name,
+					URL:      id.ContentURIString(res.ContentURI.String()),
+					Info: &event.FileInfo{
+						MimeType: mtype,
+						Size:     len(*fi.Data),
+					},
+				}
 			}
 			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
 			return err2
@@ -963,14 +1188,37 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	default:
 		b.Log.Debugf("sendFile %s", res.ContentURI)
 		err = b.retry(func() error {
-			content := event.MessageEventContent{
-				MsgType:  event.MsgFile,
-				FileName: fi.Name,
-				URL:      id.ContentURIString(res.ContentURI.String()),
-				Info: &event.FileInfo{
-					MimeType: mtype,
-					Size:     len(*fi.Data),
-				},
+			var content event.MessageEventContent
+			if b.GetBool("UseMSC4144") {
+				avatar := b.handleAvatar(msg.Avatar)
+				content = event.MessageEventContent{
+					MsgType:  event.MsgFile,
+					FileName: fi.Name,
+					URL:      id.ContentURIString(res.ContentURI.String()),
+					Info: &event.FileInfo{
+						MimeType: mtype,
+						Size:     len(*fi.Data),
+					},
+					BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+						ID:          msg.UserID + "/" + username.plain,
+						Displayname: username.plain,
+						AvatarURL:   &avatar,
+						HasFallback: true,
+					},
+					Format:        event.FormatHTML,
+					FormattedBody: "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + fi.Name,
+					Body:          username.plain + ": " + fi.Name,
+				}
+			} else {
+				content = event.MessageEventContent{
+					MsgType:  event.MsgFile,
+					FileName: fi.Name,
+					URL:      id.ContentURIString(res.ContentURI.String()),
+					Info: &event.FileInfo{
+						MimeType: mtype,
+						Size:     len(*fi.Data),
+					},
+				}
 			}
 
 			_, err2 := b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
@@ -984,25 +1232,41 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 	b.Log.Debugf("result: %#v", res)
 }
 
-func (b *Bmatrix) sendNormalMessage(roomID id.RoomID, body string, formattedBody string) (string, error) {
+func (b *Bmatrix) sendNormalMessage(roomID id.RoomID, body string, formattedBody string, username *matrixUsername, msg *config.Message) (string, error) {
 	if b.GetBool("HTMLDisable") {
 		// Send a plain text message if html is disabled
-		return b.sendNormalMessagePlaintext(roomID, body)
+		return b.sendNormalMessagePlaintext(roomID, body, username, msg)
 	} else {
 		// Post normal message with HTML support (eg riot.im)
-		return b.sendNormalMessageHTML(roomID, body, formattedBody)
+		return b.sendNormalMessageHTML(roomID, body, formattedBody, username, msg)
 	}
 }
 
-func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string) (string, error) {
+func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string, username *matrixUsername, msg *config.Message) (string, error) {
 	var (
 		resp *mautrix.RespSendEvent
 		err  error
 	)
 
 	err = b.retry(func() error {
-		resp, err = b.mc.SendText(context.TODO(), roomID, body)
-
+		if b.GetBool("UseMSC4144") {
+			avatar := b.handleAvatar(msg.Avatar)
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			content := event.MessageEventContent{
+				MsgType: event.MsgText,
+				Body:    body,
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID + "/" + username.plain,
+					Displayname: username.plain,
+					AvatarURL:   &avatar,
+					HasFallback: true,
+				},
+			}
+			resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
+		} else {
+			resp, err = b.mc.SendText(context.TODO(), roomID, body)
+		}
 		return err
 	})
 	if err != nil {
@@ -1012,18 +1276,39 @@ func (b *Bmatrix) sendNormalMessagePlaintext(roomID id.RoomID, body string) (str
 	return resp.EventID.String(), err
 }
 
-func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formattedBody string) (string, error) {
+func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formattedBody string, username *matrixUsername, msg *config.Message) (string, error) {
 	var (
 		resp *mautrix.RespSendEvent
 		err  error
 	)
 
 	err = b.retry(func() error {
-		content := event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Body:          body,
-			FormattedBody: formattedBody,
-			Format:        event.FormatHTML,
+		var content event.MessageEventContent
+		if b.GetBool("UseMSC4144") {
+			body, _ = strings.CutPrefix(body, username.plain)
+			body = username.plain + ": " + body
+			formattedBody, _ = strings.CutPrefix(formattedBody, username.formatted)
+			formattedBody = "<strong data-mx-profile-fallback>" + username.formatted + ": </strong>" + formattedBody
+			avatar := b.handleAvatar(msg.Avatar)
+			content = event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+				BeeperPerMessageProfile: &event.BeeperPerMessageProfile{
+					ID:          msg.UserID + "/" + username.plain,
+					Displayname: username.plain,
+					AvatarURL:   &avatar,
+					HasFallback: true,
+				},
+			}
+		} else {
+			content = event.MessageEventContent{
+				MsgType:       event.MsgText,
+				Body:          body,
+				FormattedBody: formattedBody,
+				Format:        event.FormatHTML,
+			}
 		}
 
 		resp, err = b.mc.SendMessageEvent(context.TODO(), roomID, event.EventMessage, content)
@@ -1035,4 +1320,47 @@ func (b *Bmatrix) sendNormalMessageHTML(roomID id.RoomID, body string, formatted
 	}
 
 	return resp.EventID.String(), err
+}
+
+func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
+	u, err := url.Parse(urlS)
+	if err != nil {
+		b.Log.Debugf("URL parse for avatar error: %#v", err)
+		return ""
+	}
+	req, err2 := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err2 != nil {
+		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
+		return ""
+	}
+	client := &http.Client{}
+	resp, err3 := client.Do(req)
+	if err3 != nil {
+		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
+		return ""
+	}
+	defer func() {
+		if err4 := resp.Body.Close(); err4 != nil {
+			b.Log.Debugf("Error closing HTTP body: %#v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		b.Log.Debugf("HTTP GET for avatar error: status code %#v", resp.StatusCode)
+		return ""
+	}
+	sp := strings.Split(urlS, ".")
+	mtype := mime.TypeByExtension("." + sp[len(sp)-1])
+	media := mautrix.ReqUploadMedia{
+		Content:       resp.Body,
+		ContentType:   mtype,
+		ContentLength: resp.ContentLength,
+	}
+
+	res, err5 := b.mc.UploadMedia(context.TODO(), media)
+	if err5 != nil {
+		b.Log.Debugf("error uploading avatar to matrix homeserver: %#v", err)
+		return ""
+	}
+	return id.ContentURIString(res.ContentURI.String())
 }

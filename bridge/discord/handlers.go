@@ -146,7 +146,7 @@ func (b *Bdiscord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreat
 		return
 	}
 
-	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: m.Author.ID, ID: m.ID, Extra: make(map[string][]interface{})}
+	rmsg := config.Message{Account: b.Account, Avatar: "https://cdn.discordapp.com/avatars/" + m.Author.ID + "/" + m.Author.Avatar + ".jpg", UserID: "@" + m.Author.Username, ID: m.ID, Extra: make(map[string][]interface{})} // here we use .jpg over .webp for wider support across bridges and clients in general. discord automatically converts as needed anyhow.
 
 	b.Log.Debugf("== Receiving event %#v", m.Message)
 
@@ -289,7 +289,7 @@ func (b *Bdiscord) memberAdd(s *discordgo.Session, m *discordgo.GuildMemberAdd) 
 
 	rmsg := config.Message{
 		Account:  b.Account,
-		Event:    config.EventJoinLeave,
+		Event:    config.EventJoin,
 		Username: "system",
 		Text:     username + " joins",
 	}
@@ -317,7 +317,7 @@ func (b *Bdiscord) memberRemove(s *discordgo.Session, m *discordgo.GuildMemberRe
 
 	rmsg := config.Message{
 		Account:  b.Account,
-		Event:    config.EventJoinLeave,
+		Event:    config.EventLeave,
 		Username: "system",
 		Text:     username + " leaves",
 	}

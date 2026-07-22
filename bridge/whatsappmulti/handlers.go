@@ -57,7 +57,7 @@ func (b *Bwhatsapp) handleUserJoin(event *events.GroupInfo) {
 			Channel:  event.JID.String(),
 			Account:  b.Account,
 			Protocol: b.Protocol,
-			Event:    config.EventJoinLeave,
+			Event:    config.EventJoin,
 			Text:     "joined chat",
 		}
 
@@ -75,7 +75,7 @@ func (b *Bwhatsapp) handleUserLeave(event *events.GroupInfo) {
 			Channel:  event.JID.String(),
 			Account:  b.Account,
 			Protocol: b.Protocol,
-			Event:    config.EventJoinLeave,
+			Event:    config.EventLeave,
 			Text:     "left chat",
 		}
 
@@ -315,7 +315,7 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 	// Prefer .mp4 extension, otherwise fallback to first index
 	fileExtIndex := 0
 	for i, n := range fileExt {
-		if ".mp4" == n {
+		if n == ".mp4" {
 			fileExtIndex = i
 			break
 		}

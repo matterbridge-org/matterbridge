@@ -47,7 +47,10 @@ SkipTLSVerify=true
 Bind=""
 
 #If you know your charset, you can specify it manually.
-#Otherwise it tries to detect this automatically. Select one below
+#Otherwise, the default is UTF-8.  If you want to attempt to detect this automatically,
+#set it to "autodetect".
+# You can choose one of the following:
+#
 # "iso-8859-2:1987", "iso-8859-9:1989", "866", "latin9", "iso-8859-10:1992", "iso-ir-109", "hebrew",
 # "cp932", "iso-8859-15", "cp437", "utf-16be", "iso-8859-3:1988", "windows-1251", "utf16", "latin6",
 # "latin3", "iso-8859-1:1987", "iso-8859-9", "utf-16le", "big5", "cp819", "asmo-708", "utf-8",
@@ -58,10 +61,10 @@ Bind=""
 # "windows-1252", "l2", "koi8-r", "iso8859-1", "latin1", "ecma-114", "iso-ir-110", "elot-928",
 # "iso-ir-126", "iso-8859-1", "iso-ir-127", "cp850", "cyrillic", "greek8", "windows-1250", "iso-latin-1",
 # "l5", "ibm866", "cp866", "ms-kanji", "ibm850", "ecma-118", "iso-ir-101", "ibm819", "l1", "iso-8859-6:1987",
-# "latin5", "ascii", "sjis", "iso-8859-10", "iso-8859-4", "iso-8859-4:1988", "shift-jis
-# The select charset will be converted to utf-8 when sent to other bridges.
-#OPTIONAL (default "")
-Charset=""
+# "latin5", "ascii", "sjis", "iso-8859-10", "iso-8859-4", "iso-8859-4:1988", "shift-jis, "autodetect"
+# The selected charset will be converted to utf-8 when sent to other bridges.
+#OPTIONAL (default "utf-8")
+Charset="utf-8"
 
 #Your nick on irc.
 #REQUIRED
@@ -100,15 +103,14 @@ MessageDelay=1300
 #OPTIONAL (default 30)
 MessageQueue=30
 
-#Maximum length of message sent to irc server. If it exceeds
-#<clipped message> will be add to the message.
-#OPTIONAL (default 400)
-MessageLength=400
+#Maximum length of message (including bot's nick, username, host, channel, etc) sent to irc server.
+#Longer messages will have <clipped message> added, and multiple lines will be sent.
+#OPTIONAL (default 512, can be overridden by a LINELEN setting received from server)
+MessageLength=512
 
-#Split messages on MessageLength instead of showing the <clipped message>
-#WARNING: this could lead to flooding
-#OPTIONAL (default false)
-MessageSplit=false
+#Split messages on MessageLength instead of relying on the irc library to do it
+#OPTIONAL (default true)
+MessageSplit=true
 
 #Message to show when a message is too big
 #Default "<clipped message>"
@@ -224,12 +226,25 @@ JoinDelay=0
 #See https://github.com/42wim/matterbridge/issues/667#issuecomment-634214165 for more details.
 #Spoofed nicks will use the configured RemoteNickFormat, replacing reserved IRC characters
 #(!+%@&#$:'"?*,.) with a hyphen (-).
+#Any hyphens at the beginning of the nick will then be removed from the nick, to comply with Ergo IRC servers.
 #On most configurations, the RemoteNickFormat must include a separator character such as "/".
 #You should make sure that the settings here match your IRCd.
 #This option overrides ColorNicks.
 #OPTIONAL (default false)
 UseRelayMsg=false
 #RemoteNickFormat="{NICK}/{PROTOCOL}"
+
+#When UseRelayMsg is true, and sanitizing a relayed nick completely wipes it out, a fallback can be used.
+#Note that this can potentially allow for anonymized messages to be sent to an IRC bridge.
+#If this is set to false, and a sanitized nick results as empty,
+#then the message will be dropped instead of relayed.
+#OPTIONAL (default true)
+UseRelayFallback=true
+
+#The fallback nick to be used for an empty relayed nick.
+#OPTIONAL (default "unknown")
+RelayFallbackNick="unknown"
+
 
 ###################################################################
 #XMPP section
@@ -1298,6 +1313,10 @@ NoHomeServerSuffix=false
 #OPTIONAL (default false)
 HTMLDisable=false
 
+#Whether to disable parsing markdown before setting the formatted body
+#OPTIONAL (default false)
+DisableMarkdownParsing=false
+
 ## RELOADABLE SETTINGS
 ## Settings below can be reloaded by editing the file
 
@@ -1370,6 +1389,12 @@ ShowJoinPart=false
 #This will make an additional API request per message and will probably count towards rate limits
 #OPTIONAL (default false)
 SpoofUsername=false
+
+#Use MSC4144 to set nick per-message, like IRC RELAYMSG. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144
+#This has less support scross clients but makes less API requests compared to SpoofUsername.
+#Clients that don't support this will display e.g. Nick: msg, with the nick in bold
+#OPTIONAL (default false)
+UseMSC4144=false
 
 #StripNick only allows alphanumerical nicks. See https://github.com/42wim/matterbridge/issues/285
 #It will strip other characters from the nick
