@@ -41,7 +41,7 @@ require (
 	github.com/xmppo/go-xmpp v0.3.2
 	github.com/yaegashi/msgraph.go v0.1.4
 	github.com/zfjagann/golang-ring v0.0.0-20220330170733-19bcea1b6289
-	go.mau.fi/whatsmeow v0.0.0-20260123132415-83db04703aee
+	go.mau.fi/whatsmeow v0.0.0-20260609091626-4e622162b959
 	golang.org/x/image v0.19.0
 	golang.org/x/oauth2 v0.22.0
 	golang.org/x/text v0.37.0
@@ -87,7 +87,7 @@ require (
 	github.com/mattermost/ldap v0.0.0-20231116144001-0f480c025956 // indirect
 	github.com/mattermost/logr/v2 v2.0.21 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mattn/go-sqlite3 v1.14.44 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
@@ -125,7 +125,7 @@ require (
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.31 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.33 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/wiggin77/merror v1.0.5 // indirect
@@ -138,7 +138,7 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240722135656-d784300faade // indirect
 	google.golang.org/grpc v1.65.0 // indirect
@@ -157,24 +157,4 @@ require (
 
 //replace github.com/matrix-org/gomatrix => github.com/matterbridge/gomatrix v0.0.0-20220205235239-607eb9ee6419
 
-go 1.24.0
-
-replace go.mau.fi/whatsmeow => ./oldlibs/whatsmeow
-
-replace go.mau.fi/util => ./oldlibs/util
-
-replace golang.org/x/sync => ./oldlibs/sync
-
-replace go.mau.fi/libsignal => ./oldlibs/libsignal
-
-replace golang.org/x/mod => ./oldlibs/mod
-
-replace golang.org/x/crypto => ./oldlibs/crypto
-
-replace golang.org/x/exp => ./oldlibs/exp
-
-replace golang.org/x/net => ./oldlibs/net
-
-replace golang.org/x/sys => ./oldlibs/sys
-
-replace golang.org/x/text => ./oldlibs/text
+go 1.25.0
