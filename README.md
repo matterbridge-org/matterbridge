@@ -59,6 +59,16 @@ You are welcome to submit pull requests, report bugs and request new features. m
 
 For more development guidelines, see [docs/development/](docs/development/).
 
+### Version policy
+
+matterbridge requires go 1.26. The required go version may be bumped at any time, but we will always wait at least 1 month after a golang release before bumping our requirements.
+
+While we would like to support older golang releases in order to target older distros, the problem is we have many upstream dependencies with many different versioning policies. go has no LTS version, and promises backwards-compatibility. See [this issue](https://github.com/matterbridge-org/matterbridge/issues/203) for more discussion on the topic.
+
+Please note it is still possible to compile matterbridge on stable distros such as Debian stable, just not with the distro-packaged compiler. You will need to use official golang binaries, or nix/guix packages, etc.
+
+### License
+
 This project is licensed under the [GNU AGPLv3 license](LICENSE) since after commit `20988f6446c6ad3ea416044712e634d3ed85ee53`. It was relicensed following discussion in [commmunity/#10](https://github.com/matterbridge-org/community/issues/10). Apart from the obvious advantages of copyleft to promote innovation and cooperation, in very practical terms, we had to use either `GPL` or `AGPL` to include the `whatsappmulti` bridge in official builds and deprecate the broken legacy `whatsapp` bridge. When contributing to matterbridge development, you agree that your contributions will be published under that license.
 
 Commits up-to `20988f6446c6ad3ea416044712e634d3ed85ee53` remain available under the looser [Apache License 2.0](LICENSE.old). 

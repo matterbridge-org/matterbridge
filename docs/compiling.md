@@ -1,14 +1,17 @@
 # Building from source
 
-This page documents how to build matterbridge from source. If you're looking for ready-to-use executables, head over to [setup.md].
+This page documents how to build matterbridge from source. If you're looking for ready-to-use executables, head over to [setup.md]. If you really want to build from source, follow these instructions.
 
-If you really want to build from source, follow these instructions:
-Go 1.18+ is required. Make sure you have [Go](https://golang.org/doc/install) properly installed.
+## Requirements
+
+Go 1.26+ is required. Make sure you have [Go](https://golang.org/doc/install) properly installed. 
 
 Building the binary with **all** the bridges enabled needs about 3GB RAM to compile.
 You can reduce this memory requirement to 0,5GB RAM by adding the `nomsteams` tag if you don't need/use the Microsoft Teams bridge.
 
 Matterbridge can be build without gcc/c-compiler: If you're running on windows first run `set CGO_ENABLED=0` on other platforms you prepend `CGO_ENABLED=0` to the `go build` command. (eg `CGO_ENABLED=0 go build -tags goolm github.com/matterbridge-org/matterbridge`)
+
+## Compiling
 
 To build the from the cloned GitHub repository without installing run in the root project directory:
 
