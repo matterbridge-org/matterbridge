@@ -104,12 +104,14 @@ func (b *Bwhatsapp) handleMessage(message *events.Message) {
 	defer b.waHandlePanic()
 
 	msg := message.Message
+
+	b.RLock()
 	switch {
 	case msg == nil, message.Info.IsFromMe, message.Info.Timestamp.Before(b.startedAt):
+		b.RUnlock()
 		return
 	}
 
-	b.RLock()
 	mydebug := b.DebugMode
 	b.RUnlock()
 
@@ -204,9 +206,12 @@ func (b *Bwhatsapp) handleTextMessage(message *events.Message, msg *waE2E.Messag
 		ParentID: parentID,
 	}
 
+	b.avatarsMu.RLock()
 	if avatarURL, exists := b.userAvatars[senderJID.String()]; exists {
 		rmsg.Avatar = avatarURL
 	}
+
+	b.avatarsMu.RUnlock()
 
 	if mydebug {
 		b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
@@ -244,9 +249,12 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 		ParentID: getParentIdFromCtx(ci),
 	}
 
+	b.avatarsMu.RLock()
 	if avatarURL, exists := b.userAvatars[senderJID.String()]; exists {
 		rmsg.Avatar = avatarURL
 	}
+
+	b.avatarsMu.RUnlock()
 
 	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
 	if err != nil {
@@ -317,9 +325,12 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 		ParentID: getParentIdFromCtx(ci),
 	}
 
+	b.avatarsMu.RLock()
 	if avatarURL, exists := b.userAvatars[senderJID.String()]; exists {
 		rmsg.Avatar = avatarURL
 	}
+
+	b.avatarsMu.RUnlock()
 
 	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
 	if err != nil {
@@ -392,9 +403,12 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 		ParentID: getParentIdFromCtx(ci),
 	}
 
+	b.avatarsMu.RLock()
 	if avatarURL, exists := b.userAvatars[senderJID.String()]; exists {
 		rmsg.Avatar = avatarURL
 	}
+
+	b.avatarsMu.RUnlock()
 
 	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
 	if err != nil {
@@ -459,9 +473,12 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 		ParentID: getParentIdFromCtx(ci),
 	}
 
+	b.avatarsMu.RLock()
 	if avatarURL, exists := b.userAvatars[senderJID.String()]; exists {
 		rmsg.Avatar = avatarURL
 	}
+
+	b.avatarsMu.RUnlock()
 
 	fileExt, err := mime.ExtensionsByType(imsg.GetMimetype())
 	if err != nil {

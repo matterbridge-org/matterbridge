@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"go.mau.fi/whatsmeow"
-	// "go.mau.fi/whatsmeow/binary/proto" // deprecated
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -21,6 +20,8 @@ type ProfilePicInfo struct {
 }
 
 func (b *Bwhatsapp) reloadContacts() {
+	defer b.waHandlePanic()
+
 	if _, err := b.wc.Store.Contacts.GetAllContacts(context.Background()); err != nil {
 		b.Log.Errorf("error on update of contacts: %v", err)
 	}
@@ -31,22 +32,29 @@ func (b *Bwhatsapp) reloadContacts() {
 	}
 
 	if len(allcontacts) > 0 {
+		b.contactsMu.Lock()
 		b.contacts = allcontacts
+		b.contactsMu.Unlock()
 	}
 }
 
 // func (b *Bwhatsapp) getSenderName(info *types.MessageInfo) string {
 func (b *Bwhatsapp) getSenderName(msg *events.Message) string {
+	defer b.waHandlePanic()
 	// Parse AD JID
 	var senderJid types.JID
 
 	senderJid.User, senderJid.Server = msg.Info.Sender.User, msg.Info.Sender.Server
 
+	b.contactsMu.RLock()
 	sender, exists := b.contacts[senderJid]
+	b.contactsMu.RUnlock()
 
 	if !exists || (sender.FullName == "" && sender.FirstName == "") {
 		b.reloadContacts() // Contacts may need to be reloaded
+		b.contactsMu.RLock()
 		sender, exists = b.contacts[senderJid]
+		b.contactsMu.RUnlock()
 	}
 
 	if exists && sender.FullName != "" {
@@ -65,11 +73,17 @@ func (b *Bwhatsapp) getSenderName(msg *events.Message) string {
 }
 
 func (b *Bwhatsapp) getSenderNameFromJID(senderJid types.JID) string {
+	defer b.waHandlePanic()
+
+	b.contactsMu.RLock()
 	sender, exists := b.contacts[senderJid]
+	b.contactsMu.RUnlock()
 
 	if !exists || (sender.FullName == "" && sender.FirstName == "") {
 		b.reloadContacts() // Contacts may need to be reloaded
+		b.contactsMu.RLock()
 		sender, exists = b.contacts[senderJid]
+		b.contactsMu.RUnlock()
 	}
 
 	if exists && sender.FullName != "" {
@@ -88,11 +102,17 @@ func (b *Bwhatsapp) getSenderNameFromJID(senderJid types.JID) string {
 }
 
 func (b *Bwhatsapp) getSenderNotify(senderJid types.JID) string {
+	defer b.waHandlePanic()
+
+	b.contactsMu.RLock()
 	sender, exists := b.contacts[senderJid]
+	b.contactsMu.RUnlock()
 
 	if !exists || (sender.FullName == "" && sender.PushName == "" && sender.FirstName == "") {
 		b.reloadContacts() // Contacts may need to be reloaded
+		b.contactsMu.RLock()
 		sender, exists = b.contacts[senderJid]
+		b.contactsMu.RUnlock()
 	}
 
 	if !exists {

@@ -28,20 +28,19 @@ const (
 	cfgNumber = "Number"
 )
 
-// Bwhatsapp Bridge structure keeping all the information needed for relying
+// Bwhatsapp Bridge structure keeping all the information needed for relaying
 type Bwhatsapp struct {
 	*bridge.Config
 	sync.RWMutex
 
-	startedAt time.Time
-	wc        *whatsmeow.Client
-	contacts  map[types.JID]types.ContactInfo
-	// TODO: use map-specific mutexes to protect the maps
-	// contactsMu   sync.RWMutex
-	users map[string]types.ContactInfo
-	// usersMu      sync.RWMutex
-	userAvatars map[string]string
-	// avatarsMu    sync.RWMutex
+	startedAt    time.Time
+	wc           *whatsmeow.Client
+	contacts     map[types.JID]types.ContactInfo
+	contactsMu   sync.RWMutex
+	users        map[string]types.ContactInfo
+	usersMu      sync.RWMutex
+	userAvatars  map[string]string
+	avatarsMu    sync.RWMutex
 	joinedGroups []*types.GroupInfo
 	DebugMode    bool
 }
@@ -73,6 +72,8 @@ func New(cfg *bridge.Config) bridge.Bridger {
 
 // Connect to WhatsApp. Required implementation of the Bridger interface
 func (b *Bwhatsapp) Connect() error {
+	defer b.waHandlePanic()
+
 	device, err := b.getDevice()
 	if err != nil {
 		return err
@@ -83,7 +84,13 @@ func (b *Bwhatsapp) Connect() error {
 		return errors.New("whatsapp's telephone number need to be configured")
 	}
 
-	b.Log.Debugln("Connecting to WhatsApp..")
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugln("Connecting to WhatsApp..")
+	}
 
 	b.wc = whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
 	b.wc.AddEventHandler(b.eventHandler)
@@ -127,7 +134,10 @@ func (b *Bwhatsapp) Connect() error {
 
 	b.Log.Infoln("WhatsApp connection successful")
 
+	b.contactsMu.Lock()
 	b.contacts, err = b.wc.Store.Contacts.GetAllContacts(context.Background())
+	b.contactsMu.Unlock()
+
 	if err != nil {
 		return errors.New("failed to get contacts: " + err.Error())
 	}
@@ -137,29 +147,41 @@ func (b *Bwhatsapp) Connect() error {
 		return errors.New("failed to get list of joined groups: " + err.Error())
 	}
 
+	b.Lock()
 	b.startedAt = time.Now()
+	b.Unlock()
 
 	// map all the users
+	b.contactsMu.RLock()
 	for id, contact := range b.contacts {
 		if !isGroupJid(id.String()) && id.String() != "status@broadcast" {
 			// it is user
+			b.usersMu.Lock()
 			b.users[id.String()] = contact
+			b.usersMu.Unlock()
 		}
 	}
+
+	b.contactsMu.RUnlock()
 
 	// get user avatar asynchronously
 	b.Log.Info("Getting user avatars..")
 
+	b.usersMu.RLock()
 	for jid := range b.users {
 		info, err := b.GetProfilePicThumb(jid)
 		if err != nil {
 			b.Log.Warnf("Could not get profile photo of %s: %v", jid, err)
 		} else {
 			if info != nil {
+				b.avatarsMu.Lock()
 				b.userAvatars[jid] = info.URL
+				b.avatarsMu.Unlock()
 			}
 		}
 	}
+
+	b.usersMu.RUnlock()
 
 	b.Log.Info("Finished getting avatars..")
 

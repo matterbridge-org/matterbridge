@@ -161,16 +161,23 @@ func (r *Router) handleReceive() {
 			}
 
 			if msg.ID != "" {
-				_, exists := gw.Messages.Get(msg.Protocol + " " + msg.ID)
+				gw.Messages.PeekOrAdd(msg.Protocol+" "+msg.ID, msgIDs)
+				//nolint:gocritic
+				// previous, ok, evicted := gw.Messages.PeekOrAdd(msg.Protocol+" "+msg.ID, msgIDs)
+				// if ok {
+				//	r.logger.Debugf("=> Msg %#v added to cache (previous value: %#v)\n=> Eviction occurred?: %#v", msg, previous, evicted)
+				// } else {
+				//	r.logger.Debugf("=> Msg %#v not found in cache, added", msg)
+				// }
 
 				// Only add the message ID if it doesn't already exist
 				//
 				// For some bridges we always add/update the message ID.
 				// This is necessary as msgIDs will change if a bridge returns
 				// a different ID in response to edits.
-				if !exists {
-					gw.Messages.Add(msg.Protocol+" "+msg.ID, msgIDs)
-				}
+				// if !ok {
+				//	 gw.Messages.Add(msg.Protocol+" "+msg.ID, msgIDs)
+				// }
 			}
 		}
 	}

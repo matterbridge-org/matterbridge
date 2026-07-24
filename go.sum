@@ -134,8 +134,8 @@ github.com/hashicorp/go-multierror v1.1.2-0.20260401052802-6d4d48630db2 h1:dI3J3
 github.com/hashicorp/go-multierror v1.1.2-0.20260401052802-6d4d48630db2/go.mod h1:RYOtqYU2MvOrqUMooJlQoFFuqR6sazGdm1ubZTL++r8=
 github.com/hashicorp/go-plugin v1.8.1-0.20260720063433-290c7b941c32 h1:qiWROkt2sgXNuR4jvoMg+XToDxOERIBtH4yo8pqP50s=
 github.com/hashicorp/go-plugin v1.8.1-0.20260720063433-290c7b941c32/go.mod h1:aDhBnaEvqzOPP8pQxWHK1MKrTRT6gvsrUi1S/Otaj6A=
-github.com/hashicorp/golang-lru v1.0.2 h1:dV3g9Z/unq5DpblPpw+Oqcv4dU/1omnb4Ok8iPY6p1c=
-github.com/hashicorp/golang-lru v1.0.2/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
+github.com/hashicorp/golang-lru v0.5.4 h1:YDjusn29QI/Das2iO9M0BHnIbxPeyuCHsjMW+lJfyTc=
+github.com/hashicorp/golang-lru v0.5.4/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hashicorp/yamux v0.1.3-0.20260720063314-e14d7feed381 h1:bM8QUHq4xJztW9X+4aANi3O0tLEkj+gbMxJAvPJgixw=
@@ -402,10 +402,10 @@ github.com/zealws/golang-ring v0.0.0-20220330170733-19bcea1b6289 h1:+6Q62JHCV+A8
 github.com/zealws/golang-ring v0.0.0-20220330170733-19bcea1b6289/go.mod h1:mJpgJ4uOM+lfdSLJY/C90lFn5+xbOApgkrrN6qkC6o4=
 go.mau.fi/libsignal v0.2.2 h1:QV+XdzQkm3x3aSG7FcqfGSZuFXz83pRZPBFaPygHbOU=
 go.mau.fi/libsignal v0.2.2/go.mod h1:CRlIQg2J8uYTfDFvNoO8/KcZjs5cey0vbc6oj/bssY0=
-go.mau.fi/util v0.9.12-0.20260719092501-f9c03d846391 h1:lsvBEY8MJfYdV61YbwikiQvb0Al/onbmLW5wfl/0tag=
-go.mau.fi/util v0.9.12-0.20260719092501-f9c03d846391/go.mod h1:xunp/oIQfFD68HHcNHfG0pOiHkvEtDhTweeIwKJ//+Q=
-go.mau.fi/whatsmeow v0.0.0-20260721154117-8b4a8ba0d318 h1:kdZIt3rj5c5DRP0xuFmNrhvsOdR4Da3ULIqKfSD/0nQ=
-go.mau.fi/whatsmeow v0.0.0-20260721154117-8b4a8ba0d318/go.mod h1:Iy/xVSuVU2payR26MB1hv0UZUWRraEn4qKZ7+VRHulg=
+go.mau.fi/util v0.9.12-0.20260724093955-cbecaffac71c h1:J8qaY+ZpZhyS5GnswyAjqqwpkvZTygYIm1vSW5B34Vg=
+go.mau.fi/util v0.9.12-0.20260724093955-cbecaffac71c/go.mod h1:xunp/oIQfFD68HHcNHfG0pOiHkvEtDhTweeIwKJ//+Q=
+go.mau.fi/whatsmeow v0.0.0-20260722203353-e9a033b24933 h1:7skZGs9q+rWKqYHok4ZufzhKpf6GmTKZnTjSm0aDtus=
+go.mau.fi/whatsmeow v0.0.0-20260722203353-e9a033b24933/go.mod h1:Iy/xVSuVU2payR26MB1hv0UZUWRraEn4qKZ7+VRHulg=
 go.opencensus.io v0.18.0/go.mod h1:vKdFvxhtzZ9onBp9VKHK8z/sRpBMnKAsufL7wlDrCOA=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
@@ -569,8 +569,8 @@ honnef.co/go/tools v0.0.0-20190106161140-3f1c8253044a/go.mod h1:rf3lG4BRIbNafJWh
 layeh.com/gopus v0.0.0-20161224163843-0ebf989153aa/go.mod h1:AOef7vHz0+v4sWwJnr0jSyHiX/1NgsMoaxl+rEPz/I0=
 layeh.com/gumble v0.0.0-20221205141517-d1df60a3cc14 h1:wY8eeq7DpM5iAugNbFrvuhdtmN8XM1iU+Ki5YZWjukg=
 layeh.com/gumble v0.0.0-20221205141517-d1df60a3cc14/go.mod h1:tWPVA9ZAfImNwabjcd9uDE+Mtz0Hfs7a7G3vxrnrwyc=
-maunium.net/go/mautrix v0.29.1-0.20260722181210-2ee6142f1dd5 h1:6DwEQ/2QeOpCDCWUB+Htt6UIJvt0iQm38OD6pjKoGgs=
-maunium.net/go/mautrix v0.29.1-0.20260722181210-2ee6142f1dd5/go.mod h1:PeLuIih5jnbwb2xKNNi0Te7AtINEQE2Uv3p6iG3RV80=
+maunium.net/go/mautrix v0.29.1-0.20260723152625-e0e3188f6604 h1:qbi5u/WqpX7V1dhgpYE+0pNxyS9RTREnQ0quV2uBrwQ=
+maunium.net/go/mautrix v0.29.1-0.20260723152625-e0e3188f6604/go.mod h1:PeLuIih5jnbwb2xKNNi0Te7AtINEQE2Uv3p6iG3RV80=
 modernc.org/cc/v4 v4.29.1 h1:MKgdCV3WykTSPqpVrnxdEDS0HEd2FHpKZDzxzU5LyeI=
 modernc.org/cc/v4 v4.29.1/go.mod h1:OnovgIhbbMXMu1aISnJ0wvVD1KnW+cAUJkIrAWh+kVI=
 modernc.org/ccgo/v4 v4.34.6 h1:sBgfIwyN0TQ9C5hwIeuqyeAKyMWnbvj2fvpF4L11uzU=
