@@ -11,6 +11,9 @@
   - steam protocol has changed profoundly
   - keybase has been removed because we don't have a maintainer for it. See
     [issue #9](https://github.com/matterbridge-org/matterbridge/issues/9)
+- During attachment filename sanitation, extensions are also sanitized
+- Attachment filenames are truncated to 50 characters, and discarded entirely
+  when extension (anything after the first `.`) is longer than that
 - matrix: Change to mautrix.go for the matrix backend. See ([pr #79](https://github.com/matterbridge-org/matterbridge/pull/79)/[issue #60](https://github.com/matterbridge-org/matterbridge/issues/60)
 - xmpp: Initial replies/edits support has been removed, because it was incorrect ([#12](https://github.com/matterbridge-org/matterbridge/pull/12))
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
