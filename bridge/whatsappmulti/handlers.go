@@ -8,14 +8,13 @@ import (
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
-
-	"go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
 // nolint:gocritic
-func (b *Bwhatsapp) eventHandler(evt interface{}) {
+func (b *Bwhatsapp) eventHandler(evt any) {
 	switch e := evt.(type) {
 	case *events.Message:
 		b.handleMessage(e)
@@ -25,7 +24,15 @@ func (b *Bwhatsapp) eventHandler(evt interface{}) {
 }
 
 func (b *Bwhatsapp) handleGroupInfo(event *events.GroupInfo) {
-	b.Log.Debugf("Receiving event %#v", event)
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("Receiving event %#v", event)
+	}
 
 	switch {
 	case event.Join != nil:
@@ -39,11 +46,10 @@ func (b *Bwhatsapp) handleGroupInfo(event *events.GroupInfo) {
 
 func (b *Bwhatsapp) handleUserJoin(event *events.GroupInfo) {
 	for _, joinedJid := range event.Join {
-		senderName := b.getSenderNameFromJID(joinedJid)
 
 		rmsg := config.Message{
 			UserID:   joinedJid.String(),
-			Username: senderName,
+			Username: b.getSenderNameFromJID(joinedJid),
 			Channel:  event.JID.String(),
 			Account:  b.Account,
 			Protocol: b.Protocol,
@@ -57,11 +63,10 @@ func (b *Bwhatsapp) handleUserJoin(event *events.GroupInfo) {
 
 func (b *Bwhatsapp) handleUserLeave(event *events.GroupInfo) {
 	for _, leftJid := range event.Leave {
-		senderName := b.getSenderNameFromJID(leftJid)
 
 		rmsg := config.Message{
 			UserID:   leftJid.String(),
-			Username: senderName,
+			Username: b.getSenderNameFromJID(leftJid),
 			Channel:  event.JID.String(),
 			Account:  b.Account,
 			Protocol: b.Protocol,
@@ -76,7 +81,6 @@ func (b *Bwhatsapp) handleUserLeave(event *events.GroupInfo) {
 func (b *Bwhatsapp) handleTopicChange(event *events.GroupInfo) {
 	msg := event.Topic
 	senderJid := msg.TopicSetBy
-	senderName := b.getSenderNameFromJID(senderJid)
 
 	text := msg.Topic
 	if text == "" {
@@ -85,7 +89,7 @@ func (b *Bwhatsapp) handleTopicChange(event *events.GroupInfo) {
 
 	rmsg := config.Message{
 		UserID:   senderJid.String(),
-		Username: senderName,
+		Username: b.getSenderNameFromJID(senderJid),
 		Channel:  event.JID.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
@@ -97,17 +101,25 @@ func (b *Bwhatsapp) handleTopicChange(event *events.GroupInfo) {
 }
 
 func (b *Bwhatsapp) handleMessage(message *events.Message) {
+	defer b.waHandlePanic()
+
 	msg := message.Message
 	switch {
 	case msg == nil, message.Info.IsFromMe, message.Info.Timestamp.Before(b.startedAt):
 		return
 	}
 
-	b.Log.Debugf("Receiving message %#v", msg)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("Receiving message %#v", msg)
+	}
 
 	switch {
 	case msg.Conversation != nil || msg.ExtendedTextMessage != nil:
-		b.handleTextMessage(message.Info, msg)
+		b.handleTextMessage(message, msg)
 	case msg.VideoMessage != nil:
 		b.handleVideoMessage(message)
 	case msg.AudioMessage != nil:
@@ -116,20 +128,30 @@ func (b *Bwhatsapp) handleMessage(message *events.Message) {
 		b.handleDocumentMessage(message)
 	case msg.ImageMessage != nil:
 		b.handleImageMessage(message)
-	case msg.ProtocolMessage != nil && *msg.ProtocolMessage.Type == proto.ProtocolMessage_REVOKE:
-		b.handleDelete(msg.ProtocolMessage)
+	default:
+		isProto := msg.GetProtocolMessage()
+		if isProto != nil && isProto.GetType() == waE2E.ProtocolMessage_REVOKE {
+			b.handleDelete(isProto)
+		}
 	}
 }
 
 // nolint:funlen
-func (b *Bwhatsapp) handleTextMessage(messageInfo types.MessageInfo, msg *proto.Message) {
-	senderJID := messageInfo.Sender
-	channel := messageInfo.Chat
+func (b *Bwhatsapp) handleTextMessage(message *events.Message, msg *waE2E.Message) {
+	defer b.waHandlePanic()
 
-	senderName := b.getSenderName(messageInfo)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	senderJID := message.Info.Sender
+	channel := message.Info.Chat
 
 	if msg.GetExtendedTextMessage() == nil && msg.GetConversation() == "" {
-		b.Log.Debugf("message without text content? %#v", msg)
+		if mydebug {
+			b.Log.Debugf("message without text content? %#v", msg)
+		}
+
 		return
 	}
 
@@ -172,13 +194,13 @@ func (b *Bwhatsapp) handleTextMessage(messageInfo types.MessageInfo, msg *proto.
 
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
-		Username: senderName,
+		Username: b.getSenderName(message),
 		Text:     text,
 		Channel:  channel.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
-		ID:       getMessageIdFormat(senderJID, messageInfo.ID),
+		Extra:    make(map[string][]any),
+		ID:       getMessageIdFormat(senderJID, message.Info.ID),
 		ParentID: parentID,
 	}
 
@@ -186,18 +208,25 @@ func (b *Bwhatsapp) handleTextMessage(messageInfo types.MessageInfo, msg *proto.
 		rmsg.Avatar = avatarURL
 	}
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+	}
 
 	b.Remote <- rmsg
 }
 
 // HandleImageMessage sent from WhatsApp, relay it to the brige
 func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	imsg := msg.Message.GetImageMessage()
 
 	senderJID := msg.Info.Sender
-	senderName := b.getSenderName(msg.Info)
 	ci := imsg.GetContextInfo()
 
 	if senderJID == (types.JID{}) && ci.Participant != nil {
@@ -206,11 +235,11 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
-		Username: senderName,
+		Username: b.getSenderName(msg),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -238,7 +267,9 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 
 	filename := fmt.Sprintf("%v%v", msg.Info.ID, fileExt[0])
 
-	b.Log.Debugf("Trying to download %s with type %s", filename, imsg.GetMimetype())
+	if mydebug {
+		b.Log.Debugf("Trying to download %s with type %s", filename, imsg.GetMimetype())
+	}
 
 	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
@@ -250,18 +281,25 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 	// Move file to bridge storage
 	helper.HandleDownloadData(b.Log, &rmsg, filename, imsg.GetCaption(), "", &data, b.General)
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+	}
 
 	b.Remote <- rmsg
 }
 
 // HandleVideoMessage downloads video messages
 func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	imsg := msg.Message.GetVideoMessage()
 
 	senderJID := msg.Info.Sender
-	senderName := b.getSenderName(msg.Info)
 	ci := imsg.GetContextInfo()
 
 	if senderJID == (types.JID{}) && ci.Participant != nil {
@@ -270,11 +308,11 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
-		Username: senderName,
+		Username: b.getSenderName(msg),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -305,7 +343,9 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 
 	filename := fmt.Sprintf("%v%v", msg.Info.ID, fileExt[fileExtIndex])
 
-	b.Log.Debugf("Trying to download %s with size %#v and type %s", filename, imsg.GetFileLength(), imsg.GetMimetype())
+	if mydebug {
+		b.Log.Debugf("Trying to download %s with size %#v and type %s", filename, imsg.GetFileLength(), imsg.GetMimetype())
+	}
 
 	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
@@ -317,18 +357,25 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 	// Move file to bridge storage
 	helper.HandleDownloadData(b.Log, &rmsg, filename, imsg.GetCaption(), "", &data, b.General)
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+	}
 
 	b.Remote <- rmsg
 }
 
 // HandleAudioMessage downloads audio messages
 func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	imsg := msg.Message.GetAudioMessage()
 
 	senderJID := msg.Info.Sender
-	senderName := b.getSenderName(msg.Info)
 	ci := imsg.GetContextInfo()
 
 	if senderJID == (types.JID{}) && ci.Participant != nil {
@@ -336,11 +383,11 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 	}
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
-		Username: senderName,
+		Username: b.getSenderName(msg),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -362,7 +409,9 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 
 	filename := fmt.Sprintf("%v%v", msg.Info.ID, fileExt[0])
 
-	b.Log.Debugf("Trying to download %s with size %#v and type %s", filename, imsg.GetFileLength(), imsg.GetMimetype())
+	if mydebug {
+		b.Log.Debugf("Trying to download %s with size %#v and type %s", filename, imsg.GetFileLength(), imsg.GetMimetype())
+	}
 
 	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
@@ -374,18 +423,25 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 	// Move file to bridge storage
 	helper.HandleDownloadData(b.Log, &rmsg, filename, "audio message", "", &data, b.General)
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+	}
 
 	b.Remote <- rmsg
 }
 
 // HandleDocumentMessage downloads documents
 func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	imsg := msg.Message.GetDocumentMessage()
 
 	senderJID := msg.Info.Sender
-	senderName := b.getSenderName(msg.Info)
 	ci := imsg.GetContextInfo()
 
 	if senderJID == (types.JID{}) && ci.Participant != nil {
@@ -394,11 +450,11 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 
 	rmsg := config.Message{
 		UserID:   senderJID.String(),
-		Username: senderName,
+		Username: b.getSenderName(msg),
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -416,7 +472,9 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 
 	filename := fmt.Sprintf("%v", imsg.GetFileName())
 
-	b.Log.Debugf("Trying to download %s with extension %s and type %s", filename, fileExt, imsg.GetMimetype())
+	if mydebug {
+		b.Log.Debugf("Trying to download %s with extension %s and type %s", filename, fileExt, imsg.GetMimetype())
+	}
 
 	data, err := b.wc.Download(context.Background(), imsg)
 	if err != nil {
@@ -428,13 +486,21 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 	// Move file to bridge storage
 	helper.HandleDownloadData(b.Log, &rmsg, filename, imsg.GetCaption(), "", &data, b.General)
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", senderJID, b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+	}
 
 	b.Remote <- rmsg
 }
 
-func (b *Bwhatsapp) handleDelete(messageInfo *proto.ProtocolMessage) {
+func (b *Bwhatsapp) handleDelete(messageInfo *waE2E.ProtocolMessage) {
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	sender, _ := types.ParseJID(*messageInfo.Key.Participant)
 
 	rmsg := config.Message{
@@ -446,7 +512,10 @@ func (b *Bwhatsapp) handleDelete(messageInfo *proto.ProtocolMessage) {
 		Channel:  *messageInfo.Key.RemoteJID,
 	}
 
-	b.Log.Debugf("<= Sending message from %s to gateway", b.Account)
-	b.Log.Debugf("<= Message is %#v", rmsg)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s to gateway", b.Account)
+		b.Log.Debugf("<= Message is %#v", rmsg)
+	}
+
 	b.Remote <- rmsg
 }

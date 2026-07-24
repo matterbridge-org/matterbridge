@@ -8,21 +8,29 @@ import (
 	"sync"
 	"time"
 
-	"github.com/olahol/melody"
-
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
-	"github.com/mitchellh/mapstructure"
-	ring "github.com/zfjagann/golang-ring"
+	"github.com/olahol/melody"
+	ring "github.com/zealws/golang-ring"
+)
+
+// TODO: fork and rework golang-ring to remove all the deferred mutex unlocks
+
+const (
+	apiProtocol = "api"
+	bindAddrStr = "BindAddress"
 )
 
 type API struct {
-	Messages ring.Ring
-	sync.RWMutex
 	*bridge.Config
-	mrouter *melody.Melody
+	sync.RWMutex
+
+	Messages  ring.Ring
+	DebugMode bool
+	mrouter   *melody.Melody
 }
 
 type Message struct {
@@ -35,20 +43,28 @@ type Message struct {
 
 func New(cfg *bridge.Config) bridge.Bridger {
 	b := &API{Config: cfg}
+
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 
+	b.DebugMode = b.GetBool("Debug")
+	b.Messages = ring.Ring{}
 	b.mrouter = melody.New()
+
 	b.mrouter.HandleMessage(func(s *melody.Session, msg []byte) {
 		message := config.Message{}
+
+		// TODO: try a faster json lib, https://github.com/goccy/go-json
 		err := json.Unmarshal(msg, &message)
 		if err != nil {
 			b.Log.Errorf("failed to decode message from byte[] '%s'", string(msg))
 			return
 		}
+
 		b.handleWebsocketMessage(message, s)
 	})
+
 	b.mrouter.HandleConnect(func(session *melody.Session) {
 		greet := b.getGreeting()
 		data, err := json.Marshal(greet)
@@ -56,6 +72,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 			b.Log.Errorf("failed to encode message '%v'", greet)
 			return
 		}
+
 		err = session.Write(data)
 		if err != nil {
 			b.Log.Errorf("failed to write message '%s'", string(data))
@@ -64,20 +81,14 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		// TODO: send message history buffer from `b.Messages` here
 	})
 
-	b.Messages = ring.Ring{}
 	if b.GetInt("Buffer") != 0 {
 		b.Messages.SetCapacity(b.GetInt("Buffer"))
 	}
+
 	if b.GetString("Token") != "" {
 		e.Use(middleware.KeyAuth(func(key string, c echo.Context) (bool, error) {
 			return key == b.GetString("Token"), nil
 		}))
-	}
-
-	// Set RemoteNickFormat to a sane default
-	if !b.IsKeySet("RemoteNickFormat") {
-		b.Log.Debugln("RemoteNickFormat is unset, defaulting to \"{NICK}\"")
-		b.Config.Config.Viper().Set(b.GetConfigKey("RemoteNickFormat"), "{NICK}")
 	}
 
 	e.GET("/api/health", b.handleHealthcheck)
@@ -86,12 +97,14 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	e.GET("/api/websocket", b.handleWebsocket)
 	e.POST("/api/message", b.handlePostMessage)
 	go func() {
-		if b.GetString("BindAddress") == "" {
-			b.Log.Fatalf("No BindAddress configured.")
+		if b.GetString(bindAddrStr) == "" {
+			b.Log.Fatal("No BindAddress configured.")
 		}
-		b.Log.Infof("Listening on %s", b.GetString("BindAddress"))
-		b.Log.Fatal(e.Start(b.GetString("BindAddress")))
+
+		b.Log.Infof("Listening on %s", b.GetString(bindAddrStr))
+		b.Log.Fatal(e.Start(b.GetString(bindAddrStr)))
 	}()
+
 	return b
 }
 
@@ -107,22 +120,44 @@ func (b *API) JoinChannel(channel config.ChannelInfo) error {
 	return nil
 }
 
+// SanitizeNick can be added to gateway/bridgemap/ files and SendMessage in gateway.go if needed
+func (b *API) SanitizeNick(msg *config.Message) error {
+	return nil
+}
+
 func (b *API) Send(msg config.Message) (string, error) {
-	b.Lock()
-	defer b.Unlock()
+	defer b.apiHandlePanic()
+
 	// ignore delete messages
 	if msg.Event == config.EventMsgDelete {
 		return "", nil
 	}
-	b.Log.Debugf("enqueueing message from %s on ring buffer", msg.Username)
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("enqueueing message from %s on ring buffer", msg.Username)
+	}
+
 	b.Messages.Enqueue(msg)
 
 	data, err := json.Marshal(msg)
 	if err != nil {
-		b.Log.Errorf("failed to encode message  '%s'", msg)
+		b.Log.Errorf("failed to encode message '%#v'", msg)
 	}
+
 	_ = b.mrouter.Broadcast(data)
 	return "", nil
+}
+
+// TODO: Detect whether any locks are currently set (a feature for debug mode only)
+func (b *API) apiHandlePanic() {
+	rec := recover()
+	if rec != nil {
+		b.Log.Warnf("Recovered from panic: %#v", rec)
+	}
 }
 
 func (b *API) handleHealthcheck(c echo.Context) error {
@@ -130,26 +165,33 @@ func (b *API) handleHealthcheck(c echo.Context) error {
 }
 
 func (b *API) handlePostMessage(c echo.Context) error {
+	defer b.apiHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	message := config.Message{}
 	if err := c.Bind(&message); err != nil {
 		return err
 	}
 	// these values are fixed
-	message.Channel = "api"
-	message.Protocol = "api"
+	message.Channel = apiProtocol
+	message.Protocol = apiProtocol
 	message.Account = b.Account
 	message.ID = ""
 	message.Timestamp = time.Now()
 
 	var (
-		fm map[string]interface{}
+		fm map[string]any
 		ds string
 		ok bool
 	)
 
 	for i, f := range message.Extra["file"] {
 		fi := config.FileInfo{}
-		if fm, ok = f.(map[string]interface{}); !ok {
+
+		if fm, ok = f.(map[string]any); !ok {
 			return echo.NewHTTPError(http.StatusInternalServerError, "invalid format for extra")
 		}
 		err := mapstructure.Decode(fm, &fi)
@@ -170,16 +212,24 @@ func (b *API) handlePostMessage(c echo.Context) error {
 		fi.Data = &data
 		message.Extra["file"][i] = fi
 	}
-	b.Log.Debugf("Sending message from %s on %s to gateway", message.Username, "api")
+
+	if mydebug {
+		b.Log.Debugf("Sending message from %s on %s to gateway", message.Username, apiProtocol)
+	}
+
 	b.Remote <- message
 	return c.JSON(http.StatusOK, message)
 }
 
 func (b *API) handleMessages(c echo.Context) error {
-	b.Lock()
-	defer b.Unlock()
+	defer b.apiHandlePanic()
+
 	c.JSONPretty(http.StatusOK, b.Messages.Values(), " ")
+
+	b.Lock()
 	b.Messages = ring.Ring{}
+	b.Unlock()
+
 	return nil
 }
 
@@ -197,6 +247,7 @@ func (b *API) handleStream(c echo.Context) error {
 	if err := json.NewEncoder(c.Response()).Encode(greet); err != nil {
 		return err
 	}
+
 	c.Response().Flush()
 	for {
 		select {
@@ -217,12 +268,20 @@ func (b *API) handleStream(c echo.Context) error {
 }
 
 func (b *API) handleWebsocketMessage(message config.Message, s *melody.Session) {
-	message.Channel = "api"
-	message.Protocol = "api"
+	defer b.apiHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	message.Channel = apiProtocol
+	message.Protocol = apiProtocol
 	message.Account = b.Account
+	// TODO: msg ID's?
 	message.ID = ""
 	message.Timestamp = time.Now()
 
+	// todo: reuse this buffer
 	data, err := json.Marshal(message)
 	if err != nil {
 		b.Log.Errorf("failed to encode message for loopback '%v'", message)
@@ -230,14 +289,17 @@ func (b *API) handleWebsocketMessage(message config.Message, s *melody.Session) 
 	}
 	_ = b.mrouter.BroadcastOthers(data, s)
 
-	b.Log.Debugf("Sending websocket message from %s on %s to gateway", message.Username, "api")
+	if mydebug {
+		b.Log.Debugf("=> [api] Sending websocket message from %s to gateway", message.Username)
+	}
+
 	b.Remote <- message
 }
 
 func (b *API) handleWebsocket(c echo.Context) error {
 	err := b.mrouter.HandleRequest(c.Response(), c.Request())
 	if err != nil {
-		b.Log.Errorf("error in websocket handling  '%v'", err)
+		b.Log.Errorf("error in websocket handling: %s", err)
 		return err
 	}
 

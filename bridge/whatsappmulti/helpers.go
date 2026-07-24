@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	goproto "google.golang.org/protobuf/proto"
-
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/binary/proto"
+	// "go.mau.fi/whatsmeow/binary/proto" // deprecated
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 type ProfilePicInfo struct {
@@ -35,10 +35,12 @@ func (b *Bwhatsapp) reloadContacts() {
 	}
 }
 
-func (b *Bwhatsapp) getSenderName(info types.MessageInfo) string {
+// func (b *Bwhatsapp) getSenderName(info *types.MessageInfo) string {
+func (b *Bwhatsapp) getSenderName(msg *events.Message) string {
 	// Parse AD JID
 	var senderJid types.JID
-	senderJid.User, senderJid.Server = info.Sender.User, info.Sender.Server
+
+	senderJid.User, senderJid.Server = msg.Info.Sender.User, msg.Info.Sender.Server
 
 	sender, exists := b.contacts[senderJid]
 
@@ -51,8 +53,8 @@ func (b *Bwhatsapp) getSenderName(info types.MessageInfo) string {
 		return sender.FullName
 	}
 
-	if info.PushName != "" {
-		return info.PushName
+	if msg.Info.PushName != "" {
+		return msg.Info.PushName
 	}
 
 	if exists && sender.FirstName != "" {
@@ -147,17 +149,17 @@ func (b *Bwhatsapp) getDevice() (*store.Device, error) {
 	return device, nil
 }
 
-func (b *Bwhatsapp) getNewReplyContext(parentID string) (*proto.ContextInfo, error) {
+func (b *Bwhatsapp) getNewReplyContext(parentID string) (*waE2E.ContextInfo, error) {
 	replyInfo, err := b.parseMessageID(parentID)
 	if err != nil {
 		return nil, err
 	}
 
 	sender := fmt.Sprintf("%s@%s", replyInfo.Sender.User, replyInfo.Sender.Server)
-	ctx := &proto.ContextInfo{
+	ctx := &waE2E.ContextInfo{
 		StanzaID:      &replyInfo.MessageID,
 		Participant:   &sender,
-		QuotedMessage: &proto.Message{Conversation: goproto.String("")},
+		QuotedMessage: &waE2E.Message{Conversation: new("")},
 	}
 
 	return ctx, nil
@@ -188,7 +190,7 @@ func (b *Bwhatsapp) parseMessageID(id string) (*Replyable, error) {
 	return &Replyable{MessageID: id}, err
 }
 
-func getParentIdFromCtx(ci *proto.ContextInfo) string {
+func getParentIdFromCtx(ci *waE2E.ContextInfo) string {
 	if ci != nil && ci.StanzaID != nil {
 		senderJid, err := types.ParseJID(*ci.Participant)
 

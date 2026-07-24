@@ -4,7 +4,7 @@ version: "2"
 
 # options for analysis running
 run:
-  go: "1.22"
+  go: "1.26"
 
   # which dirs to skip: they won't be analyzed;
   # can use regexp here: generated.*, regexp is applied on full path;
@@ -24,9 +24,18 @@ output:
 # linters that we should / shouldn't run
 linters:
   default: all
+
+  enable:
+    - gomodguard_v2
+
   disable:
+    - gomodguard
+    - clickhouselint
+    - arangolint
+    - containedctx
+    - contextcheck
     - gochecknoglobals
-    - lll
+  #  - lll
     - prealloc
     - wsl
     - godox
@@ -34,10 +43,8 @@ linters:
     - godot
     - goheader
     - noctx
-    - errorlint
     - nlreturn
     - forbidigo
-    - wrapcheck
     - varnamelen
     - ireturn
     - errorlint
@@ -75,6 +82,7 @@ linters:
       # default is false: such cases aren't reported by default.
       check-blank: false
     govet:
+      enable-all: true
       # report about shadowed variables
       enable:
         - shadow
@@ -126,19 +134,20 @@ linters:
       # unlambda unslice rangeValCopy defaultCaseOrder];
       # all checks list: https://github.com/go-critic/checkers
       # disabled for now - hugeParam
-      enabled-checks:
-        - boolExprSimplify
-        - builtinShadow
-        - commentedOutImport
-        - emptyFallthrough
-        - importShadow
-        - indexAlloc
-        - methodExprCall
-        - nestingReduce
-        - ptrToRefParam
-        - typeUnparen
-        - unnecessaryBlock
-        - yodaStyleExpr
+      enable-all: true
+      # enabled-checks:
+      #  - boolExprSimplify
+      #  - builtinShadow
+      #  - commentedOutImport
+      #  - emptyFallthrough
+      #  - importShadow
+      #  - indexAlloc
+      #  - methodExprCall
+      #  - nestingReduce
+      #  - ptrToRefParam
+      #  - typeUnparen
+      #  - unnecessaryBlock
+      #  - yodaStyleExpr
 
 # rules to deal with reported isues
 issues:
@@ -154,6 +163,13 @@ issues:
   new-from-rev: "HEAD~1"
 
 formatters:
+  enable:
+    - gci
+    - gofmt
+  #  - gofumpt
+    - goimports
+    - golines
+
   settings:
     gofmt:
       # simplify code: gofmt with `-s` option, true by default
@@ -161,3 +177,6 @@ formatters:
     goimports:
       # put imports beginning with prefix after 3rd-party packages;
       local-prefixes: [ "github.com" ]
+    golines:
+      max-len: 150
+

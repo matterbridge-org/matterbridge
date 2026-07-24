@@ -1,5 +1,4 @@
 //go:build !notelegram
-// +build !notelegram
 
 package bridgemap
 

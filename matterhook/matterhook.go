@@ -18,14 +18,14 @@ import (
 
 // OMessage for mattermost incoming webhook. (send to mattermost)
 type OMessage struct {
-	Channel     string                 `json:"channel,omitempty"`
-	IconURL     string                 `json:"icon_url,omitempty"`
-	IconEmoji   string                 `json:"icon_emoji,omitempty"`
-	UserName    string                 `json:"username,omitempty"`
-	Text        string                 `json:"text"`
-	Attachments []slack.Attachment     `json:"attachments,omitempty"`
-	Type        string                 `json:"type,omitempty"`
-	Props       map[string]interface{} `json:"props"`
+	Channel     string             `json:"channel,omitempty"`
+	IconURL     string             `json:"icon_url,omitempty"`
+	IconEmoji   string             `json:"icon_emoji,omitempty"`
+	UserName    string             `json:"username,omitempty"`
+	Text        string             `json:"text"`
+	Attachments []slack.Attachment `json:"attachments,omitempty"`
+	Type        string             `json:"type,omitempty"`
+	Props       map[string]any     `json:"props"`
 }
 
 // IMessage for mattermost outgoing webhook. (received from mattermost)

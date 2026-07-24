@@ -7,6 +7,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/matterbridge-org/matterbridge/bridge"
@@ -14,11 +15,10 @@ import (
 	"github.com/mdp/qrterminal"
 
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/binary/proto"
+	// "go.mau.fi/whatsmeow/binary/proto" // deprecated
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
-
-	goproto "google.golang.org/protobuf/proto"
 
 	_ "modernc.org/sqlite" // needed for sqlite
 )
@@ -31,13 +31,19 @@ const (
 // Bwhatsapp Bridge structure keeping all the information needed for relying
 type Bwhatsapp struct {
 	*bridge.Config
+	sync.RWMutex
 
-	startedAt    time.Time
-	wc           *whatsmeow.Client
-	contacts     map[types.JID]types.ContactInfo
-	users        map[string]types.ContactInfo
-	userAvatars  map[string]string
+	startedAt time.Time
+	wc        *whatsmeow.Client
+	contacts  map[types.JID]types.ContactInfo
+	// TODO: use map-specific mutexes to protect the maps
+	// contactsMu   sync.RWMutex
+	users map[string]types.ContactInfo
+	// usersMu      sync.RWMutex
+	userAvatars map[string]string
+	// avatarsMu    sync.RWMutex
 	joinedGroups []*types.GroupInfo
+	DebugMode    bool
 }
 
 type Replyable struct {
@@ -59,6 +65,8 @@ func New(cfg *bridge.Config) bridge.Bridger {
 		users:       make(map[string]types.ContactInfo),
 		userAvatars: make(map[string]string),
 	}
+
+	b.DebugMode = b.GetBool("Debug")
 
 	return b
 }
@@ -147,11 +155,9 @@ func (b *Bwhatsapp) Connect() error {
 		if err != nil {
 			b.Log.Warnf("Could not get profile photo of %s: %v", jid, err)
 		} else {
-			b.Lock()
 			if info != nil {
 				b.userAvatars[jid] = info.URL
 			}
-			b.Unlock()
 		}
 	}
 
@@ -211,7 +217,9 @@ func (b *Bwhatsapp) JoinChannel(channel config.ChannelInfo) error {
 }
 
 // Post a document message from the bridge to WhatsApp
-func (b *Bwhatsapp) PostDocumentMessage(msg config.Message, filetype string) (string, error) {
+func (b *Bwhatsapp) PostDocumentMessage(msg *config.Message, filetype string) (string, error) {
+	defer b.waHandlePanic()
+
 	groupJID, _ := types.ParseJID(msg.Channel)
 
 	fi := msg.Extra["file"][0].(config.FileInfo)
@@ -224,13 +232,14 @@ func (b *Bwhatsapp) PostDocumentMessage(msg config.Message, filetype string) (st
 	}
 
 	// Post document message
-	var message proto.Message
-	var ctx *proto.ContextInfo
+	var message waE2E.Message
+
+	var ctx *waE2E.ContextInfo
 	if msg.ParentID != "" {
 		ctx, _ = b.getNewReplyContext(msg.ParentID)
 	}
 
-	message.DocumentMessage = &proto.DocumentMessage{
+	message.DocumentMessage = &waE2E.DocumentMessage{
 		Title:         &fi.Name,
 		FileName:      &fi.Name,
 		Mimetype:      &filetype,
@@ -238,13 +247,19 @@ func (b *Bwhatsapp) PostDocumentMessage(msg config.Message, filetype string) (st
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
 	}
 
-	b.Log.Debugf("=> Sending %#v as a document", msg)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("=> Sending %#v as a document", *msg)
+	}
 
 	ID := whatsmeow.GenerateMessageID()
 	_, err = b.wc.SendMessage(context.TODO(), groupJID, &message, whatsmeow.SendRequestExtra{ID: ID})
@@ -254,7 +269,9 @@ func (b *Bwhatsapp) PostDocumentMessage(msg config.Message, filetype string) (st
 
 // Post an image message from the bridge to WhatsApp
 // Handle, for sure image/jpeg, image/png and image/gif MIME types
-func (b *Bwhatsapp) PostImageMessage(msg config.Message, filetype string) (string, error) {
+func (b *Bwhatsapp) PostImageMessage(msg *config.Message, filetype string) (string, error) {
+	defer b.waHandlePanic()
+
 	fi := msg.Extra["file"][0].(config.FileInfo)
 
 	caption := msg.Username + fi.Comment
@@ -264,31 +281,40 @@ func (b *Bwhatsapp) PostImageMessage(msg config.Message, filetype string) (strin
 		return "", err
 	}
 
-	var message proto.Message
-	var ctx *proto.ContextInfo
+	var message waE2E.Message
+
+	var ctx *waE2E.ContextInfo
 	if msg.ParentID != "" {
 		ctx, _ = b.getNewReplyContext(msg.ParentID)
 	}
 
-	message.ImageMessage = &proto.ImageMessage{
+	message.ImageMessage = &waE2E.ImageMessage{
 		Mimetype:      &filetype,
 		Caption:       &caption,
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
 	}
 
-	b.Log.Debugf("=> Sending %#v as an image", msg)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("=> Sending %#v as an image", *msg)
+	}
 
 	return b.sendMessage(msg, &message)
 }
 
 // Post a video message from the bridge to WhatsApp
-func (b *Bwhatsapp) PostVideoMessage(msg config.Message, filetype string) (string, error) {
+func (b *Bwhatsapp) PostVideoMessage(msg *config.Message, filetype string) (string, error) {
+	defer b.waHandlePanic()
+
 	fi := msg.Extra["file"][0].(config.FileInfo)
 
 	caption := msg.Username + fi.Comment
@@ -298,31 +324,40 @@ func (b *Bwhatsapp) PostVideoMessage(msg config.Message, filetype string) (strin
 		return "", err
 	}
 
-	var message proto.Message
-	var ctx *proto.ContextInfo
+	var message waE2E.Message
+
+	var ctx *waE2E.ContextInfo
 	if msg.ParentID != "" {
 		ctx, _ = b.getNewReplyContext(msg.ParentID)
 	}
 
-	message.VideoMessage = &proto.VideoMessage{
+	message.VideoMessage = &waE2E.VideoMessage{
 		Mimetype:      &filetype,
 		Caption:       &caption,
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
 	}
 
-	b.Log.Debugf("=> Sending %#v as a video", msg)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("=> Sending %#v as a video", msg)
+	}
 
 	return b.sendMessage(msg, &message)
 }
 
 // Post audio inline
-func (b *Bwhatsapp) PostAudioMessage(msg config.Message, filetype string) (string, error) {
+func (b *Bwhatsapp) PostAudioMessage(msg *config.Message, filetype string) (string, error) {
+	defer b.waHandlePanic()
+
 	groupJID, _ := types.ParseJID(msg.Channel)
 
 	fi := msg.Extra["file"][0].(config.FileInfo)
@@ -332,28 +367,35 @@ func (b *Bwhatsapp) PostAudioMessage(msg config.Message, filetype string) (strin
 		return "", err
 	}
 
-	var message proto.Message
-	var ctx *proto.ContextInfo
+	var message waE2E.Message
+
+	var ctx *waE2E.ContextInfo
 	if msg.ParentID != "" {
 		ctx, _ = b.getNewReplyContext(msg.ParentID)
 	}
 
-	message.AudioMessage = &proto.AudioMessage{
+	message.AudioMessage = &waE2E.AudioMessage{
 		Mimetype:      &filetype,
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
 	}
 
-	b.Log.Debugf("=> Sending %#v as audio", msg)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("=> Sending %#v as audio", *msg)
+	}
 
 	ID, err := b.sendMessage(msg, &message)
 
-	var captionMessage proto.Message
+	var captionMessage waE2E.Message
 	caption := msg.Username + fi.Comment + "\u2B06" // the char on the end is upwards arrow emoji
 	captionMessage.Conversation = &caption
 
@@ -365,12 +407,20 @@ func (b *Bwhatsapp) PostAudioMessage(msg config.Message, filetype string) (strin
 
 // Send a message from the bridge to WhatsApp
 func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
+	defer b.waHandlePanic()
+
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
 	groupJID, _ := types.ParseJID(msg.Channel)
 
 	extendedMsgID, _ := b.parseMessageID(msg.ID)
 	msg.ID = extendedMsgID.MessageID
 
-	b.Log.Debugf("=> Receiving %#v", msg)
+	if mydebug {
+		b.Log.Debugf("=> Receiving %#v", msg)
+	}
 
 	// Delete message
 	if msg.Event == config.EventMsgDelete {
@@ -387,7 +437,9 @@ func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
 
 	// Edit message
 	if msg.ID != "" {
-		b.Log.Debugf("updating message with id %s", msg.ID)
+		if mydebug {
+			b.Log.Debugf("updating message with id %s", msg.ID)
+		}
 
 		if b.GetString("editsuffix") != "" {
 			msg.Text += b.GetString("EditSuffix")
@@ -401,25 +453,27 @@ func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
 		fi := msg.Extra["file"][0].(config.FileInfo)
 		filetype := mime.TypeByExtension(filepath.Ext(fi.Name))
 
-		b.Log.Debugf("Extra file is %#v", filetype)
+		if mydebug {
+			b.Log.Debugf("Extra file is %#v", filetype)
+		}
 
 		// TODO: add different types
 		// TODO: add webp conversion
 		switch filetype {
 		case "image/jpeg", "image/png", "image/gif":
-			return b.PostImageMessage(msg, filetype)
+			return b.PostImageMessage(&msg, filetype)
 		case "video/mp4", "video/3gpp": // TODO: Check if codecs are supported by WA
-			return b.PostVideoMessage(msg, filetype)
+			return b.PostVideoMessage(&msg, filetype)
 		case "audio/ogg":
-			return b.PostAudioMessage(msg, "audio/ogg; codecs=opus") // TODO: Detect if it is actually OPUS
+			return b.PostAudioMessage(&msg, "audio/ogg; codecs=opus") // TODO: Detect if it is actually OPUS
 		case "audio/aac", "audio/mp4", "audio/amr", "audio/mpeg":
-			return b.PostAudioMessage(msg, filetype)
+			return b.PostAudioMessage(&msg, filetype)
 		default:
-			return b.PostDocumentMessage(msg, filetype)
+			return b.PostDocumentMessage(&msg, filetype)
 		}
 	}
 
-	var message proto.Message
+	var message waE2E.Message
 	text := msg.Username + msg.Text
 
 	// If we have a parent ID send an extended message
@@ -427,27 +481,36 @@ func (b *Bwhatsapp) Send(msg config.Message) (string, error) {
 		replyContext, err := b.getNewReplyContext(msg.ParentID)
 
 		if err == nil {
-			message = proto.Message{
-				ExtendedTextMessage: &proto.ExtendedTextMessage{
+			message = waE2E.Message{
+				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text:        &text,
 					ContextInfo: replyContext,
 				},
 			}
 
-			return b.sendMessage(msg, &message)
+			return b.sendMessage(&msg, &message)
 		}
 	}
 
 	message.Conversation = &text
 
-	return b.sendMessage(msg, &message)
+	return b.sendMessage(&msg, &message)
 }
 
-func (b *Bwhatsapp) sendMessage(rmsg config.Message, message *proto.Message) (string, error) {
+func (b *Bwhatsapp) sendMessage(rmsg *config.Message, message *waE2E.Message) (string, error) {
 	groupJID, _ := types.ParseJID(rmsg.Channel)
 	ID := whatsmeow.GenerateMessageID()
 
 	_, err := b.wc.SendMessage(context.Background(), groupJID, message, whatsmeow.SendRequestExtra{ID: ID})
 
 	return getMessageIdFormat(*b.wc.Store.ID, ID), err
+}
+
+// TODO: Add a check for any locks still active, for debug-mode only
+// We may or may not want to override the Bridge.handlePanic() method instead, TBD
+func (b *Bwhatsapp) waHandlePanic() {
+	rec := recover()
+	if rec != nil {
+		b.Log.Warnf("Recovered from panic: %#v", rec)
+	}
 }

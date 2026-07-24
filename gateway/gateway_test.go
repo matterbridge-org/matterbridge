@@ -390,9 +390,9 @@ func (s *ignoreTestSuite) SetupSuite() {
 }
 
 func (s *ignoreTestSuite) TestIgnoreTextEmpty() {
-	extraFile := make(map[string][]interface{})
-	extraAttach := make(map[string][]interface{})
-	extraFailure := make(map[string][]interface{})
+	extraFile := make(map[string][]any)
+	extraAttach := make(map[string][]any)
+	extraFailure := make(map[string][]any)
 	extraFile["file"] = append(extraFile["file"], config.FileInfo{})
 	extraAttach["attachments"] = append(extraAttach["attachments"], []string{})
 	extraFailure[config.EventFileFailureSize] = append(extraFailure[config.EventFileFailureSize], config.FileInfo{})

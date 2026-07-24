@@ -13,6 +13,7 @@ import (
 	"github.com/matterbridge-org/matterbridge/gateway/bridgemap"
 	"github.com/matterbridge-org/matterbridge/version"
 	prefixed "github.com/matterbridge/logrus-prefixed-formatter"
+	// prefixed "github.com/chrispassas/logrus-prefixed-formatter" // TODO
 	"github.com/sirupsen/logrus"
 )
 

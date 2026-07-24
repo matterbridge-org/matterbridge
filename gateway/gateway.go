@@ -87,7 +87,6 @@ func (gw *Gateway) AddConfig(cfg *config.Gateway) error {
 		gw.logger.Errorf("mapChannels() failed: %s", err)
 	}
 	for _, br := range append(gw.MyConfig.In, append(gw.MyConfig.InOut, gw.MyConfig.Out...)...) {
-		br := br // scopelint
 		err := gw.AddBridge(&br)
 		if err != nil {
 			return err
@@ -179,7 +178,9 @@ func (gw *Gateway) SendMessage( //nolint:gocyclo,funlen
 	case config.EventFileDelete: // exclude file delete event as the msg ID here is the native file ID that needs to be deleted
 		break
 	default:
-		debugSendMessage = fmt.Sprintf("=> Sending %#v from %s (%s) to %s (%s)", msg, msg.Account, rmsg.Channel, dest.Account, channel.Name)
+		if dest.GetBool("Debug") {
+			debugSendMessage = fmt.Sprintf("=> Sending %#v from %s (%s) to %s (%s)", msg, msg.Account, rmsg.Channel, dest.Account, channel.Name)
+		}
 		msg.ID = gw.getDestMsgID(rmsg.Protocol+" "+rmsg.ID, dest, channel)
 	}
 
@@ -437,7 +438,7 @@ func (gw *Gateway) ignoreMessage(msg *config.Message) bool {
 }
 
 // ignoreFilesComment returns true if we need to ignore a file with matched comment.
-func (gw *Gateway) ignoreFilesComment(extra map[string][]interface{}, igMessages []string) bool {
+func (gw *Gateway) ignoreFilesComment(extra map[string][]any, igMessages []string) bool {
 	if extra == nil {
 		return false
 	}

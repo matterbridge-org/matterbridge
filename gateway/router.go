@@ -136,7 +136,6 @@ func (r *Router) getBridge(account string) *bridge.Bridge {
 
 func (r *Router) handleReceive() {
 	for msg := range r.Message {
-		msg := msg // scopelint
 		r.handleEventGetChannelMembers(&msg)
 		r.handleEventFailure(&msg)
 		r.handleEventRejoinChannels(&msg)

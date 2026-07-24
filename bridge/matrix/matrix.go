@@ -225,6 +225,7 @@ func (b *Bmatrix) Send(msg config.Message) (string, error) {
 	// Make a action /me of the message
 	if msg.Event == config.EventUserAction {
 		var content event.MessageEventContent
+
 		if b.GetBool("UseMSC4144") {
 			body, _ = strings.CutPrefix(body, username.plain)
 			body = username.plain + ": " + body
@@ -870,10 +871,10 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	var (
 		ok                        bool
 		url, name, msgtype, mtype string
-		info                      map[string]interface{}
+		info                      map[string]any
 	)
 
-	rmsg.Extra = make(map[string][]interface{})
+	rmsg.Extra = make(map[string][]any)
 
 	if url, ok = content.Raw["url"].(string); !ok {
 		return fmt.Errorf("url isn't a %T", url)
@@ -1092,6 +1093,7 @@ func (b *Bmatrix) handleUploadFile(msg *config.Message, roomID id.RoomID, fi *co
 		b.Log.Debugf("Image format detected: %s (%dx%d)", format, cfg.Width, cfg.Height)
 
 		var img event.MessageEventContent
+
 		if b.GetBool("UseMSC4144") {
 			avatar := b.handleAvatar(msg.Avatar)
 			img = event.MessageEventContent{
@@ -1333,14 +1335,18 @@ func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
 		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
 		return ""
 	}
+
 	client := &http.Client{}
+
 	resp, err3 := client.Do(req)
 	if err3 != nil {
 		b.Log.Debugf("HTTP GET for avatar error: %#v", err)
 		return ""
 	}
+
 	defer func() {
-		if err4 := resp.Body.Close(); err4 != nil {
+		err4 := resp.Body.Close()
+		if err4 != nil {
 			b.Log.Debugf("Error closing HTTP body: %#v", err)
 		}
 	}()
@@ -1349,6 +1355,7 @@ func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
 		b.Log.Debugf("HTTP GET for avatar error: status code %#v", resp.StatusCode)
 		return ""
 	}
+
 	sp := strings.Split(urlS, ".")
 	mtype := mime.TypeByExtension("." + sp[len(sp)-1])
 	media := mautrix.ReqUploadMedia{
@@ -1362,5 +1369,6 @@ func (b *Bmatrix) handleAvatar(urlS string) id.ContentURIString {
 		b.Log.Debugf("error uploading avatar to matrix homeserver: %#v", err)
 		return ""
 	}
+
 	return id.ContentURIString(res.ContentURI.String())
 }

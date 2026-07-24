@@ -203,8 +203,8 @@ func newChannelManager(log *logrus.Entry, sc *slack.Client) *channels {
 }
 
 func (b *channels) getChannel(channel string) (*slack.Channel, error) {
-	if strings.HasPrefix(channel, "ID:") {
-		return b.getChannelByID(strings.TrimPrefix(channel, "ID:"))
+	if after, ok := strings.CutPrefix(channel, "ID:"); ok {
+		return b.getChannelByID(after)
 	}
 	return b.getChannelByName(channel)
 }

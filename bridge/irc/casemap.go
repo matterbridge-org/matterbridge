@@ -83,7 +83,13 @@ func (b *Birc) SanitizeNick(msg *config.Message) error {
 		b.Log.Errorf("SanitizeNick on %s for %s failed: %s", msg.Username, b.Account, err)
 	}
 
-	b.Log.Debugf("SanitizeNick of %s -> %s", msg.Username, cleanednick)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("SanitizeNick of %s -> %s", msg.Username, cleanednick)
+	}
 
 	msg.Username = cleanednick
 
@@ -99,9 +105,9 @@ func (b *Birc) sanitizeNick(nick string) (string, error) {
 
 	var folded string
 
-	switch b.Casemapping {
+	switch b.GetString("Casemapping") {
 	default:
-		b.Log.Debugf("sanitizeNick called with unknown Casemapping setting %s, falling back to ASCII", b.Casemapping)
+		b.Log.Debug("sanitizeNick falling back to ASCII; was called with unknown Casemapping setting")
 		fallthrough
 	case CM_ASCII:
 		cleaned = strings.Map(sanitizeASCII, nick)

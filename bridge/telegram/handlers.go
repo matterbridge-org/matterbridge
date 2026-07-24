@@ -205,7 +205,7 @@ func (b *Btelegram) handleRecv(updates <-chan tgbotapi.Update) {
 
 		var message *tgbotapi.Message
 
-		rmsg := config.Message{Account: b.Account, Extra: make(map[string][]interface{})}
+		rmsg := config.Message{Account: b.Account, Extra: make(map[string][]any)}
 
 		// handle channels
 		message = b.handleChannels(&rmsg, message, update)
@@ -320,7 +320,7 @@ func (b *Btelegram) handleDownloadAvatar(userid int64, channel string) {
 		Account:  b.Account,
 		UserID:   strconv.FormatInt(userid, 10),
 		Event:    config.EventAvatarDownload,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 	}
 
 	if _, ok := b.avatarMap[strconv.FormatInt(userid, 10)]; ok {
@@ -512,7 +512,7 @@ func (b *Btelegram) handleEdit(msg *config.Message, chatid int64) (string, error
 
 // handleUploadFile handles native upload of files
 func (b *Btelegram) handleUploadFile(msg *config.Message, chatid int64, threadid int, parentID int) (string, error) {
-	var media []interface{}
+	var media []any
 	equal := true
 	first := true
 	var prev string

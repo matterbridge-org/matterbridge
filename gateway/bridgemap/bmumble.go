@@ -1,5 +1,4 @@
 //go:build !nomumble
-// +build !nomumble
 
 package bridgemap
 

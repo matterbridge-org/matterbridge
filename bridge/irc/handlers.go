@@ -47,7 +47,7 @@ func (b *Birc) handleCharset(msg *config.Message) error {
 			}
 			fmt.Fprint(w, msg.Text)
 			w.Close()
-			// TODO: String() apparently converts to utf8.  Does that mess anything up here?
+
 			msg.Text = buf.String()
 		}
 	}
@@ -126,6 +126,8 @@ func (b *Birc) handleInvite(client *girc.Client, event girc.Event) {
 }
 
 func (b *Birc) handleJoinPartKICK(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if len(event.Params) == 0 {
 		b.Log.Debugf("handleJoinPartKICK: empty Params? %#v", event)
 		return
@@ -133,7 +135,11 @@ func (b *Birc) handleJoinPartKICK(client *girc.Client, event girc.Event) {
 
 	channel := strings.ToLower(event.Params[0])
 
-	if event.Params[1] == b.Nick {
+	b.RLock()
+	mynick := b.Nick
+	b.RUnlock()
+
+	if event.Params[1] == mynick {
 		b.Log.Infof("Got kicked from %s by %s", channel, event.Source.Name)
 		// TODO: Do this another way, without sleeping
 		time.Sleep(time.Duration(b.GetInt("RejoinDelay")) * time.Second)
@@ -143,6 +149,8 @@ func (b *Birc) handleJoinPartKICK(client *girc.Client, event girc.Event) {
 }
 
 func (b *Birc) handleJoinPartQUIT(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if len(event.Params) == 0 {
 		b.Log.Debugf("handleJoinPartQUIT: empty Params? %#v", event)
 		return
@@ -150,8 +158,14 @@ func (b *Birc) handleJoinPartQUIT(client *girc.Client, event girc.Event) {
 
 	channel := strings.ToLower(event.Params[0])
 
-	if event.Source.Name == b.Nick && strings.Contains(event.Last(), "Ping timeout") {
+	b.RLock()
+	mynick := b.Nick
+	b.RUnlock()
+
+	if event.Source.Name == mynick && strings.Contains(event.Last(), "Ping timeout") {
 		b.Log.Infof("%s reconnecting ..", b.Account)
+
+		b.Lock()
 		b.authDone = false
 		b.botModeDone = false
 		b.prefixDone = false
@@ -159,6 +173,8 @@ func (b *Birc) handleJoinPartQUIT(client *girc.Client, event girc.Event) {
 		b.relayMsgDone = false
 		b.CasemapFailures = 0
 		b.RelayMsgFailures = 0
+		b.utf8OnlyDone = false
+		b.Unlock()
 
 		b.Remote <- config.Message{Username: "system", Text: "reconnect", Channel: channel, Account: b.Account, Event: config.EventFailure}
 	}
@@ -166,7 +182,20 @@ func (b *Birc) handleJoinPartQUIT(client *girc.Client, event girc.Event) {
 
 // Unless we generate another event first, channel join is the first chance to find our current prefix
 func (b *Birc) handleJoinPartPrefix(client *girc.Client, event girc.Event) {
-	if b.prefixDone || event.Source.Name != b.Nick {
+	defer b.ircHandlePanic()
+
+	b.RLock()
+
+	if b.prefixDone {
+		b.RUnlock()
+
+		return
+	}
+
+	mynick := b.Nick
+	b.RUnlock()
+
+	if event.Source.Name != mynick {
 		return
 	}
 
@@ -180,31 +209,51 @@ func (b *Birc) handleJoinPartPrefix(client *girc.Client, event girc.Event) {
 	host := event.Source.Host
 
 	if host == "" {
-		b.Log.Debugf("empty host after %s joined %s?", b.Nick, channel)
+		b.Log.Debugf("empty host after %s joined %s?", mynick, channel)
 		return
 	}
 
-	b.MessagePrefix = len(b.Nick) + len(user) + len(host) + 6 // 6 bytes for ':', '!', '@', ' ' and a trailing CRLF
-	b.SetInt("MessagePrefix", b.MessagePrefix)
+	myprefix := len(mynick) + len(user) + len(host) + 6 // 6 bytes for ':', '!', '@', ' ' and a trailing CRLF
+
+	b.SetInt("MessagePrefix", myprefix)
+
+	b.RLock()
+	mymaxlen := b.maxLen        // Server-specified max line length
+	mymsglen := b.MessageLength // Our current setting, default of 512
+	b.RUnlock()
 
 	// Work around girc using max prefix length instead of actual prefix length
-	if (defaultMaxPrefix + b.maxLen - b.MessagePrefix) > (b.MessageLength - b.MessagePrefix) {
-		// Server supports extended lines
-		b.MessageLength = b.maxLen + defaultMaxPrefix
+	if (defaultMaxPrefix + mymaxlen - myprefix) > (mymsglen - myprefix) {
+		mymsglen = mymaxlen + defaultMaxPrefix // Server supports extended lines
+		b.SetInt("MessageLength", mymsglen)
+
+		b.Lock()
+		b.MessageLength = mymsglen
+		b.Unlock()
 	}
 
-	b.SetInt("MessageLength", b.MessageLength)
+	b.Lock()
+	b.MessagePrefix = myprefix
 	b.prefixDone = true
+	b.Unlock()
 }
 
 func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if len(event.Params) == 0 {
 		b.Log.Debugf("handleJoinPart: empty Params? %#v", event)
 		return
 	}
 
 	channel := strings.ToLower(event.Params[0])
-	if event.Source.Name != b.Nick {
+
+	b.RLock()
+	mynick := b.Nick
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if event.Source.Name != mynick {
 		if b.GetBool("nosendjoinpart") {
 			return
 		}
@@ -225,26 +274,40 @@ func (b *Birc) handleJoinPart(client *girc.Client, event girc.Event) {
 			msg.Event = config.EventLeave
 		}
 
-		b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
-		b.Log.Debugf("<= Message is %#v", msg)
+		if mydebug {
+			b.Log.Debugf("<= Sending JOIN/LEAVE event from %s to gateway", b.Account)
+			b.Log.Debugf("<= Message is %#v", msg)
+		}
 		b.Remote <- msg
 
 		return
 	}
 
-	b.Log.Debugf("handle %#v", event)
+	if mydebug {
+		b.Log.Debugf("handle %#v", event)
+	}
 }
 
 func (b *Birc) handleCapRelay(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if !b.GetBool("UseRelayMsg") {
 		return // nothing to do
 	}
 
 	if len(event.Params) >= 3 && event.Params[1] == girc.CAP_LS || event.Params[1] == girc.CAP_NEW {
-		if b.relayMsgDone && event.Params[1] != girc.CAP_NEW {
-			return // We're done here, unless the server has rehashed with a new separator
-		}
+		b.RLock()
+		mydebug := b.DebugMode
 
+		if b.relayMsgDone {
+			b.RUnlock()
+
+			if event.Params[1] != girc.CAP_NEW {
+				return // We're done here, unless the server has rehashed with a new separator
+			}
+		} else {
+			b.RUnlock()
+		}
 		caps := strings.Split(event.Last(), " ")
 
 		for cap := range caps {
@@ -255,10 +318,18 @@ func (b *Birc) handleCapRelay(client *girc.Client, event girc.Event) {
 
 					return
 				} else {
-					b.RelayMsgSep = strings.TrimSpace(caps[cap][sep+1:])
-					b.Log.Debugf("RelayMsgSep value for %s set to %s", b.Account, b.RelayMsgSep)
-					b.SetString("RelayMsgSep", b.RelayMsgSep)
+					mysep := strings.TrimSpace(caps[cap][sep+1:])
+
+					if mydebug {
+						b.Log.Debugf("RelayMsgSep value for %s set to %s", b.Account, mysep)
+					}
+
+					b.SetString("RelayMsgSep", mysep)
+
+					b.Lock()
+					b.RelayMsgSep = mysep
 					b.relayMsgDone = true
+					b.Unlock()
 
 					return
 				}
@@ -268,6 +339,8 @@ func (b *Birc) handleCapRelay(client *girc.Client, event girc.Event) {
 }
 
 func (b *Birc) handleErrorCM(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if len(event.Params) < 2 || event.Params[0] != cmdRelayMsg || event.Params[1] != errInvalidNick {
 		return
 	}
@@ -278,96 +351,155 @@ func (b *Birc) handleErrorCM(client *girc.Client, event girc.Event) {
 		return // another handler will log the error
 	}
 
+	b.RLock()
+
 	if b.CasemapFailures > 1 && b.caseMapDone {
+		b.RUnlock()
+
 		// This may be a case of an incorrect RelayMsgSep instead, let the other handlers deal with it
 		return
 	}
 
 	mymap := b.Casemapping
+	mydebug := b.DebugMode
+	b.RUnlock()
 
 	switch mymap {
 	case CM_PERMISSIVE: // Ergo sends "ascii" for precis, permissive, or ascii options
-		b.Casemapping = CM_ASCII
 		b.SetString("Casemapping", CM_ASCII)
-		b.Log.Debugf("Got RELAYMSG failure with permissive, falling back to ASCII on %s", b.Account)
+
+		if mydebug {
+			b.Log.Debugf("Got RELAYMSG failure with permissive, falling back to ASCII on %s", b.Account)
+		}
+
+		b.Lock()
+		b.Casemapping = CM_ASCII
 		b.caseMapDone = false
 	case CM_ASCII:
 		b.Log.Info("RELAYMSG failure with ASCII setting on " + b.Account)
 		b.Log.Info("Next RELAYMSG nick failure will be assumed to be a missing separator")
+		b.Lock()
 		b.caseMapDone = true
 	default:
-		b.Casemapping = CM_ASCII
 		b.SetString("Casemapping", CM_ASCII)
-		b.Log.Debugf("RELAYMSG failure with %s setting, falling back to ASCII on %s", mymap, b.Account)
+
+		if mydebug {
+			b.Log.Debugf("RELAYMSG failure with %s setting, falling back to ASCII on %s", mymap, b.Account)
+		}
+
+		b.Lock()
+		b.Casemapping = CM_ASCII
 		b.caseMapDone = false
 	}
 
 	b.CasemapFailures += 1
+	b.RelayMsgFailures += 1
+	b.Unlock()
 
 	b.Log.Warnf("Got a RELAYMSG failure: %s", event.Last())
-	b.RelayMsgFailures += 1
-	b.Log.Debugf("<= Message is %#v", event)
-	b.Log.Debugf("Error count is %d (casemap failures) %d (relaymsg failures)", b.CasemapFailures, b.RelayMsgFailures)
+
+	if mydebug {
+		b.RLock()
+		mycmfails := b.CasemapFailures
+		myrelfails := b.RelayMsgFailures
+		b.RUnlock()
+		b.Log.Debugf("<= Message is %#v", event)
+		b.Log.Debugf("Error count is %d (casemap failures) %d (relaymsg failures)", mycmfails, myrelfails)
+	}
 }
 
 func (b *Birc) handleErrorSEP(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if len(event.Params) < 2 && event.Params[0] != cmdRelayMsg || event.Params[1] != errInvalidNick {
 		return
 	}
 
 	text := event.Last()
 
+	b.RLock()
+	mydebug := b.DebugMode
+	cmdone := b.caseMapDone
+	cmfail := b.CasemapFailures
+	mysep := b.RelayMsgSep
+	b.RUnlock()
+
 	switch { // Ergo might return either one of these strings for a missing separator
 	case strings.Contains(text, "Relayed nicknames MUST contain"):
 		break
 	case strings.Contains(text, "Invalid nickname"):
-		if !b.caseMapDone || b.CasemapFailures <= 1 {
+		if !cmdone || cmfail <= 1 {
 			return // It might be a wrong casemapping setting
 		}
 
 		// We've the wrong separator but nothing to do about it?  Try the CAP handler again
+		b.Lock()
 		b.relayMsgDone = false
-		b.Log.Debugf("Sending a CAP LS 302 to check for RelayMsgSep on %s", b.Account)
+		b.Unlock()
+
+		if mydebug {
+			b.Log.Debugf("Sending a CAP LS 302 to check for RelayMsgSep on %s", b.Account)
+		}
 		client.Send(&girc.Event{Command: "CAP", Params: []string{"LS", "302"}})
 
 		return
 	default:
-		b.Log.Debugf("Unknown INVALID_NICK response from %s: %s", b.Account, text)
+		if mydebug {
+			b.Log.Debugf("Unknown INVALID_NICK response from %s: %s", b.Account, text)
+		}
+
 		return
 	}
 
 	b.Log.Warnf("Separator char was not present in RemoteNickFormat for %s", b.Account)
 
-	mysep := b.RelayMsgSep
-
 	sepindex := strings.LastIndex(text, " ")
 	if sepindex == (len(text)-1) && mysep == "" {
 		b.Log.Errorf("Relaymsg capability advertised for %s but no separator specified: %s", b.Account, text)
+		b.Lock()
 		b.RelayMsgFailures += 1
+		b.Unlock()
 
 		return // maybe we should panic?
 	}
 
 	sepchars := text[sepindex+1:]
 
-	b.Log.Debugf("Prior autoconfigured separator chars: %s", mysep)
-	b.Log.Debugf("Possibly updated separator chars: %s", sepchars)
+	if mydebug {
+		b.Log.Debugf("Prior autoconfigured separator chars: %s", mysep)
+		b.Log.Debugf("Possibly updated separator chars: %s", sepchars)
+	}
 
 	if sepchars != "" && mysep != "" && !strings.ContainsAny(sepchars, mysep) {
 		// we have an entirely new set of separator chars.
-		b.RelayMsgSep = strings.TrimSpace(sepchars)
 		b.Log.Infof("New relay separator char(s) for %s set by server: %s", b.Account, sepchars)
-		b.SetString("RelayMsgSep", b.RelayMsgSep)
+		mysep = strings.TrimSpace(sepchars)
+		b.SetString("RelayMsgSep", mysep)
+		b.Lock()
+		b.RelayMsgSep = mysep
 		b.relayMsgDone = true
+		b.Unlock()
 	}
 
 	b.Log.Warnf("Got a RELAYMSG failure: %s", event.Last())
+
+	b.Lock()
 	b.RelayMsgFailures += 1
-	b.Log.Debugf("<= Message is %#v", event)
-	b.Log.Debugf("Error count is %d (casemap failures) %d (relaymsg failures)", b.CasemapFailures, b.RelayMsgFailures)
+	b.Unlock()
+
+	if mydebug {
+		b.RLock()
+		relfail := b.RelayMsgFailures
+		b.RUnlock()
+
+		b.Log.Debugf("<= Message is %#v", event)
+		b.Log.Debugf("Error count is %d (casemap failures) %d (relaymsg failures)", cmfail, relfail)
+	}
 }
 
 func (b *Birc) handleErrorOther(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if len(event.Params) < 2 || event.Params[0] != cmdRelayMsg || event.Params[1] == errInvalidNick {
 		return // another handler will log the error
 	}
@@ -387,26 +519,49 @@ func (b *Birc) handleErrorOther(client *girc.Client, event girc.Event) {
 	//	fallthrough
 	// default:
 	b.Log.Errorf("Got a RELAYMSG failure: %s", event.Last())
+	b.Lock()
 	b.RelayMsgFailures += 1
-	b.Log.Debugf("<= Message is %#v", event)
-	b.Log.Debugf("Error count is %d (casemap failures) %d (relaymsg failures)", b.CasemapFailures, b.RelayMsgFailures)
+	b.Unlock()
+
+	if b.GetBool("Debug") {
+		b.Log.Debugf("<= Message is %#v", event)
+		b.RLock()
+		cmfail := b.CasemapFailures
+		relfail := b.RelayMsgFailures
+		b.RUnlock()
+		b.Log.Debugf("Error count is %d (casemap failures) %d (relaymsg failures)", cmfail, relfail)
+	}
 }
 
 func (b *Birc) handleISupportBOT(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
+	b.RLock()
 	if b.botModeDone {
+		b.RUnlock()
 		return
 	}
+
+	b.RUnlock()
 
 	result, ok := client.GetServerOption("BOT")
 	if ok {
 		b.Log.Debugf("Server supports BOT: %s", result)
 		client.Send(&girc.Event{Command: girc.MODE, Params: []string{b.Nick, "+" + result}})
+		b.Lock()
 		b.botModeDone = true
+		b.Unlock()
 	}
 }
 
 func (b *Birc) handleISupportCM(client *girc.Client, event girc.Event) {
-	if !b.GetBool("UseRelayMsg") || b.caseMapDone {
+	defer b.ircHandlePanic()
+
+	b.RLock()
+	cmdone := b.caseMapDone
+	b.RUnlock()
+
+	if !b.GetBool("UseRelayMsg") || cmdone {
 		return // For now, we only do anything with Casemapping if using RelayMsg
 	}
 
@@ -449,16 +604,24 @@ func (b *Birc) handleISupportCM(client *girc.Client, event girc.Event) {
 		fallthrough
 	default:
 		b.Log.Debugf("Setting initial Casemapping value on %s to: %s", b.Account, mymap)
-		b.Casemapping = mymap
 		b.SetString("Casemapping", mymap)
+		b.Lock()
+		b.Casemapping = mymap
 		b.caseMapDone = true
+		b.Unlock()
 	}
 }
 
 func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	b.Log.Debug("Registering callbacks")
 	i := b.i
+
+	b.Lock()
 	b.Nick = event.Params[0]
+	b.Unlock()
+
 	b.Log.Debug("Clearing handlers before adding in case of BNC reconnect")
 	i.Handlers.Clear("PRIVMSG")
 	i.Handlers.Clear("CTCP_ACTION")
@@ -504,18 +667,27 @@ func (b *Birc) handleNewConnection(client *girc.Client, event girc.Event) {
 }
 
 func (b *Birc) handleNickServ() {
-	if !b.GetBool("UseSASL") && b.GetString("NickServNick") != "" && b.GetString("NickServPassword") != "" {
-		b.Log.Debugf("Sending identify to nickserv %s", b.GetString("NickServNick"))
-		b.i.Cmd.Message(b.GetString("NickServNick"), "IDENTIFY "+b.GetString("NickServPassword"))
+	defer b.ircHandlePanic()
+
+	nickservnick := b.GetString("NickServNick")
+	nickservpass := b.GetString("NickServPassword")
+
+	if !b.GetBool("UseSASL") && nickservnick != "" && nickservpass != "" {
+		b.Log.Debugf("Sending identify to nickserv %s", nickservnick)
+		b.i.Cmd.Message(nickservnick, "IDENTIFY "+nickservpass)
 	}
-	if strings.EqualFold(b.GetString("NickServNick"), "Q@CServe.quakenet.org") {
-		b.Log.Debugf("Authenticating %s against %s", b.GetString("NickServUsername"), b.GetString("NickServNick"))
-		b.i.Cmd.Message(b.GetString("NickServNick"), "AUTH "+b.GetString("NickServUsername")+" "+b.GetString("NickServPassword"))
+
+	if strings.EqualFold(nickservnick, "Q@CServe.quakenet.org") {
+		nickservuser := b.GetString("NickServUsername")
+		b.Log.Debugf("Authenticating %s against %s", nickservuser, nickservnick)
+		b.i.Cmd.Message(nickservnick, "AUTH "+nickservuser+" "+nickservpass)
 	}
 	// give nickserv some slack
 	// TODO: Do this a different way, without sleeping
 	time.Sleep(time.Second * 5)
+	b.Lock()
 	b.authDone = true
+	b.Unlock()
 }
 
 func (b *Birc) handleNotice(client *girc.Client, event girc.Event) {
@@ -542,9 +714,21 @@ func (b *Birc) handleOther(client *girc.Client, event girc.Event) {
 }
 
 func (b *Birc) handleOtherAuth(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	b.handleNickServ()
 	b.handleRunCommands()
-	b.maxLen = b.i.MaxEventLength() // Set this one time per (re)connect
+	mymaxlen := b.i.MaxEventLength() // Set this one time per (re)connect
+	b.Lock()
+	b.maxLen = mymaxlen
+	b.Unlock()
+
+	b.RLock()
+	reldone := b.relayMsgDone
+	cmdone := b.caseMapDone
+	utf8done := b.utf8OnlyDone
+	firstconn := b.FirstConnection
+	b.RUnlock()
 
 	// TODO: Figure out why this wasn't caught the first time.
 	//
@@ -554,12 +738,13 @@ func (b *Birc) handleOtherAuth(client *girc.Client, event girc.Event) {
 	// The relaymsg capability is advertised with CAP LS, but the separator is only included with CAP LS 302.
 	//
 	// Send a CAP LS 302...
-	if b.GetBool("UseRelayMsg") && !b.relayMsgDone {
+	if b.GetBool("UseRelayMsg") && !reldone {
 		b.Log.Debugf("Requesting a CAP LS 302 to determine RelayMsgSep on %s", b.Account)
+
 		client.Send(&girc.Event{Command: "CAP", Params: []string{"LS", "302"}})
 	}
 
-	if b.GetBool("UseRelayMsg") && !b.caseMapDone {
+	if b.GetBool("UseRelayMsg") && !cmdone {
 		var mymap string
 
 		utf8mapcheck, ok := client.GetServerOption("UTF8MAPPING")
@@ -571,26 +756,46 @@ func (b *Birc) handleOtherAuth(client *girc.Client, event girc.Event) {
 				mymap = CM_PRECIS
 			default:
 				b.Log.Errorf("Unknown UTF8MAPPING token on %s: %s", b.Account, utf8mapcheck)
-				b.Log.Debugf("Falling back to ASCII")
+				b.Log.Debug("Falling back to ASCII")
 
 				mymap = CM_ASCII
 			}
 		}
 
 		b.Log.Debugf("Setting initial Casemapping value on %s to: %s", b.Account, mymap)
-		b.Casemapping = mymap
+
 		b.SetString("Casemapping", mymap)
+		b.Lock()
+		b.Casemapping = mymap
 		b.caseMapDone = true
+		b.Unlock()
+	}
+
+	// handle a UTF8ONLY ISUPPORT token, which restricts us to only sending unicode to the server.
+	if !utf8done {
+		_, ok := client.GetServerOption("UTF8ONLY")
+		if ok { // We are restricted to sending UTF8 only
+			b.SetString("Charset", utf8charset)
+			b.SetBool("Utf8Only", true)
+		} else { // We are free to send other charsets
+			b.SetBool("Utf8Only", false)
+		}
+
+		b.Lock()
+		b.utf8OnlyDone = true
+		b.Unlock()
 	}
 
 	// we are now fully connected
 	// only send on first connection
-	if b.FirstConnection {
+	if firstconn {
 		b.connected <- nil
 	}
 }
 
 func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
+	defer b.ircHandlePanic()
+
 	if b.skipPrivMsg(event) {
 		return
 	}
@@ -602,12 +807,20 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 		UserID:   event.Source.Ident + "@" + event.Source.Host,
 	}
 
-	b.Log.Debugf("== Receiving PRIVMSG: %s %s %#v", event.Source.Name, event.Last(), event)
+	b.RLock()
+	mydebug := b.DebugMode
+	b.RUnlock()
+
+	if mydebug {
+		b.Log.Debugf("== Receiving PRIVMSG: %s %s %#v", event.Source.Name, event.Last(), event)
+	}
 
 	// set action event
 	if ok, ctcp := event.IsCTCP(); ok {
 		if ctcp.Command != girc.CTCP_ACTION {
-			b.Log.Debugf("dropping user ctcp, command: %s", ctcp.Command)
+			if mydebug {
+				b.Log.Debugf("dropping user ctcp, command: %s", ctcp.Command)
+			}
 			return
 		}
 		rmsg.Event = config.EventUserAction
@@ -640,7 +853,11 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 			b.Log.Infof("detection failed for rmsg.Text: %#v", rmsg.Text)
 			return
 		}
-		b.Log.Debugf("detected %s confidence %#v", result.Charset, result.Confidence)
+
+		if mydebug {
+			b.Log.Debugf("detected %s confidence %#v", result.Charset, result.Confidence)
+		}
+
 		mycharset = result.Charset
 		// if we're not sure, just pick ISO-8859-1
 		if result.Confidence < 80 {
@@ -665,7 +882,10 @@ func (b *Birc) handlePrivMsg(client *girc.Client, event girc.Event) {
 		rmsg.Text = rmsg.Text[8 : len(rmsg.Text)-1]
 	}
 
-	b.Log.Debugf("<= Sending message from %s on %s to gateway", event.Params[0], b.Account)
+	if mydebug {
+		b.Log.Debugf("<= Sending message from %s on %s to gateway", event.Params[0], b.Account)
+	}
+
 	b.Remote <- rmsg
 }
 

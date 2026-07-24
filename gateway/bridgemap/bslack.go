@@ -1,5 +1,4 @@
 //go:build !noslack
-// +build !noslack
 
 package bridgemap
 
