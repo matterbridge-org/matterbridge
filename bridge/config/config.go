@@ -145,6 +145,7 @@ type Protocol struct {
 	EditSuffix             string   // mattermost, slack, discord, telegram
 	EditDisable            bool     // mattermost, slack, discord, telegram
 	EditMaxDays            int      // discord
+	EmbedFormat            string   // discord
 	HTMLDisable            bool     // matrix
 	IconURL                string   // mattermost, slack
 	IgnoreFailureOnStart   bool     // general
