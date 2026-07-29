@@ -21,7 +21,7 @@ require (
 	github.com/matterbridge/gozulipbot v0.0.0-20211023205727-a19d6c1f3b75
 	// todo: github.com/chrispassas/logrus-prefixed-formatter v0.5.20
 	github.com/matterbridge/logrus-prefixed-formatter v0.5.3-0.20200523233437-d971309a77ba
-	github.com/matterbridge/matterclient v0.0.0-20240817214420-3d4c3aef3dc1
+	github.com/matterbridge/matterclient v0.0.0-20260728102709-acb6b162f7c4
 	github.com/matterbridge/telegram-bot-api/v6 v6.5.0
 	// todo: update mattermost/server/public to v8
 	github.com/mattermost/mattermost/server/public v0.1.6
@@ -85,7 +85,6 @@ require (
 	github.com/hashicorp/go-hclog v1.6.4-0.20260701111136-c93f53651c57 // indirect
 	github.com/hashicorp/go-multierror v1.1.2-0.20260401052802-6d4d48630db2 // indirect
 	github.com/hashicorp/go-plugin v1.8.1-0.20260720063433-290c7b941c32 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/yamux v0.1.3-0.20260720063314-e14d7feed381 // indirect
 	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253 // indirect
 	github.com/klauspost/compress v1.19.2-0.20260721100123-117430d3b0e3 // indirect

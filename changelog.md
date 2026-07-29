@@ -16,7 +16,8 @@
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
 - xmpp: `WebhookURL` for slack-compatible webhooks has been removed (see XMPP docs) ; you can
   open an issue if you'd like to use it again and can document the setup
-- Go required version is now v1.26
+- Go required version is now v1.26.5
+- The revamped ["go fix"][#249](https://github.com/matterbridge-org/matterbridge/pull/249) command has been applied to the whole codebase, updating many files to the latest go idioms.  For a contributor to run the same command against the working branch, issue "go fix ./..." This addresses several types of performance issue, such as inefficient string handling (e.g. appending or concatenating in loops using format strings). ([#249](https://github.com/matterbridge-org/matterbridge/pull/249))
 - `MediaServerUpload` has been deprecated ([#30](https://github.com/matterbridge-org/matterbridge/issues/30)),
   because we don't know how to make it work and were improving those parts of the codebase.
   If you were successfully using it, your feedback is welcome and we may reintroduce it.
@@ -42,6 +43,7 @@
   - new bridge functions "SetBool", "SetString", "SetInt", etc. have been added, which provide override values for the Viper config settings for that bridge.  These settings do not persist upon restart.
 - irc
   - matterbridge when using the `Colornicks` setting now colors any space-delimited parts of the `RemoteNickFormat` setting individually, allowing nicks, protocols, bridge names, channels, etc. to each have a consistent color ([#218](https://github.com/matterbridge-org/matterbridge/pull/218))
+  - the `Colornicks` processing has been reworked to avoid any use of format strings; instead, it uses a static array set at compile time to assign the correct color.  Both the colorized `RemoteNickFormat` and the rest of the line sent to the server are now composed using strings.Builder instead of `Sprintf()` in a loop.  The new method is significantly faster. ([#249](https://github.com/matterbridge-org/matterbridge/pull/249))
   - irc bridges now handle server connections, channel joins, and messages asynchronously.  performance has been enhanced by moving all calls to the `girc` library to outside of the main goroutine which calls `Send()`, thus avoiding unnecessary locks. Thanks go to github user cjdelisle for the async inspiration ([#230](https://github.com/matterbridge-org/matterbridge/pull/230))
   - irc bridges with `UseRelayMsg` set will now automatically discover the required separator character(s) and apply one if it is missing from the `RemoteNickFormat`.  they will also automatically adapt the encoding of relayed nicks, depending on the server's "casemapping" configuration, allowing for unicode support in the relayed nicks if the server supports them.  to handle the edge case where a nick has been completely erased during pre-relaymsg sanitizing, the config settings `UseRelayFallback` and `RelayFallbackNick` have been added, defaulting to `true` and "unknown", respectively.  Note that this could potentially allow for anonymized messages to be sent to irc bridges.
 - mastodon
@@ -58,7 +60,8 @@
   - New setting `EditMaxDays` to ignore edits of older messages. ([#199](https://github.com/matterbridge-org/matterbridge/pull/199))
   - New setting `CustomStatus` to set the bridge bot's activity status message on Discord. ([#204](https://github.com/matterbridge-org/matterbridge/pull/204))
 - whatsapp
-  - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
+  - legacy `whatsapp` backend has been deprecated in favor of `whatsappmulti` (powered by the `whatsmeow` library) ([#32](https://github.com/matterbridge-org/matterbridge/issues/32)) ; this is not a breaking change and will not affect your existing settings
+  - with the update to go 1.26.x, the `whatsmeow` library deprecated an old compatibility layer which matterbridge had been relying upon.  the legacy `binary/proto` package has now been replaced with a `proto/waE2E` package that supersedes it.  ([#249](https://github.com/matterbridge-org/matterbridge/pull/249))
 - slack
   - added support for using socket mode Events API to receive messages for bridging instead of RTM.
     this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).

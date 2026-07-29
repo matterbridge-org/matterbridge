@@ -134,8 +134,6 @@ github.com/hashicorp/go-multierror v1.1.2-0.20260401052802-6d4d48630db2 h1:dI3J3
 github.com/hashicorp/go-multierror v1.1.2-0.20260401052802-6d4d48630db2/go.mod h1:RYOtqYU2MvOrqUMooJlQoFFuqR6sazGdm1ubZTL++r8=
 github.com/hashicorp/go-plugin v1.8.1-0.20260720063433-290c7b941c32 h1:qiWROkt2sgXNuR4jvoMg+XToDxOERIBtH4yo8pqP50s=
 github.com/hashicorp/go-plugin v1.8.1-0.20260720063433-290c7b941c32/go.mod h1:aDhBnaEvqzOPP8pQxWHK1MKrTRT6gvsrUi1S/Otaj6A=
-github.com/hashicorp/golang-lru v0.5.4 h1:YDjusn29QI/Das2iO9M0BHnIbxPeyuCHsjMW+lJfyTc=
-github.com/hashicorp/golang-lru v0.5.4/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hashicorp/yamux v0.1.3-0.20260720063314-e14d7feed381 h1:bM8QUHq4xJztW9X+4aANi3O0tLEkj+gbMxJAvPJgixw=
@@ -186,8 +184,8 @@ github.com/matterbridge/gozulipbot v0.0.0-20211023205727-a19d6c1f3b75 h1:GslZKF7
 github.com/matterbridge/gozulipbot v0.0.0-20211023205727-a19d6c1f3b75/go.mod h1:yAjnZ34DuDyPHMPHHjOsTk/FefW4JJjoMMCGt/8uuQA=
 github.com/matterbridge/logrus-prefixed-formatter v0.5.3-0.20200523233437-d971309a77ba h1:XleOY4IjAEIcxAh+IFwT5JT5Ze3RHiYz6m+4ZfZ0rc0=
 github.com/matterbridge/logrus-prefixed-formatter v0.5.3-0.20200523233437-d971309a77ba/go.mod h1:iXGEotOvwI1R1SjLxRc+BF5rUORTMtE0iMZBT2lxqAU=
-github.com/matterbridge/matterclient v0.0.0-20240817214420-3d4c3aef3dc1 h1:LHzlbT3VIcRFhSPwKpZfT2TU2rUzuA8liF57gSEBuaI=
-github.com/matterbridge/matterclient v0.0.0-20240817214420-3d4c3aef3dc1/go.mod h1:quMZkUhnTp/YfbJU6sCgD6qVSPgH1Uxig9/AjgJQHF8=
+github.com/matterbridge/matterclient v0.0.0-20260728102709-acb6b162f7c4 h1:uk7/V9ZzI85vDeUP9dVbN7/P2mZmauTgrBiRkixn20E=
+github.com/matterbridge/matterclient v0.0.0-20260728102709-acb6b162f7c4/go.mod h1:5+Z8FKATFPNAzp702walUDWmWo+7FruwxQS1vgE0o6s=
 github.com/matterbridge/telegram-bot-api/v6 v6.5.0 h1:wCnHWvt4WGhfognQsuu2OnHyqENBdJRf2mReYTCXggQ=
 github.com/matterbridge/telegram-bot-api/v6 v6.5.0/go.mod h1:/hSLrs8h/xNsQglQXjwXJ92iZU8XfTGkYUQ7KVDWEVo=
 github.com/mattermost/go-i18n v1.11.1-0.20211013152124-5c415071e404 h1:Khvh6waxG1cHc4Cz5ef9n3XVCxRWpAKUtqg9PJl5+y8=
