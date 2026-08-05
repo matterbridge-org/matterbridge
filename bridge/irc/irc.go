@@ -572,16 +572,17 @@ func (b *Birc) handlePrefix(msg *config.Message) int {
 		userslice := strings.FieldsFunc(msg.Username, func(r rune) bool {
 			return r == '\u0020' // split only on regular space; ignore NBSP, tab, newline
 		})
-		username := ""
+
+		var username strings.Builder
 
 		for i := range userslice {
 			checksum := crc32.ChecksumIEEE([]byte(userslice[i]))
 			colorCode := checksum%14 + 2 // prevent white or black color codes
-			username += fmt.Sprintf("\x03%02d%s\x0F ", colorCode, userslice[i])
+			fmt.Fprintf(&username, "\x03%02d%s\x0F ", colorCode, userslice[i])
 			prefix += 5 // we've just added four bytes and a space
 		}
 
-		msg.Username = username
+		msg.Username = username.String()
 	}
 
 	return prefix

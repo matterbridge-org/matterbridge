@@ -16,7 +16,7 @@
 - xmpp: `NoTls` setting has been deprecated; to disable `StartTls` and start a plaintext connection, use `NoStartTls`
 - xmpp: `WebhookURL` for slack-compatible webhooks has been removed (see XMPP docs) ; you can
   open an issue if you'd like to use it again and can document the setup
-- Go required version is now v1.24
+- Go required version is now v1.26
 - `MediaServerUpload` has been deprecated ([#30](https://github.com/matterbridge-org/matterbridge/issues/30)),
   because we don't know how to make it work and were improving those parts of the codebase.
   If you were successfully using it, your feedback is welcome and we may reintroduce it.
@@ -107,8 +107,9 @@
 
 ## Upstream
 
+- matrix: mautrix updated to v0.29.1-0.20260722181210 ([#248](https://github.com/matterbridge-org/matterbridge/pull/248))
 - xmpp: go-xmpp updated to xmppo/go-xmpp v0.3.1
-- whatsappmulti: whatsmeow updated to v20251116104239 ([#13](https://github.com/matterbridge-org/matterbridge/pull/13), thanks @alvindimas05)
+- whatsapp: whatsmeow updated to v20260722203353 ([#13](https://github.com/matterbridge-org/matterbridge/pull/13) thanks @alvindimas05, [#248](https://github.com/matterbridge-org/matterbridge/pull/248))
 
 ## Minor changes
 

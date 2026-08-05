@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	goproto "google.golang.org/protobuf/proto"
-
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store"
@@ -157,7 +155,7 @@ func (b *Bwhatsapp) getNewReplyContext(parentID string) (*proto.ContextInfo, err
 	ctx := &proto.ContextInfo{
 		StanzaID:      &replyInfo.MessageID,
 		Participant:   &sender,
-		QuotedMessage: &proto.Message{Conversation: goproto.String("")},
+		QuotedMessage: &proto.Message{Conversation: new("")}, //nolint: staticcheck
 	}
 
 	return ctx, nil

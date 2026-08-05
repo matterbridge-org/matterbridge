@@ -870,10 +870,10 @@ func (b *Bmatrix) handleDownloadFile(rmsg *config.Message, content event.Content
 	var (
 		ok                        bool
 		url, name, msgtype, mtype string
-		info                      map[string]interface{}
+		info                      map[string]any
 	)
 
-	rmsg.Extra = make(map[string][]interface{})
+	rmsg.Extra = make(map[string][]any)
 
 	if url, ok = content.Raw["url"].(string); !ok {
 		return fmt.Errorf("url isn't a %T", url)

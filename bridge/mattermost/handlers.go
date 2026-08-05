@@ -20,7 +20,7 @@ func (b *Bmattermost) handleDownloadAvatar(userid string, channel string) {
 		Account:  b.Account,
 		UserID:   userid,
 		Event:    config.EventAvatarDownload,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 	}
 	if _, ok := b.avatarMap[userid]; !ok {
 		var (
@@ -122,7 +122,7 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 			Text:     message.Text,
 			ID:       message.Post.Id,
 			ParentID: message.Post.RootId, // ParentID is obsolete with mattermost
-			Extra:    make(map[string][]interface{}),
+			Extra:    make(map[string][]any),
 		}
 
 		// handle mattermost post properties (override username and attachments)
@@ -197,14 +197,15 @@ func (b *Bmattermost) handleProps(rmsg *config.Message, message *matterclient.Me
 	if _, ok := props["override_username"].(string); ok {
 		rmsg.Username = props["override_username"].(string)
 	}
-	if _, ok := props["attachments"].([]interface{}); ok {
-		rmsg.Extra["attachments"] = props["attachments"].([]interface{})
+
+	if _, ok := props["attachments"].([]any); ok {
+		rmsg.Extra["attachments"] = props["attachments"].([]any)
 		if rmsg.Text != "" {
 			return
 		}
 
 		for _, attachment := range rmsg.Extra["attachments"] {
-			attach := attachment.(map[string]interface{})
+			attach := attachment.(map[string]any)
 			if attach["text"].(string) != "" {
 				rmsg.Text += attach["text"].(string)
 				continue

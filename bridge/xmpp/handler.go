@@ -21,7 +21,7 @@ func (b *Bxmpp) handleDownloadAvatar(avatar xmpp.AvatarData) {
 		Account:  b.Account,
 		UserID:   avatar.From,
 		Event:    config.EventAvatarDownload,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 	}
 
 	// TODO: why do we check if the avatar is already set?

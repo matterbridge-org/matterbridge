@@ -76,7 +76,6 @@ func (b *Btalk) JoinChannel(channel config.ChannelInfo) error {
 
 	go func() {
 		for msg := range c {
-			msg := msg
 
 			if msg.Error != nil {
 				b.Log.Errorf("Fatal message poll error: %s\n", msg.Error)
@@ -179,7 +178,7 @@ func (b *Btalk) handleFiles(mmsg *config.Message, message *ocs.TalkRoomMessageDa
 			}
 
 			if mmsg.Extra == nil {
-				mmsg.Extra = make(map[string][]interface{})
+				mmsg.Extra = make(map[string][]any)
 			}
 
 			mmsg.Extra["file"] = append(mmsg.Extra["file"], config.FileInfo{

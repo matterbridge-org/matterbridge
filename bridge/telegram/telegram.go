@@ -205,7 +205,7 @@ func (b *Btelegram) sendMessage(chatid int64, topicid int, username, text string
 }
 
 // sendMediaFiles native upload media files via media group
-func (b *Btelegram) sendMediaFiles(msg *config.Message, chatid int64, threadid int, parentID int, media []interface{}) (string, error) {
+func (b *Btelegram) sendMediaFiles(msg *config.Message, chatid int64, threadid int, parentID int, media []any) (string, error) {
 	if len(media) == 0 {
 		return "", nil
 	}

@@ -194,7 +194,7 @@ func (b *Bmsteams) poll(channelName string) error {
 				Avatar:   "",
 				UserID:   *msg.From.User.ID,
 				ID:       *msg.ID,
-				Extra:    make(map[string][]interface{}),
+				Extra:    make(map[string][]any),
 			}
 
 			b.handleAttachments(&rmsg, msg)

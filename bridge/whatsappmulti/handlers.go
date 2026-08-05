@@ -15,7 +15,7 @@ import (
 )
 
 // nolint:gocritic
-func (b *Bwhatsapp) eventHandler(evt interface{}) {
+func (b *Bwhatsapp) eventHandler(evt any) {
 	switch e := evt.(type) {
 	case *events.Message:
 		b.handleMessage(e)
@@ -177,7 +177,7 @@ func (b *Bwhatsapp) handleTextMessage(messageInfo types.MessageInfo, msg *proto.
 		Channel:  channel.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, messageInfo.ID),
 		ParentID: parentID,
 	}
@@ -210,7 +210,7 @@ func (b *Bwhatsapp) handleImageMessage(msg *events.Message) {
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -274,7 +274,7 @@ func (b *Bwhatsapp) handleVideoMessage(msg *events.Message) {
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -340,7 +340,7 @@ func (b *Bwhatsapp) handleAudioMessage(msg *events.Message) {
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}
@@ -398,7 +398,7 @@ func (b *Bwhatsapp) handleDocumentMessage(msg *events.Message) {
 		Channel:  msg.Info.Chat.String(),
 		Account:  b.Account,
 		Protocol: b.Protocol,
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 		ID:       getMessageIdFormat(senderJID, msg.Info.ID),
 		ParentID: getParentIdFromCtx(ci),
 	}

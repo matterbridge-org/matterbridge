@@ -142,14 +142,15 @@ func (b *API) handlePostMessage(c echo.Context) error {
 	message.Timestamp = time.Now()
 
 	var (
-		fm map[string]interface{}
+		fm map[string]any
 		ds string
 		ok bool
 	)
 
 	for i, f := range message.Extra["file"] {
 		fi := config.FileInfo{}
-		if fm, ok = f.(map[string]interface{}); !ok {
+
+		if fm, ok = f.(map[string]any); !ok {
 			return echo.NewHTTPError(http.StatusInternalServerError, "invalid format for extra")
 		}
 		err := mapstructure.Decode(fm, &fi)

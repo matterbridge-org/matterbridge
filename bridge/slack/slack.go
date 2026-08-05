@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
@@ -36,7 +36,7 @@ type Bslack struct {
 	actingUserID   string
 	actingUserName string
 
-	cache        *lru.Cache
+	cache        *lru.Cache[string, any]
 	uuid         string
 	useChannelID bool
 
@@ -103,7 +103,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 }
 
 func newBridge(cfg *bridge.Config) *Bslack {
-	newCache, err := lru.New(5000)
+	newCache, err := lru.New[string, any](5000)
 	if err != nil {
 		cfg.Log.Fatalf("Could not create LRU cache for Slack bridge: %v", err)
 	}

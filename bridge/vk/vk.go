@@ -173,7 +173,7 @@ func (b *Bvk) handleMessage(msg object.MessagesMessage, isFwd bool) {
 		Account:  b.Account,
 		UserID:   strconv.Itoa(msg.FromID),
 		ID:       strconv.Itoa(msg.ConversationMessageID),
-		Extra:    make(map[string][]interface{}),
+		Extra:    make(map[string][]any),
 	}
 
 	if msg.ReplyMessage != nil {
@@ -211,15 +211,17 @@ func (b *Bvk) handleMessage(msg object.MessagesMessage, isFwd bool) {
 	}
 }
 
-func (b *Bvk) uploadFiles(extra map[string][]interface{}, peerID int) (string, string) {
-	var attachments []string
-	text := ""
+func (b *Bvk) uploadFiles(extra map[string][]any, peerID int) (string, string) {
+	var (
+		attachments []string
+		text        strings.Builder
+	)
 
 	for _, f := range extra["file"] {
 		fi := f.(config.FileInfo)
 
 		if fi.Comment != "" {
-			text += fi.Comment + "\n"
+			text.WriteString(fi.Comment + "\n")
 		}
 		a, err := b.uploadFile(fi, peerID)
 		if err != nil {
@@ -229,7 +231,7 @@ func (b *Bvk) uploadFiles(extra map[string][]interface{}, peerID int) (string, s
 		attachments = append(attachments, a)
 	}
 
-	return strings.Join(attachments, ","), text
+	return strings.Join(attachments, ","), text.String()
 }
 
 func (b *Bvk) uploadFile(file config.FileInfo, peerID int) (string, error) {

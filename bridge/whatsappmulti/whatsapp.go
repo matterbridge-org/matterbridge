@@ -18,8 +18,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	goproto "google.golang.org/protobuf/proto"
-
 	_ "modernc.org/sqlite" // needed for sqlite
 )
 
@@ -238,7 +236,7 @@ func (b *Bwhatsapp) PostDocumentMessage(msg config.Message, filetype string) (st
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
@@ -276,7 +274,7 @@ func (b *Bwhatsapp) PostImageMessage(msg config.Message, filetype string) (strin
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
@@ -310,7 +308,7 @@ func (b *Bwhatsapp) PostVideoMessage(msg config.Message, filetype string) (strin
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,
@@ -343,7 +341,7 @@ func (b *Bwhatsapp) PostAudioMessage(msg config.Message, filetype string) (strin
 		MediaKey:      resp.MediaKey,
 		FileEncSHA256: resp.FileEncSHA256,
 		FileSHA256:    resp.FileSHA256,
-		FileLength:    goproto.Uint64(resp.FileLength),
+		FileLength:    new(resp.FileLength),
 		URL:           &resp.URL,
 		DirectPath:    &resp.DirectPath,
 		ContextInfo:   ctx,

@@ -1,5 +1,4 @@
 //go:build !nomatrix
-// +build !nomatrix
 
 package bridgemap
 

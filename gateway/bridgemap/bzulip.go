@@ -1,5 +1,4 @@
 //go:build !nozulip
-// +build !nozulip
 
 package bridgemap
 
