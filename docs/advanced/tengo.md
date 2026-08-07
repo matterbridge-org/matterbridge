@@ -11,8 +11,6 @@ RemoteNickFormat="remotenickformat.tengo"
 
 More information about tengo on: https://github.com/d5/tengo/blob/master/docs/tutorial.md and https://github.com/d5/tengo/blob/master/docs/stdlib.md
 
-FIXME: Document support for [dropping messages](https://github.com/42wim/matterbridge/pull/1272).
-
 ## InMessage
 
 InMessage allows you to specify the location of a tengo (https://github.com/d5/tengo/) script.  
@@ -48,7 +46,9 @@ read-only: \
 `outAccount`, `outProtocol`, `outChannel`, `outGateway`, `outEvent` \
 
 read-write: \
-`msgText`, `msgUsername`
+`msgText`, `msgUsername`, `msgDrop`
+
+`msgDrop`, when set to true in a tengo script, drops the message. This is useful for e.g. advanced message blocking logic (we already offer `IgnoreMessages` which handle regex strings).
 
 The script is reloaded on every message, so you can modify the script on the fly.
 

@@ -34,7 +34,7 @@ You can bridge between any (number) protocols. Even the same protocol!
 For example you can bridge Discord, Matrix and Slack.    
 A message typed in Slack will be shown in Discord, and Matrix (and the other way around)
 
-Follow the steps in [[How-to-create-your-config]]
+Follow the steps in [config.md](config.md)
 
 # Support multiple gateways(bridges) for your protocols
 A gateway here is a collection of protocols that you want to bridge.
@@ -79,5 +79,5 @@ See webhook in advanced for specific bridge information TODO
 Private groups are supported for Mattermost and Slack
 
 # API
-See [[Api]]
+See [api](api/)
 

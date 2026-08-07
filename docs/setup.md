@@ -15,8 +15,8 @@ To install or upgrade just download the latest [binary](https://github.com/42wim
 
 ## Compiling from source
 
-See [compiling.md].
+See [compiling.md](compiling.md).
 
 ## Getting started
 
-Now that matterbridge is setup, head over to [configuration.md] to find out how to get started.
+Now that matterbridge is setup, head over to [configuration.md](configuration.md) to find out how to get started.

@@ -1,6 +1,6 @@
 # Building from source
 
-This page documents how to build matterbridge from source. If you're looking for ready-to-use executables, head over to [setup.md]. If you really want to build from source, follow these instructions.
+This page documents how to build matterbridge from source. If you're looking for ready-to-use executables, head over to [setup.md](setup.md). If you really want to build from source, follow these instructions.
 
 ## Requirements
 

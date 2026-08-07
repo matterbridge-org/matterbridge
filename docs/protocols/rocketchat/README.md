@@ -1,4 +1,4 @@
-# RocketChta
+# RocketChat
 
 - Status: ???
 - Maintainers: ???

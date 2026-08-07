@@ -100,7 +100,7 @@ If specified, messages will be sent to mattermost using this URL
 - Format: *string*
 - Example: 
   ```toml
-  WebhookURL="https://yourdomain/hooks/yourhookkey"`
+  WebhookURL="https://yourdomain/hooks/yourhookkey"
   ```
 
 ### WebhookBindAddress

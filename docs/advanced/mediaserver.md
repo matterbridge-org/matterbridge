@@ -37,7 +37,7 @@ cleanup.sh:
 find /path/to/matterbridge/media -mindepth 1 -mtime +30 -delete
 ```
 
-This will delete all downloaded content that is more than 30 days old (but not the media directory itself, due to the use of `-mindepth 1`). You should adjust the path and the max age to suit your own needs. It may be helpful to look at the [`find` manual page](https://www.gnu.org/software/findutils/manual/html_node/find_html/index.html).
+This will delete all downloaded content that is more than 30 days old (but not the media directory itself, due to the use of `-mindepth 1`). You should adjust the path and the max age to suit your own needs. It may be helpful to look at the [`find` manual page](https://www.man7.org/linux/man-pages/man1/find.1.html).
 
 To run the script as the user running matterbridge, execute `crontab -e` and add the following line to the bottom of the file:
 ```

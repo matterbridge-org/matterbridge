@@ -108,4 +108,4 @@ Token="MY_SECRET_TOKEN"
 # ....
 ```
 
-Then [[set up your individual bridges|Section-Discord-(basic)]].
+Then [set up your individual bridges](README.md).

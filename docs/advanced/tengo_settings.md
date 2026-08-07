@@ -1,8 +1,6 @@
 # Tengo
 More information about tengo on: https://github.com/d5/tengo/blob/master/docs/tutorial.md and https://github.com/d5/tengo/blob/master/docs/stdlib.md
 
-FIXME: Document support for [dropping messages](https://github.com/42wim/matterbridge/pull/1272).
-
 ## InMessage
 InMessage allows you to specify the location of a tengo (https://github.com/d5/tengo/) script.
 This script will receive every incoming message and can be used to modify the Username and the Text of that message.
@@ -41,7 +39,7 @@ read-only:
 `outAccount`, `outProtocol`, `outChannel`, `outGateway`, `outEvent`
 
 read-write:
-`msgText`, `msgUsername`
+`msgText`, `msgUsername`, `msgDrop`
 
 Notice: `msgUsername` is already formatted by [RemoteNickFormat](https://github.com/42wim/matterbridge/wiki/Settings#remotenickformat) at this point.
 

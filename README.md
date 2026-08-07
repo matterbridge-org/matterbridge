@@ -14,7 +14,7 @@ Letting people be where they want to be with the magic of [interoperability](htt
 
 ---
 
-[![Download stable](https://img.shields.io/github/release/42wim/matterbridge.svg?label=download%20stable)](https://github.com/42wim/matterbridge/releases/latest)
+[![Download stable](https://img.shields.io/github/release/42wim/matterbridge.svg?label=download%20stable)](https://github.com/matterbridge-org/matterbridge/releases/latest)
 
 ---
 
@@ -89,7 +89,6 @@ Questions or want to see the bridge in action? Join us on:
 - [matterbridge config viewer](https://github.com/patcon/matterbridge-heroku-viewer)
 - [matterbridge-heroku](https://github.com/cadecairos/matterbridge-heroku)
 - [mattermost-plugin](https://github.com/matterbridge/mattermost-plugin) - Run matterbridge as a plugin in mattermost
-- [isla](https://github.com/alphachung/isla) (Bot for Discord-Telegram groups used alongside matterbridge)
 
 ## Thanks
 

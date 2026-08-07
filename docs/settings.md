@@ -1,3 +1,4 @@
+<!-- TODO: check matterbridge.toml.sample and see whether this is accurate. ive seen some settings from there undocumented for various protocols -->
 # Settings
 
 On this page you will find information about global matterbridge settings. Most of these settings can be applied to specific gateways, and those marked **GENERAL** can be placed in the `[general]` configuration dictionary for setting it across all gateways.

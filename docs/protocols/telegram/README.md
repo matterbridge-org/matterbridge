@@ -48,7 +48,7 @@ Maybe adding it as an administrator directly works. Adding it from the mobile ap
 
 ### Limitations
 
-- The Telegram API does not report any changes **when messages are deleted** so Matterbridge is unable to remove any bridged messages after they've been sent (This will render many common spam solutions useless). Use regexp with the `IgnoreMessages=` field to remove any common spam messages. # Telegram 
+- The Telegram API does not report any changes **when messages are deleted** so Matterbridge is unable to remove any bridged messages after they've been sent (This will render many common spam solutions useless). Use regexp with the `IgnoreMessages=` field to remove any common spam messages.
 
 ### Matterbridge is not relaying messages from Telegram
 

@@ -30,6 +30,7 @@ Password="yourpass"
 
 ### How to encrypt matterbridge messages to Matrix?
 
+```toml
 [matrix.test]
 RemoteNickFormat="{NICK} ({LABEL}) "
 Server="<https://domain.tld>"
@@ -41,6 +42,7 @@ RecoveryKey="this thing isss real long bubb" # your account recovery key from ma
 MxID="@yourusername:domain.tld" # your mxid from the logs
 Token="your token from log output" # your token from the logs
 DeviceID="yourdeviceid" # your deviceid from the logs
+```
 
 #### Steps for getting an encrypted connection working
 
