@@ -69,3 +69,14 @@ See administration - integrations - new integration - incoming webhook
   ```toml
   WebhookURL="https://yourdomain/hooks/yourhookkey"
   ```
+
+## NoTLS
+
+Enable this to make a http connection (instead of https) to your rocketchat.
+
+- Setting: **OPTIONAL**
+- Format: *boolean*
+- Example:
+  ```toml
+  NoTLS=false
+  ```

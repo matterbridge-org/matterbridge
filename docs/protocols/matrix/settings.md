@@ -149,6 +149,30 @@ Shows the username instead of the displayname
   UseUserName=true
   ```
 
+## KeepQuotedReply
+
+Matrix quotes replies and as of matterbridge 1.24.0 we strip those as this causes issues with bridges support threading and have PreserveThreading enabled.
+
+But if you for example use mattermost or discord with webhooks you'll need to enable this (and keep PreserveThreading disabled) if you want something that looks like a reply from Matrix. See issues [42wim/#1819](https://github.com/42wim/matterbridge/issues/1819) and [42wim/#1780](https://github.com/42wim/matterbridge/issues/1780).
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  KeepQuotedReply=false
+  ```
+
+## SpoofUsername
+
+Rename the bot in the current room to the username of the message. This will make an additional API request per message and will probably count towards rate limits.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  SpoofUsername=false
+  ```
+
 ## UseMSC4144
 
 Use MSC4144 to set nick per-message. See https://github.com/matrix-org/matrix-spec-proposals/pull/4144. At the moment this is an open proposal and is subject to change. Clients that don't support this will display e.g. `Nick: msg` with the nick in bold.

@@ -136,3 +136,80 @@ This only works when `WebhookURL` is configured.
   ```toml
   IconURL="http://youricon.png"
   ```
+
+## SkipTLSVerify
+
+Enable to not verify the certificate on your mattermost server, e.g. when using selfsigned certificates.
+
+- Setting: **OPTIONAL**
+- Format: *boolean*
+- Example:
+  ```toml
+  SkipTLSVerify=false
+  ```
+
+## UseUserName
+
+UseUserName shows the username instead of the server nickname.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  UseUserName=false
+  ```
+
+## NickFormatter
+
+How to format the list of IRC nicks when displayed in mattermost.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *string* ("plain" or "table")
+- Example:
+  ```toml
+  NickFormatter=plain
+  ```
+
+## NicksPerRow
+
+How many nicks to list per row for formatters that support this.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *int*
+- Example:
+  ```toml
+  NicksPerRow=4
+  ```
+
+## PrefixMessagesWithNick
+
+Whether to prefix messages from other bridges to mattermost with the sender's nick. Useful if username overrides for incoming webhooks isn't enabled on the mattermost server. If you set PrefixMessagesWithNick to true, each message from bridge to Mattermost will by default be prefixed by "bridge-" + nick. You can, however, modify how the messages appear, by setting (and modifying) RemoteNickFormat.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  PrefixMessagesWithNick=false
+  ```
+
+## EditDisable
+
+Disable sending of edits to other bridges.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  EditDisable=false
+  ```
+
+## EditSuffix
+
+Message to be appended to every edited message.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *string*
+- Example:
+  ```toml
+  EditSuffix=" (edited)"
+  ```
