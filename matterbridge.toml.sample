@@ -1000,6 +1000,19 @@ QuoteLengthLimit=0
 QuoteFormat="{MESSAGE} (re @{QUOTENICK}: {QUOTEMESSAGE})"
 
 ###################################################################
+#stoat section
+###################################################################
+[stoat]
+#You can configure multiple servers "[stoat.name]" or "[stoat.name2]"
+#In this example we use [stoat.revolt]
+#REQUIRED
+
+[stoat.revolt]
+#Token to connect with Stoat API
+#REQUIRED
+Token="Yourtokenhere"
+
+###################################################################
 #telegram section
 ###################################################################
 [telegram]
@@ -1842,6 +1855,8 @@ enable=true
     # -------------------------------------------------------------------------------------------------------------------------------------
     #   slack    |   channel name     |            general            | Do not include the # symbol
     #            |    channel id      |           ID:C123456          | The underlying ID of a channel. This doesn't work with webhooks.
+    # -------------------------------------------------------------------------------------------------------------------------------------
+    #   stoat    |    channel id      | ID:01ARZ3NDEKTSV4RRFFQ69G5FAV | "ID:" followed by the channel ID.
     # -------------------------------------------------------------------------------------------------------------------------------------
     #   nctalk   |      token         |           xs25tz5y            | The token in the URL when you are in a chat. It will be the last part of the URL.
     # -------------------------------------------------------------------------------------------------------------------------------------
