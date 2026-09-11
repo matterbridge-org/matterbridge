@@ -1,6 +1,7 @@
 package bstoat
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 
@@ -34,8 +35,29 @@ func (b *Bstoat) Send(msg config.Message) (string, error) {
 		return "", errors.New("bad channel id")
 	}
 	channel := msg.Channel[3:]
+
+	// Upload attachments
+	var attachments []string
+	if msg.Extra != nil {
+		for _, f := range msg.Extra["file"] {
+			fi := f.(config.FileInfo)
+			res, err := b.session.AttachmentUpload(&revoltgo.FileParams{
+				Name:   fi.Name,
+				Reader: bytes.NewReader(*fi.Data),
+			})
+			if err != nil {
+				b.Log.WithError(err).Warnf("Failed to upload attachment %s", fi.Name)
+				continue
+			}
+			attachments = append(attachments, res.ID)
+			// FIXME: handle fi.Comment
+		}
+	}
+
+	// Post the message
 	message, err := b.session.ChannelMessageSend(channel, revoltgo.MessageSend{
-		Content: msg.Text,
+		Content:     msg.Text,
+		Attachments: attachments,
 		Masquerade: &revoltgo.MessageMasquerade{
 			Name:   msg.Username,
 			Avatar: msg.Avatar,
