@@ -11,20 +11,41 @@ func (b *Bstoat) handleMessage(session *revoltgo.Session, m *revoltgo.EventMessa
 	}
 	name, avatar := b.fetchNameAndAvatar(m.Channel, m.Author)
 
-	attachments := ""
-	if len(m.Attachments) > 0 {
-		for _, v := range m.Attachments {
-			attachments += "\n" + v.URL("")
-		}
-	}
-
-	b.Remote <- config.Message{
+	rmsg := config.Message{
 		Account:  b.Account,
 		Avatar:   avatar,
 		Channel:  "ID:" + m.Channel,
 		ID:       m.ID,
-		Text:     m.Content + attachments,
+		Text:     m.Content,
 		UserID:   m.Author,
 		Username: name,
+		Extra:    make(map[string][]any),
 	}
+
+	if len(m.Attachments) == 0 {
+		if rmsg.Text != "" {
+			b.Remote <- rmsg
+		}
+		return
+	}
+
+	// Download attachments in the background
+	go func() {
+		count := 0
+		for _, v := range m.Attachments {
+			err := b.AddAttachmentFromURL(&rmsg, v.Filename, v.ID, "", v.URL(""))
+			if err != nil {
+				b.Log.WithError(err).Warnf("Failed to download attachment %s", v.Filename)
+				continue
+				count += 1
+			}
+
+			if rmsg.Text == "" && count == 0 {
+				b.Log.Warnf("Skipping message because there is no text and file uploads all failed")
+				return
+			}
+
+			b.Remote <- rmsg
+		}
+	}()
 }
