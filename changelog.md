@@ -65,6 +65,8 @@
     note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
 - fluxer
   - Add new Fluxer bridge ([#146](https://github.com/matterbridge-org/matterbridge/pull/146))
+- stoat
+  - Add new Stoat bridge ([#261](https://github.com/matterbridge-org/matterbridge/pull/261))
 
 ## Bugfixes
 
