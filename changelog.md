@@ -63,6 +63,8 @@
   - added support for using socket mode Events API to receive messages for bridging instead of RTM.
     this allows new slack bridge to be set up using modern slack apps and its tokens; see the slack docs for setup instructions ([#149](https://github.com/matterbridge-org/matterbridge/pull/149)).
     note that the existing slack bridge setup using bot token with _classic_ slack apps should continue to work as before, until slack decides to turn off RTM system.
+- fluxer
+  - Add new Fluxer bridge ([#146](https://github.com/matterbridge-org/matterbridge/pull/146))
 
 ## Bugfixes
 
