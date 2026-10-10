@@ -460,6 +460,30 @@ func (b *Bxmpp) parseJID(remote string) (string, string) {
 	return rnick, rchan
 }
 
+// isEncrypted reports whether the message is end-to-end encrypted and therefore
+// cannot be relayed as readable text.
+func isEncrypted(message xmpp.Chat) bool {
+	// OTR rides inside the plaintext body
+	if strings.HasPrefix(message.Text, "?OTR") {
+		return true
+	}
+	for _, e := range message.OtherElem {
+		switch {
+		case e.XMLName.Local == "encrypted" &&
+			(e.XMLName.Space == "eu.siacs.conversations.axolotl" ||
+				e.XMLName.Space == "urn:xmpp:omemo:2"):
+			return true // OMEMO
+		case e.XMLName.Local == "openpgp" &&
+			e.XMLName.Space == "urn:xmpp:openpgp:0":
+			return true // OX (XEP-0373)
+		case e.XMLName.Local == "x" &&
+			e.XMLName.Space == "jabber:x:encrypted":
+			return true // legacy OpenPGP (XEP-0027)
+		}
+	}
+	return false
+}
+
 // skipMessage skips messages that need to be skipped
 func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 	// skip messages from ourselves
@@ -475,6 +499,11 @@ func (b *Bxmpp) skipMessage(message xmpp.Chat) bool {
 
 	// skip subject messages
 	if strings.Contains(message.Text, "</subject>") {
+		return true
+	}
+
+	// skip encrypted messages if configured to do so
+	if b.GetBool("SkipEncrypted") && isEncrypted(message) {
 		return true
 	}
 

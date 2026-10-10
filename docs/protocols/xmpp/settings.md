@@ -61,6 +61,18 @@ Your nick in the rooms
   NoTLS=true
   ```
 
+## SkipEncrypted
+
+Do not relay encrypted messages (OTR, PGP, OMEMO).
+
+- Setting: **OPTIONAL**
+- Format: *boolean*
+- Example:
+  ```toml
+  SkipEncrypted=true
+  ```
+
+
 ## UseDirectTLS
 
 Enables direct TLS connection to your server. Most servers by default only support StartTLS,
