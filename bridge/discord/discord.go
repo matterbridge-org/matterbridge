@@ -3,6 +3,8 @@ package bdiscord
 import (
 	"bytes"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -80,7 +82,21 @@ func (b *Bdiscord) Connect() error {
 	if err != nil {
 		return err
 	}
-	b.Log.Info("Connection succeeded")
+
+	http_proxy := b.GetString("http_proxy")
+	if http_proxy != "" {
+		b.Log.Infof("Using HTTP proxy %s to connect Discord API", http_proxy)
+		// This cannot fail because when the proxy URL is invalid, `NewHttpClient` (bridge.go)
+		// produces an error  which is caught by `AddBridge` (gateway.go), and this
+		// point in code is never reached.
+		proxyURL, _ := url.Parse(http_proxy)
+		// Implemented the use of proxy hinted here: https://github.com/bwmarrin/discordgo/issues/852
+		// TODO: could we reuse the HTTP client from `NewHttpClient`? Or would
+		// this have unintended consequences?
+		b.c.Client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+		b.c.Dialer.Proxy = http.ProxyURL(proxyURL)
+	}
+
 	// Add privileged intent for guild member tracking. This is needed to track nicks
 	// for display names and @mention translation
 	b.c.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged |
@@ -90,6 +106,8 @@ func (b *Bdiscord) Connect() error {
 	if err != nil {
 		return err
 	}
+	b.Log.Info("Connection succeeded")
+
 	guilds, err := b.c.UserGuilds(100, "", "", false)
 	if err != nil {
 		return err
