@@ -45,20 +45,20 @@ func (b *Bstoat) Send(msg config.Message) (string, error) {
 		attachments := make([]lightning.Attachment, 0, len(*msg.GetFileInfos(b.Log)))
 
 		for _, file := range *msg.GetFileInfos(b.Log) {
-			if file.URL != "" {
-				uri, _ := url.Parse(file.URL)
-				content := mime.TypeByExtension(path.Ext(uri.Path))
-
-				attachments = append(attachments, lightning.Attachment{
-					URL: file.URL, Name: file.Name, Size: file.Size, Type: content, Description: file.Comment,
-				})
-			} else if file.Data != nil {
+			if file.Data != nil {
 				b64 := base64.StdEncoding.EncodeToString(*file.Data)
 				content := http.DetectContentType(*file.Data)
 
 				attachments = append(attachments, lightning.Attachment{
 					URL: "data:" + content + ";base64," + b64, Name: file.Name, Size: file.Size,
 					Type: content, Description: file.Comment,
+				})
+			} else if file.URL != "" {
+				uri, _ := url.Parse(file.URL)
+				content := mime.TypeByExtension(path.Ext(uri.Path))
+
+				attachments = append(attachments, lightning.Attachment{
+					URL: file.URL, Name: file.Name, Size: file.Size, Type: content, Description: file.Comment,
 				})
 			}
 		}
