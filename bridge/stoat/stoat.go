@@ -81,7 +81,13 @@ func (b *Bstoat) Send(msg config.Message) (string, error) {
 func (b *Bstoat) Connect() error {
 	var err error
 
-	b.plugin, err = stoat.New(map[string]string{"token": b.GetString("token")}, nil)
+	b.plugin, err = stoat.New(map[string]string{
+		"api_url":      b.GetString("api_url"),
+		"cdn_url":      b.GetString("cdn_url"),
+		"events_url":   b.GetString("events_url"),
+		"frontend_url": b.GetString("frontend_url"),
+		"token":        b.GetString("token"),
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Stoat: %w", err)
 	}

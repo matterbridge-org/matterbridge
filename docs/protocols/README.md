@@ -63,6 +63,11 @@ Please let us know if you are able to regularly test and maybe maintain a specif
 - [Ssh-chat](https://github.com/shazow/ssh-chat) (no active maintainer)
   - Matterbridge [sshchat docs](sshchat/)
   - Channel format: Only a single `sshchat` channel is supported
+- [Stoat](https://stoat.chat)
+  - Matterbridge docs:
+    - [Stoat docs](stoat/)
+    - [Stoat settings](stoat/settings.md)
+  - Channel format: `channel_id` as seen at the end of URL
 - [Telegram](https://telegram.org)
   - Matterbridge docs:
     - [telegram docs](telegram/)

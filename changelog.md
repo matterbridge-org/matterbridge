@@ -67,6 +67,7 @@
   - Add new Fluxer bridge ([#146](https://github.com/matterbridge-org/matterbridge/pull/146))
 - stoat
   - Add new Stoat bridge ([#261](https://github.com/matterbridge-org/matterbridge/pull/261))
+  - Now includes support for self-hosted Stoat instances ([#265](https://github.com/matterbridge-org/matterbridge/pull/265))
 
 ## Bugfixes
 
