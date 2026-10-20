@@ -38,9 +38,19 @@ func New(cfg *bridge.Config) bridge.Bridger {
 func (b *Bstoat) Send(msg config.Message) (string, error) {
 	switch msg.Event {
 	case config.EventMsgDelete:
-		return msg.ID, b.plugin.DeleteMessage(msg.Channel, []string{msg.ID}, &lightning.MessageOptions{})
+		err := b.plugin.DeleteMessage(msg.Channel, []string{msg.ID}, &lightning.MessageOptions{})
+		if err != nil {
+			return "", fmt.Errorf("failed to delete message: %w", err)
+		}
+
+		return "", nil
 	case config.EventUserTyping:
-		return "", b.plugin.SendTyping(msg.Channel, msg.UserID, &lightning.MessageOptions{})
+		err := b.plugin.SendTyping(msg.Channel, msg.UserID, &lightning.MessageOptions{})
+		if err != nil {
+			return "", fmt.Errorf("failed to send typing: %w", err)
+		}
+
+		return "", nil
 	case "":
 		attachments := make([]lightning.Attachment, 0, len(*msg.GetFileInfos(b.Log)))
 
@@ -66,10 +76,11 @@ func (b *Bstoat) Send(msg config.Message) (string, error) {
 		res, err := b.plugin.SendMessage(&lightning.Message{
 			Attachments: attachments, Author: lightning.MessageAuthor{
 				ID: msg.UserID, Username: msg.Username, ProfilePicture: msg.Avatar, Color: "#FFFFFF",
-			}, BaseMessage: lightning.BaseMessage{Time: msg.Timestamp, EventID: msg.ID, ChannelID: msg.Channel}, Content: msg.Text,
+			}, BaseMessage: lightning.BaseMessage{Time: msg.Timestamp, EventID: msg.ID, ChannelID: msg.Channel},
+			Content: msg.Text,
 		}, &lightning.MessageOptions{})
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to send message: %w", err)
 		}
 
 		return res[0], nil
@@ -97,6 +108,6 @@ func (b *Bstoat) Connect() error {
 	return nil
 }
 
-func (b *Bstoat) JoinChannel(channel config.ChannelInfo) error {
+func (*Bstoat) JoinChannel(_ config.ChannelInfo) error {
 	return nil
 }
