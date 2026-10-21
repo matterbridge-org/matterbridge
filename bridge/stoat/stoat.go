@@ -38,21 +38,24 @@ func New(cfg *bridge.Config) bridge.Bridger {
 func (b *Bstoat) Send(msg config.Message) (string, error) {
 	switch msg.Event {
 	case config.EventMsgDelete:
-		return msg.ID, b.plugin.DeleteMessage(msg.Channel, []string{msg.ID}, &lightning.MessageOptions{})
+		err := b.plugin.DeleteMessage(msg.Channel, []string{msg.ID}, &lightning.MessageOptions{})
+		if err != nil {
+			return "", fmt.Errorf("failed to delete message: %w", err)
+		}
+
+		return "", nil
 	case config.EventUserTyping:
-		return "", b.plugin.SendTyping(msg.Channel, msg.UserID, &lightning.MessageOptions{})
+		err := b.plugin.SendTyping(msg.Channel, msg.UserID, &lightning.MessageOptions{})
+		if err != nil {
+			return "", fmt.Errorf("failed to send typing: %w", err)
+		}
+
+		return "", nil
 	case "":
 		attachments := make([]lightning.Attachment, 0, len(*msg.GetFileInfos(b.Log)))
 
 		for _, file := range *msg.GetFileInfos(b.Log) {
-			if file.URL != "" {
-				uri, _ := url.Parse(file.URL)
-				content := mime.TypeByExtension(path.Ext(uri.Path))
-
-				attachments = append(attachments, lightning.Attachment{
-					URL: file.URL, Name: file.Name, Size: file.Size, Type: content, Description: file.Comment,
-				})
-			} else if file.Data != nil {
+			if file.Data != nil {
 				b64 := base64.StdEncoding.EncodeToString(*file.Data)
 				content := http.DetectContentType(*file.Data)
 
@@ -60,16 +63,24 @@ func (b *Bstoat) Send(msg config.Message) (string, error) {
 					URL: "data:" + content + ";base64," + b64, Name: file.Name, Size: file.Size,
 					Type: content, Description: file.Comment,
 				})
+			} else if file.URL != "" {
+				uri, _ := url.Parse(file.URL)
+				content := mime.TypeByExtension(path.Ext(uri.Path))
+
+				attachments = append(attachments, lightning.Attachment{
+					URL: file.URL, Name: file.Name, Size: file.Size, Type: content, Description: file.Comment,
+				})
 			}
 		}
 
 		res, err := b.plugin.SendMessage(&lightning.Message{
 			Attachments: attachments, Author: lightning.MessageAuthor{
 				ID: msg.UserID, Username: msg.Username, ProfilePicture: msg.Avatar, Color: "#FFFFFF",
-			}, BaseMessage: lightning.BaseMessage{Time: msg.Timestamp, EventID: msg.ID, ChannelID: msg.Channel}, Content: msg.Text,
+			}, BaseMessage: lightning.BaseMessage{Time: msg.Timestamp, EventID: msg.ID, ChannelID: msg.Channel},
+			Content: msg.Text,
 		}, &lightning.MessageOptions{})
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to send message: %w", err)
 		}
 
 		return res[0], nil
@@ -81,7 +92,13 @@ func (b *Bstoat) Send(msg config.Message) (string, error) {
 func (b *Bstoat) Connect() error {
 	var err error
 
-	b.plugin, err = stoat.New(map[string]string{"token": b.GetString("token")}, nil)
+	b.plugin, err = stoat.New(map[string]string{
+		"api_url":      b.GetString("api_url"),
+		"cdn_url":      b.GetString("cdn_url"),
+		"events_url":   b.GetString("events_url"),
+		"frontend_url": b.GetString("frontend_url"),
+		"token":        b.GetString("token"),
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Stoat: %w", err)
 	}
@@ -91,6 +108,6 @@ func (b *Bstoat) Connect() error {
 	return nil
 }
 
-func (b *Bstoat) JoinChannel(channel config.ChannelInfo) error {
+func (*Bstoat) JoinChannel(_ config.ChannelInfo) error {
 	return nil
 }
