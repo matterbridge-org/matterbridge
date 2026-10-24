@@ -79,11 +79,6 @@ func (b *Bfluxer) Connect() error {
 		b.gway.ConnURL = gatewayUrl
 	}
 
-	err = b.gway.Start()
-	if err != nil {
-		return err
-	}
-
 	b.gway.ShardReady.OnceSync(func(r flo.ShardReadyEvent) {
 		b.Log.Info("Logged in as " + r.User.Tag())
 
@@ -91,7 +86,12 @@ func (b *Bfluxer) Connect() error {
 		b.nick = r.User.Username
 	})
 
-	gadd := b.gway.GuildCreate.On(b.onGuildAvailable)
+	gadd := b.gway.GuildAvailable.On(b.onGuildAvailable)
+
+	err = b.gway.Start()
+	if err != nil {
+		return err
+	}
 
 	// Wait for the guild to come online.
 	select {
