@@ -11,7 +11,7 @@
 The Stoat bot will need the following permissions to ensure you don't run into
 `MissingPermissions` errors: Manage Customization, Manage Role, Change
 Nickname, Change Avatar, View Channel, Read Message History, Send Messages,
-Manage Messages, Send Embeds, Upload Files, and Masquerade
+Manage Messages, Send Embeds, Upload Files, Masquerade, and Bypass Slowmode
 
 To assign it permissions, you will need to create a new role, assign the role
 these permissions, save the role, and then grant the bot the newly created role
@@ -23,7 +23,7 @@ these permissions, save the role, and then grant the bot the newly created role
 ```toml
 [stoat]
 [stoat.chat]
-Token="<your stoat token here>"
+token="<your stoat token here>"
 
 [[gateway]]
 name="testing"
