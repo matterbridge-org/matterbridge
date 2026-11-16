@@ -31,6 +31,7 @@ type Message struct {
 	UserID   string `json:"userid"`
 	Avatar   string `json:"avatar"`
 	Gateway  string `json:"gateway"`
+	Channel  string `json:"channel"`
 }
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -42,6 +43,10 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	b.mrouter = melody.New()
 	b.mrouter.HandleMessage(func(s *melody.Session, msg []byte) {
 		message := config.Message{}
+
+		// Default value for Channel, might get overriden
+		message.Channel = "api"
+
 		err := json.Unmarshal(msg, &message)
 		if err != nil {
 			b.Log.Errorf("failed to decode message from byte[] '%s'", string(msg))
@@ -131,11 +136,15 @@ func (b *API) handleHealthcheck(c echo.Context) error {
 
 func (b *API) handlePostMessage(c echo.Context) error {
 	message := config.Message{}
+
+	// Default value for Channel, might get overriden
+	message.Channel = "api"
+
 	if err := c.Bind(&message); err != nil {
 		return err
 	}
+
 	// these values are fixed
-	message.Channel = "api"
 	message.Protocol = "api"
 	message.Account = b.Account
 	message.ID = ""
@@ -218,7 +227,6 @@ func (b *API) handleStream(c echo.Context) error {
 }
 
 func (b *API) handleWebsocketMessage(message config.Message, s *melody.Session) {
-	message.Channel = "api"
 	message.Protocol = "api"
 	message.Account = b.Account
 	message.ID = ""
