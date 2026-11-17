@@ -127,8 +127,23 @@ curl -XPOST -H 'Content-Type: application/json'  -d '{"text":"test","username":"
 ```
 
 ```json
-{"text":"test","channel":"api","username":"randomuser","userid":"","avatar":"","account":"api.local","event":"","protocol":"api","gateway":"gateway1","parent_id":"","timestamp":"2019-01-09T22:53:51.618575236+01:00","id":"","Extra":null}
+{"text":"test","username":"randomuser","userid":"","avatar":"","account":"api.local","event":"","protocol":"api","gateway":"gateway1","parent_id":"","timestamp":"2019-01-09T22:53:51.618575236+01:00","id":"","Extra":null}
 ```
+
+## Send messages on another channel
+
+If your backend supports it, you may specify a custom value for `"channel"`:
+
+```bash
+curl -XPOST -H 'Content-Type: application/json'  -d '{"text":"test","channel":"general","username":"randomuser","gateway":"gateway1"}' http://localhost:4242/api/message
+```
+
+```json
+{"text":"test","channel":"general","username":"randomuser","userid":"","avatar":"","account":"api.local","event":"","protocol":"api","gateway":"gateway1","parent_id":"","timestamp":"2019-01-09T22:53:51.618575236+01:00","id":"","Extra":null}
+```
+
+> [!NOTE]
+> To maintain backward compactibility, if `"channel"` is unspecified, it defaults to `"api"`.
 
 ## Security
 You can also protect the API with a token by adding a `token` option to your api account configuration.
