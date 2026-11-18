@@ -190,10 +190,7 @@ func (gw *Gateway) SendMessage( //nolint:gocyclo,funlen
 		return "", errNick
 	}
 
-	msg.ParentID = gw.getDestMsgID(canonicalParentMsgID, dest, channel)
-	if msg.ParentID == "" {
-		msg.ParentID = strings.Replace(canonicalParentMsgID, dest.Protocol+" ", "", 1)
-	}
+	msg.ParentID = gw.getDestParentID(canonicalParentMsgID, dest, channel)
 
 	// if the parentID is still empty and we have a parentID set in the original message
 	// this means that we didn't find it in the cache so set it to a "msg-parent-not-found" constant
@@ -389,6 +386,33 @@ func (gw *Gateway) getDestMsgID(msgID string, dest *bridge.Bridge, channel *conf
 			}
 		}
 	}
+	return ""
+}
+
+// getDestParentID translates the canonical ID of a thread parent into the
+// native message ID to use as parent on the destination bridge/channel.
+//
+// It returns an empty string when no native ID is known for the destination.
+// Previously, when the cache had no entry for the destination, the canonical
+// ID was passed through with only the destination protocol prefix stripped.
+// When the parent originated on another protocol this leaked a foreign ID
+// (e.g. "mattermost 45174abc...") to the destination, which then rejected the
+// whole message (Slack: "invalid_thread_ts") and the reply was lost.
+func (gw *Gateway) getDestParentID(canonicalParentMsgID string, dest *bridge.Bridge, channel *config.ChannelInfo) string {
+	if canonicalParentMsgID == "" {
+		return ""
+	}
+
+	if id := gw.getDestMsgID(canonicalParentMsgID, dest, channel); id != "" {
+		return id
+	}
+
+	// The parent message originated on the destination protocol itself, so
+	// the canonical ID already is the native ID.
+	if prefix := dest.Protocol + " "; strings.HasPrefix(canonicalParentMsgID, prefix) {
+		return strings.TrimPrefix(canonicalParentMsgID, prefix)
+	}
+
 	return ""
 }
 
