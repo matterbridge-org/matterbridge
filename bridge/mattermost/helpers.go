@@ -439,8 +439,11 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 		return true
 	}
 
-	// if the message has reactions don't repost it (for now, until we can correlate reaction with message)
-	if message.Post.HasReactions {
+	// Reactions are received as reaction_added/reaction_removed events. Some
+	// Mattermost versions also sent post_edited when a reaction was added:
+	// ignore post_edited events of posts that were never edited. (Skipping all
+	// posts having reactions dropped the real edits and deletes of those.)
+	if message.Raw.EventType() == model.WebsocketEventPostEdited && message.Post.EditAt == 0 {
 		return true
 	}
 

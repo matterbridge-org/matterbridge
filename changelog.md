@@ -106,6 +106,7 @@
     the files as a new post
   - all files of a message are sent in a single post carrying the text, instead of one post per file
   - a thread reply whose parent can't be found is sent unthreaded instead of being lost
+  - edits and deletes of messages having reactions are no longer ignored
   - with `PrefixMessagesWithNick`, text starting with block markdown (code fence, quote, list...)
     is moved to its own line so it still renders
 - slack
