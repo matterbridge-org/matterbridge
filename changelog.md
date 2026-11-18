@@ -68,6 +68,11 @@
 - stoat
   - Add new Stoat bridge ([#261](https://github.com/matterbridge-org/matterbridge/pull/261))
 
+- mattermost, slack
+  - reactions (emojis) are relayed between Mattermost and Slack (and between bridges of the same
+    protocol) with the new `PreserveReactions` setting. Reactions are added by the bridge user,
+    once per emoji, and removed when the last remote user removes theirs; skin tones are converted
+
 ## Bugfixes
 
 - general

@@ -221,6 +221,26 @@ messages are sent with a `[thread]: ` prefix.
   PreserveThreading=true
   ```
 
+## PreserveReactions
+
+Relay reactions (emojis) added to and removed from messages, from and to
+other bridges supporting them (currently Mattermost and Slack). This requires `Token` or `Login` (the API), also when using `WebhookURL`. Enable it on
+each bridge that should receive reactions.
+
+Reactions are added by the bridge user, once per emoji even if several
+remote users reacted with it, and removed when the last of them removes it.
+Like threads, this only works for messages still in the cache, which is
+flushed between restarts. Emojis that don't exist on the destination (e.g.
+custom emojis) are skipped; skin tones fall back to the default emoji when
+needed.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  PreserveReactions=true
+  ```
+
 ## EditDisable
 
 Disable sending of edits to other bridges.

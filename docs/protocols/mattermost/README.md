@@ -31,6 +31,8 @@ Password="yourpass"
 
 PrefixMessagesWithNick=true
 PreserveThreading=true
+# relay reactions (emojis) from and to other bridges supporting them
+PreserveReactions=true
 ```
 
 To show bridged messages under the name and avatar of their author instead of

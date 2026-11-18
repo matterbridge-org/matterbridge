@@ -85,6 +85,7 @@ You'll need to give your new Slack App, and thus the bot, the right permissions 
    - `file_deleted`
    - `member_joined_channel`
    - `user_change`
+   - `reaction_added` and `reaction_removed` (only needed with `PreserveReactions`)
 
    <img alt="Event Subscriptions showing lists of subscribed events" width="945" height="852" src="https://github.com/user-attachments/assets/81d966d1-046b-41ac-a3b1-57dbec31a2b9" />
 
