@@ -31,7 +31,21 @@ Password="yourpass"
 
 PrefixMessagesWithNick=true
 PreserveThreading=true
+# relay reactions (emojis) from and to other bridges supporting them
+PreserveReactions=true
 ```
+
+To show bridged messages under the name and avatar of their author instead of
+the bot, also configure an incoming webhook created **by the same user** as the
+token, and drop `PrefixMessagesWithNick`:
+
+```toml
+WebhookURL="https://yourmattermostserver.domain/hooks/yourhookkey"
+RemoteNickFormat="{NICK}"
+```
+
+Threads, edits and deletes keep working through the API. See
+[WebhookURL](settings.md#webhookurl) for details.
 
 ## FAQ 
 

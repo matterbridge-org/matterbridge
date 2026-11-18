@@ -10,4 +10,5 @@ func init() {
 	FullMap["slack-legacy"] = bslack.NewLegacy
 	FullMap["slack"] = bslack.New
 	UserTypingSupport["slack"] = struct{}{}
+	ReactionSupport["slack"] = struct{}{}
 }

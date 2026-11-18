@@ -17,6 +17,8 @@ Token="xoxb-*****"
 AppToken="xapp-*****"
 # this will maps threads from other bridges on slack threads
 PreserveThreading=true
+# relay reactions (emojis) from and to other bridges supporting them
+PreserveReactions=true
 ```
 
 

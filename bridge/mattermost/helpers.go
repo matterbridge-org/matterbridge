@@ -1,14 +1,19 @@
 package bmattermost
 
 import (
+	"context"
 	"net/http"
+	"path"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
 	"github.com/matterbridge-org/matterbridge/matterhook"
 	"github.com/matterbridge/matterclient"
 	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/rs/xid"
 )
 
 const systemUsername = "system"
@@ -65,7 +70,40 @@ func (b *Bmattermost) doConnectWebhookURL() error {
 			return err
 		}
 	}
+
+	if b.mc != nil {
+		b.Log.Info("Using the API next to the webhook for threads, edits and deletes")
+		b.checkWebhookOwner()
+	}
 	return nil
+}
+
+// checkWebhookOwner warns when the posts made through WebhookURL can't be
+// edited or deleted by our user: webhook posts belong to the webhook creator.
+func (b *Bmattermost) checkWebhookOwner() {
+	if b.mc.User == nil {
+		return
+	}
+
+	hookID := path.Base(strings.TrimRight(b.GetString("WebhookURL"), "/"))
+
+	hook, _, err := b.mc.Client.GetIncomingWebhook(context.TODO(), hookID, "")
+	if err != nil {
+		b.Log.Warnf("Could not check the owner of WebhookURL (%s). Edits and deletes of bridged messages "+
+			"only work if %s created the webhook or may edit/delete others' posts.", err, b.mc.User.Username)
+
+		return
+	}
+
+	if hook.UserId != b.mc.User.Id {
+		b.Log.Warnf("WebhookURL was not created by %s: edits and deletes of bridged messages will fail "+
+			"unless %s may edit/delete others' posts. Recreate the webhook with this user to fix this.",
+			b.mc.User.Username, b.mc.User.Username)
+
+		return
+	}
+
+	b.Log.Infof("WebhookURL is owned by %s: edits and deletes of bridged messages are supported", b.mc.User.Username)
 }
 
 //nolint:wrapcheck
@@ -88,7 +126,11 @@ func (b *Bmattermost) apiLogin() error {
 		return err
 	}
 
-	b.Log.Info("Connection succeeded")
+	if b.mc.User != nil {
+		b.Log.Infof("Connection succeeded as user %s (bot: %t)", b.mc.User.Username, b.mc.User.IsBot)
+	} else {
+		b.Log.Info("Connection succeeded")
+	}
 	b.TeamID = b.mc.GetTeamID()
 	return nil
 }
@@ -112,63 +154,215 @@ func (b *Bmattermost) cacheAvatar(msg *config.Message) (string, error) {
 	return "", nil
 }
 
-// sendWebhook uses the configured WebhookURL to send the message
-func (b *Bmattermost) sendWebhook(msg config.Message) (string, error) {
-	// skip events
-	if msg.Event != "" {
-		return "", nil
-	}
+// webhookRefProp is the post prop used to find back the posts we send through
+// the webhook: Mattermost incoming webhooks don't return the ID of the post.
+const webhookRefProp = "matterbridge_ref"
 
-	if b.GetBool("PrefixMessagesWithNick") {
-		msg.Text = msg.Username + msg.Text
-	}
+// webhookText returns the text of msg as it is posted through the webhook.
+func (b *Bmattermost) webhookText(msg *config.Message) string {
+	text := msg.Text
 
-	if msg.Extra != nil {
-		// this sends a message only if we received a config.EVENT_FILE_FAILURE_SIZE
-		for _, rmsg := range helper.HandleExtra(&msg, b.General) {
-			iconURL := config.GetIconURL(&rmsg, b.GetString("iconurl"))
-			matterMessage := matterhook.OMessage{
-				IconURL:  iconURL,
-				Channel:  rmsg.Channel,
-				UserName: rmsg.Username,
-				Text:     rmsg.Text,
-				Props:    make(map[string]any),
-			}
-			matterMessage.Props["matterbridge_"+b.uuid] = true
-			if err := b.mh.Send(matterMessage); err != nil {
-				b.Log.Errorf("sendWebhook failed: %s ", err)
-			}
+	if len(msg.Extra["file"]) > 0 {
+		// Some bridges (e.g. Slack) move the text of a message with
+		// attachments into the comment of the file: don't drop it.
+		if text == "" {
+			text = fileComments(msg)
 		}
 
 		// webhook doesn't support file uploads, so we add the url manually
-		if len(msg.Extra["file"]) > 0 {
-			for _, f := range msg.Extra["file"] {
-				fi := f.(config.FileInfo)
-				if fi.URL != "" {
-					msg.Text += " " + fi.URL
-				}
+		parts := []string{text}
+
+		for _, f := range msg.Extra["file"] {
+			fi, ok := f.(config.FileInfo)
+			if ok && fi.URL != "" {
+				parts = append(parts, fi.URL)
 			}
 		}
+
+		text = strings.Join(parts, " ")
+		text = strings.TrimSpace(text)
 	}
 
+	return b.prefixNick(msg.Username, text)
+}
+
+// sendWebhook uses the configured WebhookURL to send the message.
+//
+// When the API is available too (Token or Login configured), the message is
+// posted in its thread (msg.ParentID must be the root post) and the ID of the
+// created post is returned, so that the gateway can map later replies and
+// edits to it.
+func (b *Bmattermost) sendWebhook(msg config.Message) (string, error) {
+	// skip events, /me actions are normal messages
+	if msg.Event != "" && msg.Event != config.EventUserAction {
+		return "", nil
+	}
+
+	b.sendWebhookExtra(&msg)
+
+	text := b.webhookText(&msg)
 	iconURL := config.GetIconURL(&msg, b.GetString("iconurl"))
 	matterMessage := matterhook.OMessage{
 		IconURL:  iconURL,
 		Channel:  msg.Channel,
 		UserName: msg.Username,
-		Text:     msg.Text,
+		Text:     text,
+		RootID:   msg.ParentID,
 		Props:    make(map[string]any),
 	}
 	if msg.Avatar != "" {
 		matterMessage.IconURL = msg.Avatar
 	}
 	matterMessage.Props["matterbridge_"+b.uuid] = true
+
+	var ref string
+	if b.mc != nil {
+		ref = xid.New().String()
+		matterMessage.Props[webhookRefProp] = ref
+	}
+
+	since := time.Now().Add(-time.Minute).UnixMilli()
+
 	err := b.mh.Send(matterMessage)
+	if err != nil && matterMessage.RootID != "" {
+		// e.g. the thread was deleted meanwhile: don't lose the message.
+		b.Log.Errorf("sending thread reply through webhook failed, sending unthreaded: %s", err)
+
+		matterMessage.RootID = ""
+		matterMessage.Text = "[thread]: " + text
+		err = b.mh.Send(matterMessage)
+	}
 	if err != nil {
 		b.Log.Info(err)
 		return "", err
 	}
-	return "", nil
+
+	if ref == "" {
+		return "", nil
+	}
+
+	return b.findWebhookPost(msg.Channel, ref, since), nil
+}
+
+// sendWebhookExtra sends the notices about files that were too big to download.
+func (b *Bmattermost) sendWebhookExtra(msg *config.Message) {
+	if msg.Extra == nil {
+		return
+	}
+
+	for _, rmsg := range helper.HandleExtra(msg, b.General) {
+		iconURL := config.GetIconURL(&rmsg, b.GetString("iconurl"))
+		matterMessage := matterhook.OMessage{
+			IconURL:  iconURL,
+			Channel:  rmsg.Channel,
+			UserName: rmsg.Username,
+			Text:     rmsg.Text,
+			RootID:   msg.ParentID,
+			Props:    make(map[string]any),
+		}
+		matterMessage.Props["matterbridge_"+b.uuid] = true
+
+		err := b.mh.Send(matterMessage)
+		if err != nil {
+			b.Log.Errorf("sendWebhook failed: %s ", err)
+		}
+	}
+}
+
+// findWebhookPost returns the ID of the post we sent through the webhook,
+// tagged with ref, in channel (or "" if it can't be found).
+func (b *Bmattermost) findWebhookPost(channel, ref string, since int64) string {
+	channelID := b.getChannelID(channel)
+	if channelID == "" {
+		b.Log.Warnf("Could not find channel ID for channel %s: the bridged message can't be threaded or edited", channel)
+		return ""
+	}
+
+	const attempts = 3
+	for attempt := range attempts {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 300 * time.Millisecond)
+		}
+
+		posts, _, err := b.mc.Client.GetPostsSince(context.TODO(), channelID, since, false)
+		if err != nil {
+			b.Log.Errorf("getting posts of channel %s failed: %s", channel, err)
+			continue
+		}
+
+		for _, post := range posts.Posts {
+			if r, ok := post.GetProp(webhookRefProp).(string); ok && r == ref {
+				return post.Id
+			}
+		}
+	}
+
+	b.Log.Warnf("Could not find the post sent through the webhook: it can't be threaded or edited")
+
+	return ""
+}
+
+// editPost replaces the message of a post. PatchPost only changes the
+// message and keeps the props of the post (e.g. the username and icon
+// overrides of posts made through the webhook).
+func (b *Bmattermost) editPost(id, text string) (string, error) {
+	post, _, err := b.mc.Client.PatchPost(context.TODO(), id, &model.PostPatch{Message: &text})
+	if err != nil {
+		return "", err
+	}
+
+	return post.Id, nil
+}
+
+// fileComments returns the text attached to the files of a message. Some
+// bridges (e.g. Slack) move the text of a message to the comment of its first
+// file, others (e.g. Mattermost) copy it to the comment of every file, so
+// duplicates are only kept once.
+func fileComments(msg *config.Message) string {
+	var comments []string
+
+	seen := make(map[string]bool)
+
+	for _, f := range msg.Extra["file"] {
+		fi, ok := f.(config.FileInfo)
+		if !ok || fi.Comment == "" || seen[fi.Comment] {
+			continue
+		}
+
+		seen[fi.Comment] = true
+		comments = append(comments, fi.Comment)
+	}
+
+	return strings.Join(comments, "\n")
+}
+
+// markdownBlockStart matches text starting with a block-level markdown element
+// (code fence, quote, heading, list item, table) which only renders at the
+// beginning of a line.
+var markdownBlockStart = regexp.MustCompile("^(```|~~~|>|#{1,6} |[-*+] |[0-9]+[.)] |\\|)")
+
+// prefixNick prepends the nick to the text when PrefixMessagesWithNick is set.
+func (b *Bmattermost) prefixNick(nick, text string) string {
+	if !b.GetBool("PrefixMessagesWithNick") {
+		return text
+	}
+
+	return prefixNick(nick, text)
+}
+
+// prefixNick prepends nick to text. If the text starts with a block-level
+// markdown element, the text is moved to its own line so that it still renders
+// (e.g. "nick: ```code```" would break the code fence).
+func prefixNick(nick, text string) string {
+	if nick == "" {
+		return text
+	}
+
+	if markdownBlockStart.MatchString(text) {
+		return strings.TrimRight(nick, " ") + "\n" + text
+	}
+
+	return nick + text
 }
 
 // skipMessages returns true if this message should not be handled
@@ -245,8 +439,11 @@ func (b *Bmattermost) skipMessage(message *matterclient.Message) bool {
 		return true
 	}
 
-	// if the message has reactions don't repost it (for now, until we can correlate reaction with message)
-	if message.Post.HasReactions {
+	// Reactions are received as reaction_added/reaction_removed events. Some
+	// Mattermost versions also sent post_edited when a reaction was added:
+	// ignore post_edited events of posts that were never edited. (Skipping all
+	// posts having reactions dropped the real edits and deletes of those.)
+	if message.Raw.EventType() == model.WebsocketEventPostEdited && message.Post.EditAt == 0 {
 		return true
 	}
 

@@ -32,6 +32,11 @@ const (
 	EventUserTyping        = "user_typing"
 	EventGetChannelMembers = "get_channel_members"
 	EventNoticeIRC         = "notice_irc"
+	// EventReactionAdd and EventReactionRemove carry a reaction (emoji) added to
+	// or removed from the message with ID: Text is the emoji name, in the Slack
+	// format ("+1", "wave::skin-tone-2").
+	EventReactionAdd    = "reaction_add"
+	EventReactionRemove = "reaction_remove"
 )
 
 const ParentIDNotFound = "msg-parent-not-found"
@@ -54,6 +59,11 @@ type Message struct {
 
 func (m Message) ParentNotFound() bool {
 	return m.ParentID == ParentIDNotFound
+}
+
+// IsReaction returns true if the message is a reaction added or removed.
+func (m Message) IsReaction() bool {
+	return m.Event == EventReactionAdd || m.Event == EventReactionRemove
 }
 
 func (m Message) ParentValid() bool {
@@ -430,7 +440,14 @@ func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
 	c.RLock()
 	defer c.RUnlock()
 
-	res, ok := c.v.Get(key).([]any)
+	raw := c.v.Get(key)
+	if raw == nil {
+		// The key is simply not configured (e.g. optional ReplaceMessages,
+		// ExtractNicks), this is not an error.
+		return nil, false
+	}
+
+	res, ok := raw.([]any)
 	if !ok {
 		c.logger.Errorf("GetStringSlice2D: key %s should be an array of strings", key)
 

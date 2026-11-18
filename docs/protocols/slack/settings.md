@@ -29,6 +29,27 @@ both slack and slack-legacy type. Context in issue #624.
   PreserveThreading=true
   ```
 
+## PreserveReactions
+
+Relay reactions (emojis) added to and removed from messages, from and to
+other bridges supporting them (currently Mattermost and Slack). With Socket Mode, subscribe to the `reaction_added` and `reaction_removed`
+events. The bot needs the `reactions:read` and `reactions:write` scopes. Enable it on
+each bridge that should receive reactions.
+
+Reactions are added by the bridge user, once per emoji even if several
+remote users reacted with it, and removed when the last of them removes it.
+Like threads, this only works for messages still in the cache, which is
+flushed between restarts. Emojis that don't exist on the destination (e.g.
+custom emojis) are skipped; skin tones fall back to the default emoji when
+needed.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  PreserveReactions=true
+  ```
+
 ## ShowUserTyping
 
 Enable showing "user_typing" events from across gateway when available.

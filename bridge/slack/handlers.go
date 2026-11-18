@@ -33,7 +33,7 @@ func (b *Bslack) handleSlack() {
 	for message := range messages {
 		// don't do any action on deleted/typing messages
 		if message.Event != config.EventUserTyping && message.Event != config.EventMsgDelete &&
-			message.Event != config.EventFileDelete {
+			message.Event != config.EventFileDelete && !message.IsReaction() {
 			b.Log.Debugf("<= Sending message from %s on %s to gateway", message.Username, b.Account)
 			// cleanup the message
 			message.Text = b.replaceMention(message.Text)
@@ -137,6 +137,12 @@ func (b *Bslack) handleInnerEventEAPI(ievt slackevents.EventsAPIInnerEvent, mess
 		}
 		messages <- rmsg
 
+	case *slackevents.ReactionAddedEvent:
+		b.relayReaction(messages, ev.User, ev.Reaction, ev.Item.Type, ev.Item.Channel, ev.Item.Timestamp, true)
+
+	case *slackevents.ReactionRemovedEvent:
+		b.relayReaction(messages, ev.User, ev.Reaction, ev.Item.Type, ev.Item.Channel, ev.Item.Timestamp, false)
+
 	case *slackevents.MemberJoinedChannelEvent:
 		b.Log.Debugf("user %q joined to channel %q", ev.User, ev.Channel)
 		// data in event contains only IDs
@@ -195,6 +201,12 @@ func (b *Bslack) handleSlackClientRTM(messages chan *config.Message) {
 				continue
 			}
 			messages <- rmsg
+
+		case *slack.ReactionAddedEvent:
+			b.relayReaction(messages, ev.User, ev.Reaction, ev.Item.Type, ev.Item.Channel, ev.Item.Timestamp, true)
+
+		case *slack.ReactionRemovedEvent:
+			b.relayReaction(messages, ev.User, ev.Reaction, ev.Item.Type, ev.Item.Channel, ev.Item.Timestamp, false)
 
 		case *slack.ChannelJoinedEvent:
 			// When we join a channel we update the full list of users as
