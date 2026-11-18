@@ -2,6 +2,8 @@ package bmattermost
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/bridge/helper"
@@ -169,23 +171,87 @@ func (b *Bmattermost) handleMatterHook(messages chan *config.Message) {
 	}
 }
 
+var errNoFileUploaded = errors.New("no file could be uploaded")
+
+// maxFilesPerPost is the maximum number of files Mattermost accepts on a post.
+const maxFilesPerPost = 10
+
+// handleUploadFile uploads the files of msg and posts them, together with the
+// text of the message, as a single post (split in several posts only when
+// there are more files than Mattermost accepts on a post).
+//
+// It returns the ID of the (first) post, which carries the text, so that the
+// gateway can map later thread replies and edits to it.
 func (b *Bmattermost) handleUploadFile(msg *config.Message) (string, error) {
-	var err error
-	var res, id string
 	channelID := b.getChannelID(msg.Channel)
-	for _, f := range msg.Extra["file"] {
-		fi := f.(config.FileInfo)
-		id, err = b.mc.UploadFile(*fi.Data, channelID, fi.Name)
-		if err != nil {
-			return "", err
-		}
-		msg.Text = fi.Comment
-		if b.GetBool("PrefixMessagesWithNick") {
-			msg.Text = msg.Username + msg.Text
-		}
-		res, err = b.mc.PostMessageWithFiles(channelID, msg.Text, msg.ParentID, []string{id})
+
+	// Some bridges (e.g. Slack) move the text of a message with files into
+	// the comment of the first file.
+	text := msg.Text
+	if text == "" {
+		text = fileComments(msg)
 	}
-	return res, err
+
+	var fileIDs, fallbackURLs []string
+	for _, f := range msg.Extra["file"] {
+		fi, ok := f.(config.FileInfo)
+		if !ok || fi.Data == nil {
+			continue
+		}
+
+		id, err := b.mc.UploadFile(*fi.Data, channelID, fi.Name)
+		if err != nil {
+			b.Log.Errorf("uploading file %s failed: %s", fi.Name, err)
+			// don't lose the file if we can link to it (e.g. on the mediaserver)
+			if fi.URL != "" {
+				fallbackURLs = append(fallbackURLs, fi.URL)
+			}
+
+			continue
+		}
+
+		fileIDs = append(fileIDs, id)
+	}
+
+	if len(fallbackURLs) > 0 {
+		text = strings.TrimSpace(text + " " + strings.Join(fallbackURLs, " "))
+	}
+
+	if len(fileIDs) == 0 {
+		if text == "" {
+			return "", errNoFileUploaded
+		}
+
+		return b.mc.PostMessage(channelID, b.prefixNick(msg.Username, text), msg.ParentID)
+	}
+
+	var firstID string
+
+	for start := 0; start < len(fileIDs); start += maxFilesPerPost {
+		end := min(start+maxFilesPerPost, len(fileIDs))
+
+		postText := ""
+		if start == 0 {
+			postText = text
+		}
+
+		id, err := b.mc.PostMessageWithFiles(channelID, b.prefixNick(msg.Username, postText), msg.ParentID, fileIDs[start:end])
+		if err != nil {
+			if start == 0 {
+				return "", err
+			}
+
+			b.Log.Errorf("posting files failed: %s", err)
+
+			continue
+		}
+
+		if start == 0 {
+			firstID = id
+		}
+	}
+
+	return firstID, nil
 }
 
 //nolint:forcetypeassert

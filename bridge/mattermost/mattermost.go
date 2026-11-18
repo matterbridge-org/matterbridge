@@ -29,6 +29,8 @@ type Bmattermost struct {
 
 const mattermostPlugin = "mattermost.plugin"
 
+var errChannelNotFound = errors.New("could not find channel ID for channel")
+
 func New(cfg *bridge.Config) bridge.Bridger {
 	b := &Bmattermost{
 		Config:         cfg,
@@ -108,13 +110,15 @@ func (b *Bmattermost) JoinChannel(channel config.ChannelInfo) error {
 	b.channelsMutex.Unlock()
 
 	// we can only join channels using the API
-	if b.GetString("WebhookURL") == "" && b.GetString("WebhookBindAddress") == "" {
-		id := b.getChannelID(channel.Name)
-		if id == "" {
-			return fmt.Errorf("Could not find channel ID for channel %s", channel.Name)
+	if b.mc != nil {
+		err := b.joinChannelAPI(channel.Name)
+		if err != nil && b.GetString("WebhookURL") != "" {
+			// We can still post through the webhook: don't fail.
+			b.Log.Warnf("%s: threads, edits and deletes will not work in this channel", err)
+			return nil
 		}
 
-		return b.mc.JoinChannel(id)
+		return err
 	}
 
 	return nil
@@ -136,8 +140,15 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
 		return b.cacheAvatar(&msg)
 	}
 
-	// Use webhook to send the message
-	if b.GetString("WebhookURL") != "" {
+	useWebhook := b.GetString("WebhookURL") != ""
+
+	// Webhook only (no Token/Login): we can't thread, edit or delete.
+	if useWebhook && b.mc == nil {
+		msg.ParentID = ""
+		if msg.ID != "" {
+			b.Log.Debugf("Can't edit a message using only a webhook, configure a Token to enable editing")
+			return "", nil
+		}
 		return b.sendWebhook(msg)
 	}
 
@@ -150,6 +161,17 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
 		return msg.ID, b.mc.DeleteMessage(msg.ID)
 	}
 
+	// File deletions carry the native file ID of the source bridge, not a
+	// post ID: they must not be handled as edits.
+	if msg.Event == config.EventFileDelete {
+		return "", nil
+	}
+
+	// The webhook never relayed events (join/leave, topic changes, ...).
+	if useWebhook && msg.Event != "" && msg.Event != config.EventUserAction {
+		return "", nil
+	}
+
 	// Handle prefix hint for unthreaded messages.
 	if msg.ParentNotFound() {
 		msg.ParentID = ""
@@ -159,12 +181,41 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
 	// we only can reply to the root of the thread, not to a specific ID (like discord for example does)
 	if msg.ParentID != "" {
 		post, _, err := b.mc.Client.GetPost(context.TODO(), msg.ParentID, "")
-		if err != nil {
-			b.Log.Errorf("getting post %s failed: %s", msg.ParentID, err)
-		}
-		if post != nil && post.RootId != "" {
+		switch {
+		case err != nil || post == nil:
+			// The parent is unknown on this server: posting with an invalid
+			// root_id would be rejected and the message lost, so post it
+			// unthreaded with the usual hint instead.
+			b.Log.Errorf("getting parent post %s failed, sending unthreaded: %s", msg.ParentID, err)
+			msg.ParentID = ""
+			msg.Text = "[thread]: " + msg.Text
+		case post.RootId != "":
 			msg.ParentID = post.RootId
 		}
+	}
+
+	// Edit message if we have an ID. This must be handled before files:
+	// edits of messages carrying attachments (e.g. a Slack image whose caption
+	// is edited) arrive with the files again, and re-uploading them would
+	// create a new post instead of editing the existing one.
+	if msg.ID != "" {
+		if useWebhook {
+			// keep the text as it was posted through the webhook
+			return b.editPost(msg.ID, b.webhookText(&msg))
+		}
+
+		text := msg.Text
+		if text == "" {
+			text = fileComments(&msg)
+		}
+
+		return b.editPost(msg.ID, b.prefixNick(msg.Username, text))
+	}
+
+	// Post through the webhook (keeps the remote user's name and avatar); the
+	// API is used to thread, and to find the ID of the post for later edits.
+	if useWebhook {
+		return b.sendWebhook(msg)
 	}
 
 	// Upload a file if it exists
@@ -179,16 +230,15 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
 		}
 	}
 
-	// Prepend nick if configured
-	if b.GetBool("PrefixMessagesWithNick") {
-		msg.Text = msg.Username + msg.Text
-	}
-
-	// Edit message if we have an ID
-	if msg.ID != "" {
-		return b.mc.EditMessage(msg.ID, msg.Text)
-	}
-
 	// Post normal message
-	return b.mc.PostMessage(b.getChannelID(msg.Channel), msg.Text, msg.ParentID)
+	return b.mc.PostMessage(b.getChannelID(msg.Channel), b.prefixNick(msg.Username, msg.Text), msg.ParentID)
+}
+
+func (b *Bmattermost) joinChannelAPI(name string) error {
+	id := b.getChannelID(name)
+	if id == "" {
+		return fmt.Errorf("%w %s", errChannelNotFound, name)
+	}
+
+	return b.mc.JoinChannel(id)
 }
