@@ -100,6 +100,14 @@ func (b *Bmattermost) handleMatterClient(messages chan *config.Message) {
 	for message := range b.mc.MessageChan {
 		b.Log.Debugf("%#v %#v", message.Raw.GetData(), message.Raw.EventType())
 
+		if ev := message.Raw.EventType(); ev == model.WebsocketEventReactionAdded || ev == model.WebsocketEventReactionRemoved {
+			if rmsg := b.handleReactionEvent(message); rmsg != nil {
+				messages <- rmsg
+			}
+
+			continue
+		}
+
 		if b.skipMessage(message) {
 			b.Log.Debugf("Skipped message: %#v", message)
 			continue

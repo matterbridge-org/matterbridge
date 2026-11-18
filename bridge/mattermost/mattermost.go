@@ -23,6 +23,7 @@ type Bmattermost struct {
 	TeamID string
 	*bridge.Config
 	avatarMap      map[string]string
+	reactions      *helper.ReactionTracker
 	channelsMutex  sync.RWMutex
 	channelInfoMap map[string]*config.ChannelInfo
 }
@@ -35,6 +36,7 @@ func New(cfg *bridge.Config) bridge.Bridger {
 	b := &Bmattermost{
 		Config:         cfg,
 		avatarMap:      make(map[string]string),
+		reactions:      helper.NewReactionTracker(reactionTrackerSize),
 		channelInfoMap: make(map[string]*config.ChannelInfo),
 	}
 
@@ -129,6 +131,10 @@ func (b *Bmattermost) Send(msg config.Message) (string, error) {
 		return "", nil
 	}
 	b.Log.Debugf("=> Receiving %#v", msg)
+
+	if msg.IsReaction() {
+		return b.sendReaction(&msg)
+	}
 
 	// Make a action /me of the message
 	if msg.Event == config.EventUserAction {

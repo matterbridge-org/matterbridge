@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
@@ -332,4 +333,132 @@ func TestE2EMattermostEvents(t *testing.T) {
 		assert.NoError(t, err, event)
 		assert.Empty(t, id, event)
 	}
+}
+
+func adminClient(t *testing.T) *model.Client4 {
+	t.Helper()
+
+	token := os.Getenv("MM_E2E_ADMIN_TOKEN")
+	if token == "" {
+		t.Skip("MM_E2E_ADMIN_TOKEN not set")
+	}
+	c := model.NewAPIv4Client("http://" + os.Getenv("MM_E2E_SERVER"))
+	c.SetToken(token)
+
+	return c
+}
+
+// waitRemote returns the next message the bridge sends to the gateway
+// matching match, or fails after a timeout.
+func waitRemote(t *testing.T, b *Bmattermost, match func(config.Message) bool) config.Message {
+	t.Helper()
+
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case msg := <-b.Remote:
+			if match(msg) {
+				return msg
+			}
+		case <-timeout:
+			t.Fatal("timeout waiting for message to the gateway")
+			return config.Message{}
+		}
+	}
+}
+
+func TestE2EMattermostReactions(t *testing.T) {
+	admin := adminClient(t)
+	b := e2eBridge(t, "PreserveReactions=true")
+	channel := os.Getenv("MM_E2E_CHANNEL")
+	channelID := b.getChannelID(channel)
+	ctx := context.Background()
+	me, _, err := admin.GetMe(ctx, "")
+	require.NoError(t, err)
+
+	reactions := func(postID string) []string {
+		t.Helper()
+		rs, _, err := admin.GetReactions(ctx, postID)
+		require.NoError(t, err)
+		var names []string
+		for _, r := range rs {
+			names = append(names, r.UserId+":"+r.EmojiName)
+		}
+		return names
+	}
+	react := func(event, postID, emoji, userID string) {
+		t.Helper()
+		_, err := b.Send(config.Message{Event: event, ID: postID, Text: emoji, Channel: channel,
+			Account: "slack.e2e", UserID: userID, Username: userID})
+		require.NoError(t, err)
+	}
+
+	post, _, err := admin.CreatePost(ctx, &model.Post{ChannelId: channelID, Message: "react to me"})
+	require.NoError(t, err)
+	bot := b.mc.User.Id
+
+	t.Run("send: one reaction for several remote users", func(t *testing.T) {
+		react(config.EventReactionAdd, post.Id, "+1", "U1")
+		react(config.EventReactionAdd, post.Id, "+1", "U2")
+		assert.Equal(t, []string{bot + ":+1"}, reactions(post.Id))
+
+		react(config.EventReactionRemove, post.Id, "+1", "U1")
+		assert.Equal(t, []string{bot + ":+1"}, reactions(post.Id), "U2 still reacts")
+
+		react(config.EventReactionRemove, post.Id, "+1", "U2")
+		assert.Empty(t, reactions(post.Id))
+	})
+
+	t.Run("send: skin tones", func(t *testing.T) {
+		react(config.EventReactionAdd, post.Id, "wave::skin-tone-3", "U1")
+		assert.Equal(t, []string{bot + ":wave_medium_light_skin_tone"}, reactions(post.Id))
+		react(config.EventReactionRemove, post.Id, "wave::skin-tone-3", "U1")
+		assert.Empty(t, reactions(post.Id))
+	})
+
+	t.Run("send: unknown emoji is an error, not a crash", func(t *testing.T) {
+		_, err := b.Send(config.Message{Event: config.EventReactionAdd, ID: post.Id, Text: "not_an_emoji_xyz",
+			Channel: channel, Account: "slack.e2e", UserID: "U9"})
+		assert.Error(t, err)
+	})
+
+	// drain what the bridge received so far
+	for len(b.Remote) > 0 {
+		<-b.Remote
+	}
+
+	t.Run("receive: user reactions are relayed", func(t *testing.T) {
+		_, _, err := admin.SaveReaction(ctx, &model.Reaction{UserId: me.Id, PostId: post.Id, EmojiName: "thumbsup_medium_skin_tone"})
+		require.NoError(t, err)
+		msg := waitRemote(t, b, func(m config.Message) bool { return m.IsReaction() })
+		assert.Equal(t, config.EventReactionAdd, msg.Event)
+		assert.Equal(t, post.Id, msg.ID)
+		assert.Equal(t, "thumbsup::skin-tone-4", msg.Text)
+		assert.Equal(t, channel, msg.Channel)
+		assert.Equal(t, me.Id, msg.UserID)
+		assert.Equal(t, "e2eadmin", msg.Username)
+
+		_, err = admin.DeleteReaction(ctx, &model.Reaction{UserId: me.Id, PostId: post.Id, EmojiName: "thumbsup_medium_skin_tone"})
+		require.NoError(t, err)
+		msg = waitRemote(t, b, func(m config.Message) bool { return m.IsReaction() })
+		assert.Equal(t, config.EventReactionRemove, msg.Event)
+		assert.Equal(t, channel, msg.Channel, "channel is found on removal too")
+	})
+
+	t.Run("receive: our own reactions are not relayed back", func(t *testing.T) {
+		react(config.EventReactionAdd, post.Id, "heart", "U1")
+		// a user reaction after ours: it must be the first one we get
+		_, _, err := admin.SaveReaction(ctx, &model.Reaction{UserId: me.Id, PostId: post.Id, EmojiName: "smile"})
+		require.NoError(t, err)
+		msg := waitRemote(t, b, func(m config.Message) bool { return m.IsReaction() })
+		assert.Equal(t, "smile", msg.Text)
+	})
+
+	t.Run("receive: edits of posts with reactions are relayed", func(t *testing.T) {
+		text := "react to me (edited)"
+		_, _, err := admin.PatchPost(ctx, post.Id, &model.PostPatch{Message: &text})
+		require.NoError(t, err)
+		msg := waitRemote(t, b, func(m config.Message) bool { return m.ID == post.Id && !m.IsReaction() })
+		assert.Equal(t, text, msg.Text)
+	})
 }
