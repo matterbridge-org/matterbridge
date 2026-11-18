@@ -37,6 +37,7 @@ type Bslack struct {
 	actingUserName string
 
 	cache        *lru.Cache[string, any]
+	reactions    *helper.ReactionTracker
 	uuid         string
 	useChannelID bool
 
@@ -78,6 +79,7 @@ const (
 	iconURLConfig         = "iconurl"
 	noSendJoinConfig      = "nosendjoinpart"
 	messageLength         = 3000
+	reactionTrackerSize   = 5000
 )
 
 func New(cfg *bridge.Config) bridge.Bridger {
@@ -108,9 +110,10 @@ func newBridge(cfg *bridge.Config) *Bslack {
 		cfg.Log.Fatalf("Could not create LRU cache for Slack bridge: %v", err)
 	}
 	b := &Bslack{
-		Config: cfg,
-		uuid:   xid.New().String(),
-		cache:  newCache,
+		Config:    cfg,
+		uuid:      xid.New().String(),
+		cache:     newCache,
+		reactions: helper.NewReactionTracker(reactionTrackerSize),
 	}
 	return b
 }
@@ -333,6 +336,11 @@ func (b *Bslack) sendAPI(msg config.Message) (string, error) {
 			b.rtm.SendMessage(b.rtm.NewTypingMessage(channelInfo.ID))
 		}
 		return "", nil
+	}
+
+	// Handle reactions.
+	if msg.IsReaction() {
+		return "", b.sendReaction(&msg, channelInfo.ID)
 	}
 
 	var handled bool
