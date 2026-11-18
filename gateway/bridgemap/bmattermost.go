@@ -8,4 +8,5 @@ import (
 
 func init() {
 	FullMap["mattermost"] = bmattermost.New
+	ReactionSupport["mattermost"] = struct{}{}
 }

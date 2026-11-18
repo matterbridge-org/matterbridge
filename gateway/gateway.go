@@ -169,6 +169,16 @@ func (gw *Gateway) SendMessage( //nolint:gocyclo,funlen
 		break
 	case config.EventFileDelete: // exclude file delete event as the msg ID here is the native file ID that needs to be deleted
 		break
+	case config.EventReactionAdd, config.EventReactionRemove:
+		// Unlike edits, reactions can target any copy of a message, not
+		// only the one sent from the reacting bridge.
+		debugSendMessage = fmt.Sprintf("=> Sending %#v from %s (%s) to %s (%s)", msg, msg.Account, rmsg.Channel, dest.Account, channel.Name)
+
+		msg.ID = gw.getDestParentID(gw.FindCanonicalMsgID(rmsg.Protocol, rmsg.ID), dest, channel)
+		if msg.ID == "" {
+			gw.logger.Debugf("=> Dropping reaction to unknown message %s on %s", rmsg.ID, dest.Account)
+			return "", nil
+		}
 	default:
 		debugSendMessage = fmt.Sprintf("=> Sending %#v from %s (%s) to %s (%s)", msg, msg.Account, rmsg.Channel, dest.Account, channel.Name)
 		msg.ID = gw.getDestMsgID(rmsg.Protocol+" "+rmsg.ID, dest, channel)

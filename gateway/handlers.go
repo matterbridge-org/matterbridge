@@ -161,6 +161,13 @@ func (gw *Gateway) handleMessage(rmsg *config.Message, dest *bridge.Bridge) []*B
 		}
 	}
 
+	// Reactions are only relayed to bridges supporting them, when enabled.
+	if rmsg.IsReaction() {
+		if _, ok := bridgemap.ReactionSupport[dest.Protocol]; !ok || !dest.GetBool("PreserveReactions") {
+			return nil
+		}
+	}
+
 	// if we have an attached file, or other info
 	if rmsg.Extra != nil && len(rmsg.Extra[config.EventFileFailureSize]) != 0 && rmsg.Text == "" {
 		return brMsgIDs

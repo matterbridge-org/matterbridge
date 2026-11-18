@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/matterbridge-org/matterbridge/bridge"
 	"github.com/matterbridge-org/matterbridge/bridge/config"
 	"github.com/matterbridge-org/matterbridge/gateway/bridgemap"
 	"github.com/sirupsen/logrus"
@@ -165,6 +166,19 @@ func maketestRouter(input []byte) *Router {
 	if err != nil {
 		fmt.Println(err)
 	}
+	return r
+}
+
+func maketestRouterWithBridges(input []byte, bridgeMap map[string]bridge.Factory) *Router {
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+	cfg := config.NewConfigFromString(logger, input)
+
+	r, err := NewRouter(logger, cfg, bridgeMap)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	return r
 }
 
