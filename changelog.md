@@ -71,6 +71,8 @@
 ## Bugfixes
 
 - general
+  - unset optional list settings (e.g. `ReplaceMessages`, `ExtractNicks`) no longer log an error on
+    every message
   - when downloading a file attachment from a remote HTTP server, matterbridge will now error if
     the return code is not 200 to avoid saving trash data ([#20](https://github.com/matterbridge-org/matterbridge/pull/20))
   - fix for upstream issue 42wim#2043 by github user adbenitez's [fork](https://github.com/adbenitez/matterbridge/tree/adb/issue-2043) which will prevent per-destination message modifications for one bridge, such as for `StripNick` or `ColorNicks`, from being incorrectly applied to the original message that will be sent to other bridges which may not be using such settings
@@ -90,11 +92,31 @@
 - telegram
   - OGG Vorbis attachments are now sent as audio or document to prevent confusion being received as a corrupted voice message
   - attachments of mixed types in the same message will be uploaded as documents
+- gateway
+  - thread replies whose parent has no known ID on the destination are now sent unthreaded with
+    a `[thread]: ` prefix, instead of passing the parent ID of another protocol to the destination
+    (Slack rejected those replies with `invalid_thread_ts` and they were lost)
+- mattermost
+  - `WebhookURL` together with `Token`/`Login`: messages are still posted through the webhook (to
+    keep the remote nick and avatar) but are now threaded with `PreserveThreading`, and their post
+    ID is looked up through the API so that edits and deletes from other bridges update the
+    original post instead of being re-posted as new messages
+  - the text of messages with attachments is no longer dropped (e.g. Slack images with a caption)
+  - edits are applied with `PatchPost`, and edits of messages with attachments no longer re-upload
+    the files as a new post
+  - all files of a message are sent in a single post carrying the text, instead of one post per file
+  - a thread reply whose parent can't be found is sent unthreaded instead of being lost
+  - with `PrefixMessagesWithNick`, text starting with block markdown (code fence, quote, list...)
+    is moved to its own line so it still renders
 - slack
   - file uploading now use the new upload steps described in the slack docs via `UploadFileV2`, replacing the deprecated and now disabled `file.upload` based method (via `UploadFile`) ([#129](https://github.com/matterbridge-org/matterbridge/pull/129))
   - file and image downloads now work with Socket Mode apps: the Events API delivers file objects
     without download URLs, so the full file object is now fetched via `files.info` before
     downloading ([#245](https://github.com/matterbridge-org/matterbridge/pull/245))
+  - the ID of messages posted with files is looked up for a few seconds, as `UploadFileV2` shares
+    files asynchronously: without it replies and edits to those messages could not be mapped
+  - messages from other bridges carrying only attachments metadata (e.g. Mattermost message
+    attachments) and no file are now posted instead of being silently dropped
 - discord
   - attached files are always downloaded, so when the media server is enabled, URLs can stay valid
     longer than Discord URLs ([#37](https://github.com/matterbridge-org/matterbridge/issues/37), [#114](https://github.com/matterbridge-org/matterbridge/pull/114))
