@@ -26,6 +26,9 @@ type OMessage struct {
 	Attachments []slack.Attachment `json:"attachments,omitempty"`
 	Type        string             `json:"type,omitempty"`
 	Props       map[string]any     `json:"props"`
+	// RootID makes the post a reply in the thread of this (root) post.
+	// Supported by Mattermost incoming webhooks.
+	RootID string `json:"root_id,omitempty"`
 }
 
 // IMessage for mattermost outgoing webhook. (received from mattermost)

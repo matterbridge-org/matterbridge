@@ -375,7 +375,11 @@ func (b *Bslack) sendAPI(msg config.Message) (string, error) {
 			}
 		}
 		// Upload files if necessary (from Slack, Telegram or Mattermost).
-		return b.uploadFile(&msg, channelInfo.ID)
+		// Messages that only carry other extras (e.g. Mattermost message
+		// attachments) are posted normally below, otherwise they'd be dropped.
+		if len(msg.Extra["file"]) > 0 {
+			return b.uploadFile(&msg, channelInfo.ID)
+		}
 	}
 
 	// Post message.
@@ -531,26 +535,51 @@ func (b *Bslack) uploadFile(msg *config.Message, channelID string) (string, erro
 			return "", err
 		}
 		if res.ID != "" {
-			// UploadFileV2 doesn't return the full slack.File info like the previous UploadFile, so query it separately
-			sfi, _, _, err := b.sc.GetFileInfo(res.ID, 0, 1)
-			if err != nil {
-				b.Log.Errorf("GetFileInfo uploaded error %#v", err)
-				return "", err
-			}
-
 			b.Log.Debugf("Adding file ID %s to cache with timestamp %s", res.ID, ts.String())
 			b.cache.Add("file"+res.ID, ts)
 
-			// search for message id by uploaded file in private/public channels, get thread timestamp from uploaded file
-			if v, ok := sfi.Shares.Private[channelID]; ok && len(v) > 0 {
-				messageID = v[0].Ts
-			}
-			if v, ok := sfi.Shares.Public[channelID]; ok && len(v) > 0 {
-				messageID = v[0].Ts
+			if id := b.uploadedFileMessageID(res.ID, channelID); id != "" {
+				messageID = id
 			}
 		}
 	}
 	return messageID, nil
+}
+
+// uploadedFileMessageID returns the ID (timestamp) of the message sharing the
+// uploaded file fileID in channelID.
+//
+// UploadFileV2 doesn't return the full slack.File info like the previous
+// UploadFile, and files.completeUploadExternal shares the file asynchronously:
+// right after the upload the share is often not visible yet. Without this ID
+// the gateway can't map later thread replies or edits to this message, so
+// retry for a few seconds.
+func (b *Bslack) uploadedFileMessageID(fileID, channelID string) string {
+	const attempts = 5
+	for attempt := range attempts {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+		}
+
+		sfi, _, _, err := b.sc.GetFileInfo(fileID, 0, 1)
+		if err != nil {
+			b.Log.Errorf("GetFileInfo uploaded error %#v", err)
+			continue
+		}
+
+		// search for message id by uploaded file in private/public channels
+		if v, ok := sfi.Shares.Private[channelID]; ok && len(v) > 0 {
+			return v[0].Ts
+		}
+
+		if v, ok := sfi.Shares.Public[channelID]; ok && len(v) > 0 {
+			return v[0].Ts
+		}
+	}
+
+	b.Log.Warnf("Could not find the message ID of uploaded file %s, replies and edits to it will not be mapped", fileID)
+
+	return ""
 }
 
 func (b *Bslack) prepareMessageOptions(msg *config.Message) []slack.MsgOption {

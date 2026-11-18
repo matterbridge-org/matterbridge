@@ -430,7 +430,14 @@ func (c *config) GetStringSlice2D(key string) ([][]string, bool) {
 	c.RLock()
 	defer c.RUnlock()
 
-	res, ok := c.v.Get(key).([]any)
+	raw := c.v.Get(key)
+	if raw == nil {
+		// The key is simply not configured (e.g. optional ReplaceMessages,
+		// ExtractNicks), this is not an error.
+		return nil, false
+	}
+
+	res, ok := raw.([]any)
 	if !ok {
 		c.logger.Errorf("GetStringSlice2D: key %s should be an array of strings", key)
 

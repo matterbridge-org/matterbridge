@@ -96,6 +96,21 @@ Url is your incoming webhook url as specified in mattermost.
 See account settings - integrations - incoming webhooks on mattermost.
 If specified, messages will be sent to mattermost using this URL
 
+Since Mattermost 12, the remote nick and avatar (`override_username` /
+`override_icon_url`) are only displayed for posts made through an incoming
+webhook, so this is the only way to show bridged messages under the name of
+their author rather than the bot.
+
+When `Token` (or `Login`/`Password`) is configured as well, the API is used
+next to the webhook, so that bridged messages can still be threaded (with
+`PreserveThreading`), edited and deleted. Edits and deletes require the
+webhook to be **created by the same user as the `Token`**, because Mattermost
+only lets the owner of a webhook (or users who may edit others' posts) modify
+its posts. matterbridge logs a warning on startup when this is not the case.
+
+With only a webhook (no `Token`/`Login`), messages can't be threaded, edited
+or deleted.
+
 - Setting: **OPTIONAL**
 - Format: *string*
 - Example: 
@@ -190,6 +205,20 @@ Whether to prefix messages from other bridges to mattermost with the sender's ni
 - Example:
   ```toml
   PrefixMessagesWithNick=false
+  ```
+
+## PreserveThreading
+
+Map threads from other bridges on Mattermost threads (and the other way around
+when the other bridge enables it too). This only works if the parent message
+is still in the cache, which is flushed between restarts: replies to unknown
+messages are sent with a `[thread]: ` prefix.
+
+- Setting: **OPTIONAL**, **RELOADABLE**
+- Format: *boolean*
+- Example:
+  ```toml
+  PreserveThreading=true
   ```
 
 ## EditDisable
